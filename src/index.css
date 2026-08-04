@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+
+img {
+  image-rendering: pixelated;
+}

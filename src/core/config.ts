@@ -429,6 +429,12 @@ export const SHOP_SLOTS = {
   drifterChips: 1,
 } as const
 
+/**
+ * Companion effects land at P4 (GDD 7-1-b). Until then the shop builds the slot
+ * but leaves it empty, so nothing is sold that does nothing. Flip to true at P4.
+ */
+export const COMPANIONS_ENABLED = false
+
 // ------------------------------------------------- probability layer
 // GDD 8
 

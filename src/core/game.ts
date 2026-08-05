@@ -19,7 +19,7 @@ import { createInitialDeck, drawFromDeck, returnToDeck } from './deck'
 import { shuffle } from './rng'
 import type { Rng } from './rng'
 import { randomDrifterChooser, scoreBoard } from './scoring'
-import { applyPurchase, canAfford, rerollPrice, rollStock } from './shop'
+import { applyPurchase, canAfford, grantDrifter, rerollPrice, rollStock } from './shop'
 import type { Loadout, Purchase, ShopStock } from './shop'
 import type {
   Board,
@@ -237,8 +237,15 @@ export function endRound(game: Game): Game {
   return { ...game, stardust, round: game.round + 1, phase: 'shop' }
 }
 
+/** GDD 13-4: the first visit to ORION is where the drifter is handed over. */
 export function openShop(game: Game): Game {
-  return { ...game, stock: rollStock(loadoutOf(game), game.rng), rerollsUsed: 0, phase: 'shop' }
+  const gifted = withLoadout(game, grantDrifter(loadoutOf(game)))
+  return {
+    ...gifted,
+    stock: rollStock(loadoutOf(gifted), gifted.rng),
+    rerollsUsed: 0,
+    phase: 'shop',
+  }
 }
 
 /** Ignores a purchase the player cannot afford. */

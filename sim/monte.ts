@@ -8,7 +8,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { MODE_PRESETS, SHOP_PRICES } from '../src/core/config'
+import { MODE_PRESETS } from '../src/core/config'
 import type { MultiplierStackMode } from '../src/core/config'
 import type { GameMode } from '../src/core/types'
 import { ceilings } from './ceiling'
@@ -63,11 +63,7 @@ interface Summary {
   readonly clearRate: number
   readonly ratioHistogram: readonly number[]
   readonly meanTurns: number
-  readonly drifterBoughtRate: number
-  readonly clearRateWithDrifter: number
-  readonly clearRateWithoutDrifter: number
-  /** Mean marginal points of the drifter cell per settlement, by purchase round. */
-  readonly drifterPointsByRound: ReadonlyMap<number, { total: number; turns: number }>
+  /** Mean marginal points of the drifter cell per settlement it took part in. */
   readonly drifterPointsPerTurn: number
   readonly seconds: number
 }
@@ -90,12 +86,9 @@ function measure(opts: MeasureOptions): Summary {
   const scores: number[][] = targets.map(() => [])
   const clears = targets.map(() => 0)
   const histogram = new Array<number>(RATIO_EDGES.length + 1).fill(0)
-  const drifterByRound = new Map<number, { total: number; turns: number }>()
 
   let clearedAll = 0
   let turns = 0
-  let withDrifter = 0
-  let withDrifterCleared = 0
   let drifterPoints = 0
   let drifterTurns = 0
 
@@ -120,19 +113,10 @@ function measure(opts: MeasureOptions): Summary {
     if (result.clearedAll) clearedAll++
     turns += result.turnsPlayed
 
-    if (log.drifterBoughtAfterRound !== null) {
-      withDrifter++
-      if (result.clearedAll) withDrifterCleared++
-      const bucket = drifterByRound.get(log.drifterBoughtAfterRound) ?? { total: 0, turns: 0 }
-      bucket.total += log.drifterPoints
-      bucket.turns += log.drifterTurns
-      drifterByRound.set(log.drifterBoughtAfterRound, bucket)
-    }
     drifterPoints += log.drifterPoints
     drifterTurns += log.drifterTurns
   }
 
-  const withoutDrifter = opts.runs - withDrifter
   return {
     tier: opts.tier,
     stackMode: opts.stackMode,
@@ -149,10 +133,6 @@ function measure(opts: MeasureOptions): Summary {
     clearRate: clearedAll / opts.runs,
     ratioHistogram: histogram,
     meanTurns: turns / opts.runs,
-    drifterBoughtRate: withDrifter / opts.runs,
-    clearRateWithDrifter: withDrifter ? withDrifterCleared / withDrifter : 0,
-    clearRateWithoutDrifter: withoutDrifter ? (clearedAll - withDrifterCleared) / withoutDrifter : 0,
-    drifterPointsByRound: drifterByRound,
     drifterPointsPerTurn: drifterTurns ? drifterPoints / drifterTurns : 0,
     seconds: (performance.now() - started) / 1000,
   }
@@ -403,7 +383,7 @@ function main(): void {
       `동반성 비활성(P4 이전, GDD 7-1-b) → **모든 클리어율은 하한선이다.**`,
   )
   say()
-  say(`목표 곡선 \`[${MODE_PRESETS.full.TARGET_SCORES.join(', ')}]\` · 떠돌이 ${SHOP_PRICES.drifterChip} 스타더스트`)
+  say(`목표 곡선 \`[${MODE_PRESETS.full.TARGET_SCORES.join(', ')}]\` · 떠돌이 조각 첫 상점 무상 지급(GDD 13-4)`)
   say()
 
   // --- condition 3 (GDD 13-3)
@@ -461,7 +441,7 @@ function main(): void {
   say()
   say(
     '**기준선** = 시작 별자리 없음 · **13-5** = 시작 별자리 1개 지급. ' +
-      '두 열 모두 인하된 떠돌이 가격을 쓰므로, 차이는 시작 별자리 하나뿐이다.',
+      '두 열 모두 떠돌이 무상 지급을 쓰므로, 차이는 시작 별자리 하나뿐이다.',
   )
   say()
   comparison(full, baseFull).forEach(say)
@@ -543,52 +523,47 @@ function main(): void {
   say()
 
   // --- drifter (Q5)
-  say('## 6. 떠돌이 조각 — 구매 여부별 클리어율과 실제 기여')
+  say('## 6. 떠돌이 조각의 실제 기여')
   say()
-  say(`가격 ${SHOP_PRICES.drifterChip} 스타더스트. greedy/smart는 진열되고 살 수 있으면 즉시 구매한다.`)
+  say(
+    'GDD 13-4에 따라 첫 상점에서 무상 지급된다. 따라서 구매율은 더 이상 측정 대상이 아니고, ' +
+      '남는 질문은 그 칸이 실제로 얼마를 버느냐다. 값은 떠돌이 칸을 비웠을 때와의 차이다.',
+  )
   say()
-  say('| tier × mode | 구매율 | 구매 시 클리어율 | 미구매 시 클리어율 | 평균 기여(점/턴) |')
-  say('|:--|--:|--:|--:|--:|')
+  say(`| tier | ${STACK_MODES.join(' | ')} |`)
+  say(`|:--|${STACK_MODES.map(() => '--:').join('|')}|`)
   for (const tier of TIERS) {
-    for (const stackMode of STACK_MODES) {
-      const s = full.get(`${tier}|${stackMode}`)!
-      say(
-        `| ${tier} × ${stackMode} | ${pct(s.drifterBoughtRate)} | ${pct(s.clearRateWithDrifter)} | ` +
-          `${pct(s.clearRateWithoutDrifter)} | ${s.drifterPointsPerTurn.toFixed(1)} |`,
-      )
-    }
-  }
-  say()
-  say('구매 시점(상점 방문 회차 = 클리어한 라운드)별 평균 기여')
-  say()
-  say('| tier (sum) | 구매 라운드 | 표본 턴 | 평균 기여(점/턴) |')
-  say('|:--|--:|--:|--:|')
-  for (const tier of TIERS) {
-    const s = full.get(`${tier}|sum`)!
-    for (const round of [...s.drifterPointsByRound.keys()].sort((a, b) => a - b)) {
-      const bucket = s.drifterPointsByRound.get(round)!
-      if (bucket.turns === 0) continue
-      say(`| ${tier} | ${round} | ${bucket.turns} | ${(bucket.total / bucket.turns).toFixed(1)} |`)
-    }
+    say(
+      `| ${tier} | ${STACK_MODES.map((m) => `${full.get(`${tier}|${m}`)!.drifterPointsPerTurn.toFixed(1)}점/턴`).join(' | ')} |`,
+    )
   }
   say()
 
   // --- wager sensitivity (Q7)
-  say('## 7. WAGER 정답률 민감도 (GDD 13-2 ②)')
+  say('## 7. WAGER 정답률 민감도 (GDD 12-5)')
   say()
-  say('WAGER 정답률만 0%/100%로 고정. DRIFT ORACLE은 등급 기본값 유지.')
+  say(
+    'WAGER 정답률만 고정하고 DRIFT ORACLE은 등급 기본값을 유지한다. ' +
+      '부스판은 **정답률 0%에서도 greedy가 70% 이상**이어야 한다 — 확률을 못 맞혀도 탈락시키지 않는다는 원칙(12-5절).',
+  )
   say()
-  say('| tier (sum) | WAGER 0% | WAGER 100% | 차이 |')
-  say('|:--|--:|--:|--:|')
-  const wagerGap = new Map<Tier, number>()
-  for (const tier of TIERS) {
-    const low = measure({ tier, stackMode: 'sum', mode: 'full', runs: args.runs, seed: args.seed, wagerAccuracy: 0 })
-    const high = measure({ tier, stackMode: 'sum', mode: 'full', runs: args.runs, seed: args.seed, wagerAccuracy: 1 })
-    const gap = high.clearRate - low.clearRate
-    wagerGap.set(tier, gap)
-    say(`| ${tier} | ${pct(low.clearRate)} | ${pct(high.clearRate)} | ${(gap * 100).toFixed(1)}%p |`)
+  for (const mode of ['booth', 'full'] as const) {
+    say(`### ${mode === 'booth' ? '부스판 (3라운드)' : '풀버전 (8라운드)'}`)
+    say()
+    say('| tier (sum) | WAGER 0% | WAGER 50% | WAGER 100% | 0%→100% |')
+    say('|:--|--:|--:|--:|--:|')
+    for (const tier of TIERS) {
+      const at = (wagerAccuracy: number) =>
+        measure({ tier, stackMode: 'sum', mode, runs: args.runs, seed: args.seed, wagerAccuracy })
+      const [low, mid, high] = [at(0), at(0.5), at(1)]
+      const verdict = mode === 'booth' && tier === 'greedy' ? (low.clearRate >= 0.7 ? ' ✅' : ' ❌') : ''
+      say(
+        `| ${tier}${verdict} | ${pct(low.clearRate)} | ${pct(mid.clearRate)} | ${pct(high.clearRate)} | ` +
+          `${((high.clearRate - low.clearRate) * 100).toFixed(1)}%p |`,
+      )
+    }
+    say()
   }
-  say()
 
   mkdirSync(OUT_DIR, { recursive: true })
   writeFileSync(resolve(OUT_DIR, 'results.md'), `${lines.join('\n')}\n`, 'utf8')

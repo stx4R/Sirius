@@ -12,6 +12,7 @@ import {
   ALL_CONSTELLATIONS,
   applyPurchase,
   canAfford,
+  grantDrifter,
   rerollPrice,
   rollStock,
 } from '../src/core/shop'
@@ -33,7 +34,6 @@ describe('shop stock', () => {
 
     expect(stock.specials).toHaveLength(SHOP_SLOTS.specialChips)
     expect(stock.constellations).toHaveLength(SHOP_SLOTS.constellations)
-    expect(stock.drifter).toBe(true)
   })
 
   it('draws distinct specials from the 10 pairs', () => {
@@ -56,8 +56,8 @@ describe('shop stock', () => {
     }
   })
 
-  it('drops the drifter once it has been bought', () => {
-    expect(rollStock(loadout({ drifterOwned: true }), mulberry32(3)).drifter).toBe(false)
+  it('never stocks the drifter — it is a gift, not merchandise (GDD 13-4)', () => {
+    expect(rollStock(loadout(), mulberry32(3))).not.toHaveProperty('drifter')
   })
 
   it('leaves the companion slot empty while companions are disabled', () => {
@@ -88,11 +88,13 @@ describe('purchases', () => {
     })
   })
 
-  it('marks the drifter owned so it never returns to stock', () => {
-    const after = applyPurchase(loadout(), { kind: 'drifter' })
+  it('grants the drifter free, and only once (GDD 13-4)', () => {
+    const after = grantDrifter(loadout({ stardust: 7 }))
 
     expect(after.drifterOwned).toBe(true)
+    expect(after.stardust).toBe(7)
     expect(after.deck.filter((chip) => chip.kind === 'drifter')).toHaveLength(1)
+    expect(grantDrifter(after)).toBe(after)
   })
 
   it('removes exactly one basic chip of the chosen suit', () => {
@@ -134,9 +136,13 @@ describe('purchases', () => {
   })
 
   it('reports affordability against the price list', () => {
-    expect(canAfford(loadout({ stardust: SHOP_PRICES.drifterChip }), { kind: 'drifter' })).toBe(true)
-    expect(canAfford(loadout({ stardust: SHOP_PRICES.drifterChip - 1 }), { kind: 'drifter' })).toBe(
-      false,
+    const pair = SPECIAL_SUIT_PAIRS[0]
+
+    expect(canAfford(loadout({ stardust: SHOP_PRICES.specialChip }), { kind: 'special', pair })).toBe(
+      true,
     )
+    expect(
+      canAfford(loadout({ stardust: SHOP_PRICES.specialChip - 1 }), { kind: 'special', pair }),
+    ).toBe(false)
   })
 })

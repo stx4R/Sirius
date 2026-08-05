@@ -232,7 +232,18 @@ describe('shop transitions', () => {
   it('ignores a purchase the player cannot afford', () => {
     const broke = { ...newGame(), stardust: 1 }
 
-    expect(buy(broke, { kind: 'drifter' })).toBe(broke)
+    expect(buy(broke, { kind: 'special', pair: ['GAC', 'IMA'] })).toBe(broke)
+  })
+
+  it('hands the drifter over at the first shop, once (GDD 13-4)', () => {
+    const drifters = (game: Game) => game.ownedDeck.filter((chip) => chip.kind === 'drifter').length
+    const first = openShop({ ...newGame(), stardust: 0 })
+
+    expect(drifters(newGame())).toBe(0)
+    expect(first.drifterOwned).toBe(true)
+    expect(first.stardust).toBe(0)
+    expect(drifters(first)).toBe(1)
+    expect(drifters(openShop(first))).toBe(1)
   })
 
   it('clears the reroll counter again at the next round (GDD 9-2)', () => {

@@ -10,7 +10,6 @@ import {
   CONSTELLATION_MULTIPLIERS,
   CONSTELLATION_RULES,
   MAX_PLACEMENTS_PER_TURN,
-  SHOP_PRICES,
 } from '../src/core/config'
 import type { Placement, PlacementPolicy, ShopPolicy, TurnView } from '../src/core/game'
 import { shuffle } from '../src/core/rng'
@@ -86,20 +85,15 @@ const ORTHOGONAL: readonly (readonly [number, number])[] = [
 
 /** Per-run instrumentation, filled by the policies as they are invoked. */
 export interface RunLog {
-  /** Round after which the drifter was bought, or null if it never was. */
-  drifterBoughtAfterRound: number | null
   /** Settlements observed with the drifter on the board. */
   drifterTurns: number
   /** Summed marginal points of the drifter cell across those settlements. */
   drifterPoints: number
-  shopVisits: number
 }
 
 export const newRunLog = (): RunLog => ({
-  drifterBoughtAfterRound: null,
   drifterTurns: 0,
   drifterPoints: 0,
-  shopVisits: 0,
 })
 
 // ------------------------------------------------------------------ helpers
@@ -397,7 +391,7 @@ function constellationBuys(stock: ShopStock, loadout: Loadout, preferOverlap: bo
 }
 
 /**
- * greedy: drifter, then constellations, specials, and a basic top-up.
+ * greedy: constellations, then specials, then a basic top-up.
  * smart: the same, but constellations sharing an axis with what it already owns
  * come first and it thins the deck toward SMART_TARGET_SUITS.
  */
@@ -406,9 +400,6 @@ function plannedBuys(view: { stock: ShopStock; loadout: Loadout }, smart: boolea
   const counts = suitCounts(loadout.deck)
   const byCount = [...SUIT_ORDER].sort((a, b) => counts[b] - counts[a])
   const plan: Purchase[] = []
-
-  // Only one drifter exists per game, so it is taken as soon as it is affordable.
-  if (stock.drifter && loadout.stardust >= SHOP_PRICES.drifterChip) plan.push({ kind: 'drifter' })
 
   plan.push(...constellationBuys(stock, loadout, smart))
   plan.push(...stock.specials.map((pair): Purchase => ({ kind: 'special', pair })))
@@ -434,7 +425,7 @@ function affordable(plan: readonly Purchase[], loadout: Loadout): Purchase[] {
   return kept
 }
 
-function makeShopPolicy(tier: Tier, log: RunLog | null): ShopPolicy {
+function makeShopPolicy(tier: Tier): ShopPolicy {
   return ({ stock, loadout, rng }) => {
     const plan =
       tier === 'random'
@@ -444,21 +435,12 @@ function makeShopPolicy(tier: Tier, log: RunLog | null): ShopPolicy {
               ...constellationBuys(stock, loadout, false),
               { kind: 'addBasic' as const, suit: SUIT_ORDER[Math.floor(rng() * SUIT_ORDER.length)] },
               { kind: 'removeBasic' as const, suit: SUIT_ORDER[Math.floor(rng() * SUIT_ORDER.length)] },
-              ...(stock.drifter ? [{ kind: 'drifter' as const }] : []),
             ],
             rng,
           )
         : plannedBuys({ stock, loadout }, tier === 'smart')
 
-    const buys = affordable(plan, loadout)
-
-    if (log !== null) {
-      log.shopVisits++
-      if (log.drifterBoughtAfterRound === null && buys.some((p) => p.kind === 'drifter')) {
-        log.drifterBoughtAfterRound = log.shopVisits
-      }
-    }
-    return buys
+    return affordable(plan, loadout)
   }
 }
 
@@ -487,7 +469,7 @@ export function makePlayer(tier: Tier, log: RunLog | null, opts: PlayerOptions =
 
   return {
     place,
-    shop: makeShopPolicy(tier, log),
+    shop: makeShopPolicy(tier),
     wagerAccuracy: opts.wagerAccuracy ?? ACCURACY[tier],
     oracleAccuracy: ACCURACY[tier],
   }

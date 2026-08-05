@@ -30,15 +30,12 @@ export interface ShopStock {
   readonly constellations: readonly ConstellationId[]
   /** Empty until COMPANIONS_ENABLED (GDD 7-1-b). */
   readonly companions: readonly CompanionId[]
-  /** The drifter is stocked at most once per shop and never again after purchase (GDD 3-3). */
-  readonly drifter: boolean
 }
 
 export type Purchase =
   | { readonly kind: 'addBasic'; readonly suit: SuitId }
   | { readonly kind: 'removeBasic'; readonly suit: SuitId }
   | { readonly kind: 'special'; readonly pair: SuitPair }
-  | { readonly kind: 'drifter' }
   | {
       readonly kind: 'constellation'
       readonly id: ConstellationId
@@ -97,7 +94,7 @@ function rollCompanions(owned: readonly CompanionId[], rng: Rng): CompanionId[] 
 }
 
 /**
- * GDD 9-3: 4 specials of 10, 2 constellations of 12, the drifter while unsold.
+ * GDD 9-3: 4 specials of 10, 2 constellations of 12.
  * Constellations already owned are excluded so a slot is never wasted.
  */
 export function rollStock(loadout: Loadout, rng: Rng): ShopStock {
@@ -109,7 +106,22 @@ export function rollStock(loadout: Loadout, rng: Rng): ShopStock {
       rng,
     ),
     companions: COMPANIONS_ENABLED ? rollCompanions(loadout.companions ?? [], rng) : [],
-    drifter: !loadout.drifterOwned,
+  }
+}
+
+/**
+ * GDD 13-4: ORION hands the drifter over at the first meeting rather than selling
+ * it. Priced at 10 it was bought by 98.6% of runs on the first visit and the rest
+ * never cleared, so the choice was fiction; free, the stardust goes to real
+ * decisions and DRIFT ORACLE reaches every player.
+ */
+export function grantDrifter(loadout: Loadout): Loadout {
+  if (loadout.drifterOwned) return loadout
+  return {
+    ...loadout,
+    deck: [...loadout.deck, { id: `gift-${loadout.nextChipId}`, kind: 'drifter' }],
+    drifterOwned: true,
+    nextChipId: loadout.nextChipId + 1,
   }
 }
 
@@ -121,8 +133,6 @@ export function priceOf(purchase: Purchase): number {
       return SHOP_PRICES.removeBasicChip
     case 'special':
       return SHOP_PRICES.specialChip
-    case 'drifter':
-      return SHOP_PRICES.drifterChip
     case 'constellation':
       return SHOP_PRICES.constellation
   }
@@ -162,13 +172,6 @@ export function applyPurchase(loadout: Loadout, purchase: Purchase): Loadout {
           ...paid.deck,
           { id, kind: 'special', left: purchase.pair[0], right: purchase.pair[1] },
         ],
-        nextChipId: paid.nextChipId + 1,
-      }
-    case 'drifter':
-      return {
-        ...paid,
-        deck: [...paid.deck, { id, kind: 'drifter' }],
-        drifterOwned: true,
         nextChipId: paid.nextChipId + 1,
       }
     case 'constellation': {

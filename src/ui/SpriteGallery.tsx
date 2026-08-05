@@ -129,7 +129,7 @@ export function SpriteGallery() {
         <header className="flex flex-col gap-1">
           <h1 className="text-lg font-bold">STA-mble — 스프라이트 갤러리</h1>
           <p className="text-[11px]" style={{ color: PALETTE.starGlow }}>
-            GDD 11절 · 칩 32×32 → 64px · 별자리 카드 32×48 → 64×96px · 이미지 파일 없음
+            GDD 11절 · 칩 32×32 → 64px · 별자리 카드 36×52 → 72×104px · 이미지 파일 없음
           </p>
         </header>
 
@@ -149,11 +149,14 @@ export function SpriteGallery() {
           ))}
         </Section>
 
-        <Section title="떠돌이 조각" note="GDD 3-3 · 고유 문양 없음">
+        <Section title="떠돌이 조각" note="GDD 11-6 · 동일 레이아웃 · 무지개 바탕 · 왕관">
           <Chip pixels={drifterChip()} label="떠돌이" />
         </Section>
 
-        <Section title="별자리 카드 12종" note="GDD 11-5 · 실제 성도 · 프레임 색 = 축">
+        <Section
+          title="별자리 카드 12종"
+          note="GDD 11-5 · 실제 성도 + 5×5 판정 격자 · 프레임 색 = 축"
+        >
           {CONSTELLATION_IDS.map((id) => (
             <Card key={id} id={id} />
           ))}

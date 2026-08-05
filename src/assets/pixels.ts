@@ -7,12 +7,15 @@
 // Suit symbols stay 16×16 and sit in the middle of the chip, so the chip grew
 // from 16 to 32 without a single symbol being redrawn.
 
+import { CONSTELLATION_RULES } from '../core/config'
 import type { ConstellationId, SuitId } from '../core/types'
 
 export const GLYPH_SIZE = 16
 export const CHIP_SIZE = 32
-export const CARD_WIDTH = 32
-export const CARD_HEIGHT = 48
+/** GDD 11-4: 36×52 leaves the frame 2px without shrinking the chart inside it. */
+export const CARD_WIDTH = 36
+export const CARD_HEIGHT = 52
+export const CARD_FRAME = 2
 
 /** A boolean mask, one entry per pixel. */
 export type Mask = readonly (readonly boolean[])[]
@@ -123,6 +126,30 @@ export const SUIT_GLYPHS: Readonly<Record<SuitId, Mask>> = {
   ]),
 }
 
+/**
+ * GDD 11-6: the drifter's mark. Not a suit — a crown, for the chip that can be
+ * any of them. Drawn to the same 16×16 box as the five suits so it drops into
+ * the middle of a chip with no special handling.
+ */
+export const CROWN_GLYPH: Mask = mask([
+  '................',
+  '................',
+  '................',
+  '..##...##...##..',
+  '..##...##...##..',
+  '..##..####..##..',
+  '..###.####.###..',
+  '..############..',
+  '..#.##.##.##.#..',
+  '..############..',
+  '..############..',
+  '...##########...',
+  '................',
+  '................',
+  '................',
+  '................',
+])
+
 // ---------------------------------------------------------------- chip body
 // GDD 11-4: 32×32, four concentric layers. Every layer is mirror-symmetric about
 // the vertical centre line, which is what lets a special chip be cut at column 16
@@ -181,26 +208,18 @@ export function chipLayerAt(row: number, col: number): ChipLayer {
 /** Top-left of the 16×16 symbol box inside the chip. */
 export const GLYPH_OFFSET = (CHIP_SIZE - GLYPH_SIZE) / 2
 
-/**
- * GDD 11-6: the drifter must not read as a sixth suit, nor be mistaken for a
- * special chip. A cut-crystal outline — flat sides, points top and bottom —
- * separates it at the silhouette, before any colour is read.
- */
-export function isPrism(row: number, col: number): boolean {
-  const dy = Math.abs(row - CHIP_CENTRE)
-  const dx = Math.abs(col - CHIP_CENTRE)
-  return dx <= 10.5 && dx + dy <= 16.5
-}
-
 // -------------------------------------------------------------- star charts
 // GDD 11-5: the card carries the constellation's own figure, not a diagram of
 // the rule it scores. These are stylised asterisms — the recognisable gesture of
 // each figure at this size, not astrometry.
 
-/** Where the chart sits inside the card, leaving room for the frame. */
-export const CHART_ORIGIN = { col: 3, row: 4 } as const
+/** The chart keeps its size; the card grew around it to make room for the frame. */
 export const CHART_WIDTH = 26
 export const CHART_HEIGHT = 40
+export const CHART_ORIGIN = {
+  col: CARD_FRAME + (CARD_WIDTH - 2 * CARD_FRAME - CHART_WIDTH) / 2,
+  row: CARD_FRAME + (CARD_HEIGHT - 2 * CARD_FRAME - CHART_HEIGHT) / 2,
+} as const
 
 /** 0 is a named first-magnitude star, 2 is a faint one. */
 export type Magnitude = 0 | 1 | 2
@@ -452,6 +471,71 @@ export const CONSTELLATION_CHARTS: Readonly<Record<ConstellationId, StarChart>> 
       [7, 8],
     ],
   },
+}
+
+// -------------------------------------------------------- board coordinates
+// GDD 11-5: the 5×5 board laid faintly over the chart, with the cells this
+// constellation actually scores lit up. The sky and the board in one image.
+
+export const GRID_CELLS = 5
+
+/** Pixel span of one grid column, inside chart coordinates. */
+export const gridColumn = (index: number): [number, number] => [
+  Math.round((index * CHART_WIDTH) / GRID_CELLS),
+  Math.round(((index + 1) * CHART_WIDTH) / GRID_CELLS) - 1,
+]
+
+export const gridRow = (index: number): [number, number] => [
+  Math.round((index * CHART_HEIGHT) / GRID_CELLS),
+  Math.round(((index + 1) * CHART_HEIGHT) / GRID_CELLS) - 1,
+]
+
+/** A board cell, as row and column of the 5×5. */
+export type GridCell = readonly [row: number, col: number]
+
+/** Runs of `count` centred in the five, so the pattern sits in the middle. */
+const centredRun = (count: number): number[] => {
+  const start = Math.floor((GRID_CELLS - count) / 2)
+  return Array.from({ length: count }, (_, i) => start + i)
+}
+
+/**
+ * Which cells a constellation lights. Read from the rule, so the diagram on the
+ * card and the rule the engine scores cannot drift apart.
+ */
+export function scoringCells(id: ConstellationId): GridCell[] {
+  const rule = CONSTELLATION_RULES[id]
+  const middle = Math.floor(GRID_CELLS / 2)
+
+  switch (rule.axis) {
+    case 'vertical':
+      return centredRun(rule.length ?? 0).map((row): GridCell => [row, middle])
+    case 'horizontal':
+      return centredRun(rule.length ?? 0).map((col): GridCell => [middle, col])
+    case 'diagonal':
+      return centredRun(rule.length ?? 0).map((at): GridCell => [at, at])
+    // GDD 6-1: an apex with a cell falling away on each side.
+    case 'shape_A':
+      return [
+        [1, middle],
+        [2, middle - 1],
+        [2, middle + 1],
+      ]
+    // GDD 6-2: a base of three with a column rising from its centre.
+    case 'shape_T':
+      return [
+        [3, middle - 1],
+        [3, middle],
+        [3, middle + 1],
+        [2, middle],
+      ]
+    // GDD 6-3: scored over the whole board, so the whole board lights.
+    case 'global':
+      return Array.from({ length: GRID_CELLS * GRID_CELLS }, (_, i): GridCell => [
+        Math.floor(i / GRID_CELLS),
+        i % GRID_CELLS,
+      ])
+  }
 }
 
 /**

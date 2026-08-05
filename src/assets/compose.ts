@@ -4,23 +4,27 @@
 // halved out of the five basics, so drawing five suits draws fifteen chips.
 
 import { CONSTELLATION_RULES } from '../core/config'
-import { SUIT_ORDER } from '../core/types'
 import type { ConstellationId, SuitId } from '../core/types'
-import { AXIS_COLOURS, CHIP_COLOURS, PALETTE } from './palette'
+import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, luma, mix } from './palette'
 import {
+  CARD_FRAME,
   CARD_HEIGHT,
   CARD_WIDTH,
   CHART_ORIGIN,
   CHIP_SIZE,
   CONSTELLATION_CHARTS,
+  CROWN_GLYPH,
   GLYPH_OFFSET,
   GLYPH_SIZE,
+  GRID_CELLS,
   SUIT_GLYPHS,
   chipLayerAt,
-  isPrism,
+  gridColumn,
+  gridRow,
   isSpeck,
+  scoringCells,
 } from './pixels'
-import type { ChartStar, Magnitude } from './pixels'
+import type { ChartStar, Magnitude, Mask } from './pixels'
 
 /** One sprite. `null` is transparent. */
 export type PixelMap = readonly (readonly (string | null)[])[]
@@ -35,21 +39,31 @@ const within = (value: number, limit: number) => value >= 0 && value < limit
 
 // -------------------------------------------------------------------- chips
 
+interface ChipPaint {
+  /** The lit colour: rim, notches and the dotted circle. */
+  readonly edgeAt: (row: number) => string
+  /** The dark colour: inner ring and the symbol. */
+  readonly symbol: string
+  /** The field. Both vary down the chip for the drifter, and are flat for a suit. */
+  readonly baseAt: (row: number) => string
+  readonly glyph: Mask
+}
+
 /**
  * GDD 11-4: a round token in four layers — notched edge, dark inner ring, dotted
- * circle, and the suit symbol at the centre.
+ * circle, and a 16×16 symbol at the centre.
  *
  * The notches take the suit's lit colour rather than a neutral cream. It reads as
  * starlight leaking through the rim instead of a casino chip, and it carries the
  * suit all the way out to the edge — so a special chip announces both of its
  * suits from the silhouette, not only from the middle.
  */
-export function basicChip(suit: SuitId): PixelMap {
-  const colours = CHIP_COLOURS[suit]
-  const glyph = SUIT_GLYPHS[suit]
+function renderChip(paint: ChipPaint): PixelMap {
   const out = blank(CHIP_SIZE, CHIP_SIZE)
 
   for (let row = 0; row < CHIP_SIZE; row++) {
+    const base = paint.baseAt(row)
+    const edge = paint.edgeAt(row)
     for (let col = 0; col < CHIP_SIZE; col++) {
       switch (chipLayerAt(row, col)) {
         case 'outside':
@@ -59,14 +73,14 @@ export function basicChip(suit: SuitId): PixelMap {
         case 'rim':
         case 'notch':
         case 'dot':
-          out[row][col] = colours.edge
+          out[row][col] = edge
           break
         case 'ring':
-          out[row][col] = colours.symbol
+          out[row][col] = paint.symbol
           break
         case 'band':
         case 'field':
-          out[row][col] = colours.base
+          out[row][col] = base
           break
       }
     }
@@ -74,10 +88,20 @@ export function basicChip(suit: SuitId): PixelMap {
 
   for (let row = 0; row < GLYPH_SIZE; row++) {
     for (let col = 0; col < GLYPH_SIZE; col++) {
-      if (glyph[row][col]) out[row + GLYPH_OFFSET][col + GLYPH_OFFSET] = colours.symbol
+      if (paint.glyph[row][col]) out[row + GLYPH_OFFSET][col + GLYPH_OFFSET] = paint.symbol
     }
   }
   return out
+}
+
+export function basicChip(suit: SuitId): PixelMap {
+  const colours = CHIP_COLOURS[suit]
+  return renderChip({
+    edgeAt: () => colours.edge,
+    symbol: colours.symbol,
+    baseAt: () => colours.base,
+    glyph: SUIT_GLYPHS[suit],
+  })
 }
 
 /**
@@ -92,31 +116,38 @@ export function specialChip(left: SuitId, right: SuitId): PixelMap {
 }
 
 /**
- * GDD 11-6: no symbol, because it belongs to no suit. The five suit colours run
- * across it as refracted light — their lit variants, since Acrux's base would
- * vanish into the void as one of the bands.
+ * Spectrum order rather than scoring order, so the drifter's field reads as a
+ * rainbow instead of a list. Acrux is left out: black is not a colour of light,
+ * and as a band it would read as a dead stripe across the chip.
+ */
+const SPECTRUM: readonly SuitId[] = ['GIN', 'GAC', 'IMA', 'MIM']
+
+/** The spectrum as a continuous gradient down the chip. */
+function refract(row: number): string {
+  const position = (row / (CHIP_SIZE - 1)) * (SPECTRUM.length - 1)
+  const stop = Math.min(SPECTRUM.length - 2, Math.floor(position))
+  return mix(
+    CHIP_COLOURS[SPECTRUM[stop]].base,
+    CHIP_COLOURS[SPECTRUM[stop + 1]].base,
+    position - stop,
+  )
+}
+
+/**
+ * GDD 11-6: the same chip as any other — notches, ring, dotted circle, centre
+ * symbol — so it sits on the board as a chip and not as an oddity. What sets it
+ * apart is what it is: no suit of its own, so a rainbow field and a crown.
  */
 export function drifterChip(): PixelMap {
-  const out = blank(CHIP_SIZE, CHIP_SIZE)
-
-  for (let row = 0; row < CHIP_SIZE; row++) {
-    // Bands run across, never down: a vertical seam is what a special chip has,
-    // and the two must not be confused.
-    const band = Math.min(
-      SUIT_ORDER.length - 1,
-      Math.floor((row / CHIP_SIZE) * SUIT_ORDER.length),
-    )
-    for (let col = 0; col < CHIP_SIZE; col++) {
-      if (!isPrism(row, col)) continue
-      const edge =
-        !isPrism(row - 1, col) ||
-        !isPrism(row + 1, col) ||
-        !isPrism(row, col - 1) ||
-        !isPrism(row, col + 1)
-      out[row][col] = edge ? PALETTE.starWhite : CHIP_COLOURS[SUIT_ORDER[band]].edge
-    }
-  }
-  return out
+  return renderChip({
+    // The rim carries the rainbow too. A white rim would swallow it — the notches
+    // and dotted circle are a third of the chip's surface.
+    edgeAt: (row) => mix(refract(row), PALETTE.starWhite, 0.4),
+    // Dark against every colour of the rainbow, which no suit colour would be.
+    symbol: PALETTE.void,
+    baseAt: refract,
+    glyph: CROWN_GLYPH,
+  })
 }
 
 // -------------------------------------------------------- constellation card
@@ -124,12 +155,27 @@ export function drifterChip(): PixelMap {
 /** Arm length of a star's cross, by magnitude. A faint star is a bare point. */
 const ARM_LENGTH: Readonly<Record<Magnitude, number>> = { 0: 3, 1: 2, 2: 0 }
 
-function paintLine(
-  out: (string | null)[][],
-  from: ChartStar,
-  to: ChartStar,
-  colour: string,
-): void {
+const coreOf = (mag: Magnitude) => (mag === 2 ? PALETTE.starGlow : PALETTE.starWhite)
+
+/**
+ * GDD 11-5, the brightness rule: the frame may never out-shine the chart. Both
+ * frame tones are stepped toward the card's background until the brighter of
+ * them sits under the chart's mean star brightness, with room to spare.
+ *
+ * This is why the dark tone is not the frame hue untouched — at full strength an
+ * amber or teal frame is about as bright as the chart it surrounds, and the eye
+ * goes to the border instead of the figure. The hue survives on the outline,
+ * which is a single pixel and reads as the card's identity rather than as light.
+ */
+function frameTones(hue: string, chartMean: number): { dark: string; light: string } {
+  const dark = mix(hue, PALETTE.nebulaDeep, 0.3)
+  let light = mix(hue, PALETTE.starWhite, 0.4)
+  // A tenth at a time, so a hue that is already quiet is barely touched.
+  while (luma(light) > chartMean * 0.8) light = mix(light, PALETTE.nebulaDeep, 0.1)
+  return { dark, light }
+}
+
+function paintLine(out: (string | null)[][], from: ChartStar, to: ChartStar, colour: string): void {
   // Steps of one pixel along the longer axis, which is enough for lines this short.
   const steps = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y))
   for (let i = 1; i < steps; i++) {
@@ -142,50 +188,135 @@ function paintLine(
 function paintStar(out: (string | null)[][], entry: ChartStar): void {
   const col = CHART_ORIGIN.col + entry.x
   const row = CHART_ORIGIN.row + entry.y
-  const arm = ARM_LENGTH[entry.mag]
 
-  for (let step = 1; step <= arm; step++) {
+  for (let step = 1; step <= ARM_LENGTH[entry.mag]; step++) {
     for (const [dr, dc] of [
       [-step, 0],
       [step, 0],
       [0, -step],
       [0, step],
     ]) {
-      const r = row + dr
-      const c = col + dc
-      if (within(r, CARD_HEIGHT) && within(c, CARD_WIDTH)) out[r][c] = PALETTE.starGlow
+      if (within(row + dr, CARD_HEIGHT) && within(col + dc, CARD_WIDTH)) {
+        out[row + dr][col + dc] = PALETTE.starGlow
+      }
     }
   }
-  if (within(row, CARD_HEIGHT) && within(col, CARD_WIDTH)) {
-    out[row][col] = entry.mag === 2 ? PALETTE.starGlow : PALETTE.starWhite
+  if (within(row, CARD_HEIGHT) && within(col, CARD_WIDTH)) out[row][col] = coreOf(entry.mag)
+}
+
+/**
+ * The 5×5 board, laid under the chart: faint cell outlines, with the cells this
+ * constellation scores drawn up.
+ *
+ * A scored cell is outlined rather than filled. A solid block at this size is a
+ * slab of colour the figure has to compete with, and the figure is the subject —
+ * the board is the surface it is being read against.
+ */
+function paintBoard(out: (string | null)[][], id: ConstellationId, hue: string): void {
+  const global = CONSTELLATION_RULES[id].axis === 'global'
+  const faint = mix(PALETTE.nebulaDeep, hue, 0.1)
+  const outline = mix(PALETTE.nebulaDeep, hue, global ? 0.19 : 0.32)
+  const wash = mix(PALETTE.nebulaDeep, hue, global ? 0.07 : 0.13)
+  const scored = new Set(scoringCells(id).map(([row, col]) => `${row},${col}`))
+
+  const put = (chartRow: number, chartCol: number, colour: string) => {
+    const row = CHART_ORIGIN.row + chartRow
+    const col = CHART_ORIGIN.col + chartCol
+    if (within(row, CARD_HEIGHT) && within(col, CARD_WIDTH)) out[row][col] = colour
+  }
+
+  for (let cellRow = 0; cellRow < GRID_CELLS; cellRow++) {
+    for (let cellCol = 0; cellCol < GRID_CELLS; cellCol++) {
+      const [top, bottom] = gridRow(cellRow)
+      const [left, right] = gridColumn(cellCol)
+      const isScored = scored.has(`${cellRow},${cellCol}`)
+
+      for (let row = top; row <= bottom; row++) {
+        for (let col = left; col <= right; col++) {
+          const onEdge = row === top || row === bottom || col === left || col === right
+          if (onEdge) put(row, col, isScored ? outline : faint)
+          else if (isScored) put(row, col, wash)
+        }
+      }
+    }
+  }
+}
+
+/** Stars strung along the frame, joined all the way round, anchored at the corners. */
+function paintFrame(out: (string | null)[][], hue: string, chartMean: number): void {
+  const { dark, light } = frameTones(hue, chartMean)
+  const inset = CARD_FRAME - 1
+  const last = { row: CARD_HEIGHT - 1, col: CARD_WIDTH - 1 }
+
+  for (let row = 0; row < CARD_HEIGHT; row++) {
+    for (let col = 0; col < CARD_WIDTH; col++) {
+      const onOutline = row === 0 || col === 0 || row === last.row || col === last.col
+      // Dropping the four corner pixels is what rounds the card at this size.
+      const corner = (row === 0 || row === last.row) && (col === 0 || col === last.col)
+      if (onOutline && !corner) out[row][col] = dark
+    }
+  }
+
+  // The decoration track: one ring in, so it reads as inside the border.
+  const track: [number, number][] = []
+  for (let col = inset; col <= last.col - inset; col++) track.push([inset, col])
+  for (let row = inset + 1; row <= last.row - inset; row++) track.push([row, last.col - inset])
+  for (let col = last.col - inset - 1; col >= inset; col--) track.push([last.row - inset, col])
+  for (let row = last.row - inset - 1; row > inset; row--) track.push([row, inset])
+
+  // The strand the stars hang on sits below the outline, so the stars read as
+  // points of light rather than as gaps in a second border.
+  const strand = mix(dark, PALETTE.nebulaDeep, 0.4)
+  for (const [row, col] of track) out[row][col] = strand
+  track.forEach(([row, col], index) => {
+    if (index % 6 === 0) out[row][col] = light
+  })
+
+  // Corner anchors: brighter, and two pixels across rather than one.
+  for (const [row, col] of [
+    [inset, inset],
+    [inset, last.col - inset],
+    [last.row - inset, inset],
+    [last.row - inset, last.col - inset],
+  ]) {
+    for (const [dr, dc] of [
+      [0, 0],
+      [0, 1],
+      [1, 0],
+    ]) {
+      const r = row + (row > CARD_HEIGHT / 2 ? -dr : dr)
+      const c = col + (col > CARD_WIDTH / 2 ? -dc : dc)
+      if (within(r, CARD_HEIGHT) && within(c, CARD_WIDTH)) out[r][c] = light
+    }
   }
 }
 
 /**
  * GDD 11-5: a card, not a chip. It carries the constellation's own figure in
- * blue-white; the axis family is told by the frame colour instead, because the
- * figures themselves say nothing about which axis scores.
+ * blue-white over the 5×5 board it scores on; the axis family is told by the
+ * frame colour, because the figures themselves say nothing about which axis wins.
  *
  * The card cannot state the run length or the multiplier at this size — the UI
  * prints those beside it, which is where readability is meant to come from.
  */
 export function constellationCard(id: ConstellationId): PixelMap {
   const out = blank(CARD_WIDTH, CARD_HEIGHT)
-  const frame = AXIS_COLOURS[CONSTELLATION_RULES[id].axis]
+  const hue = AXIS_COLOURS[CONSTELLATION_RULES[id].axis]
   const chart = CONSTELLATION_CHARTS[id]
+  const chartMean =
+    chart.stars.reduce((total, entry) => total + luma(coreOf(entry.mag)), 0) / chart.stars.length
 
-  for (let row = 0; row < CARD_HEIGHT; row++) {
-    for (let col = 0; col < CARD_WIDTH; col++) {
-      const onEdge = row === 0 || col === 0 || row === CARD_HEIGHT - 1 || col === CARD_WIDTH - 1
-      // Dropping the four corner pixels is what rounds the card at this size.
-      const corner =
-        (row === 0 || row === CARD_HEIGHT - 1) && (col === 0 || col === CARD_WIDTH - 1)
-      if (corner) continue
-      if (onEdge) {
-        out[row][col] = frame
-        continue
+  for (let row = CARD_FRAME; row < CARD_HEIGHT - CARD_FRAME; row++) {
+    for (let col = CARD_FRAME; col < CARD_WIDTH - CARD_FRAME; col++) {
+      out[row][col] = PALETTE.nebulaDeep
+    }
+  }
+  paintBoard(out, id, hue)
+  for (let row = CARD_FRAME; row < CARD_HEIGHT - CARD_FRAME; row++) {
+    for (let col = CARD_FRAME; col < CARD_WIDTH - CARD_FRAME; col++) {
+      if (isSpeck(row, col) && out[row][col] === PALETTE.nebulaDeep) {
+        out[row][col] = PALETTE.panelEdge
       }
-      out[row][col] = isSpeck(row, col) ? PALETTE.panelEdge : PALETTE.nebulaDeep
     }
   }
 
@@ -194,5 +325,6 @@ export function constellationCard(id: ConstellationId): PixelMap {
   }
   for (const entry of chart.stars) paintStar(out, entry)
 
+  paintFrame(out, hue, chartMean)
   return out
 }

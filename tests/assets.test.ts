@@ -6,15 +6,19 @@
 import { describe, expect, it } from 'vitest'
 import { basicChip, constellationCard, drifterChip, specialChip } from '../src/assets/compose'
 import type { PixelMap } from '../src/assets/compose'
-import { AXIS_COLOURS, CHIP_COLOURS, PALETTE } from '../src/assets/palette'
+import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, luma } from '../src/assets/palette'
 import {
+  CARD_FRAME,
   CARD_HEIGHT,
   CARD_WIDTH,
   CHIP_SIZE,
   CONSTELLATION_CHARTS,
+  CROWN_GLYPH,
   GLYPH_SIZE,
+  GRID_CELLS,
   SUIT_GLYPHS,
   chipLayerAt,
+  scoringCells,
 } from '../src/assets/pixels'
 import type { Mask } from '../src/assets/pixels'
 import { CONSTELLATION_RULES, SPECIAL_SUIT_PAIRS } from '../src/core/config'
@@ -173,19 +177,39 @@ describe('special chips (GDD 3-2)', () => {
 })
 
 describe('drifter chip (GDD 11-6)', () => {
-  it('has a silhouette no suit chip shares', () => {
+  it('is the same chip as any other, not an oddity', () => {
     const shapeOf = (sprite: PixelMap) =>
       JSON.stringify(sprite.map((row) => row.map((cell) => cell !== null)))
-    const drifter = shapeOf(drifterChip())
 
-    for (const suit of SUIT_ORDER) expect(drifter).not.toBe(shapeOf(basicChip(suit)))
+    // It belongs on the board as a chip; what sets it apart is colour and mark.
+    expect(shapeOf(drifterChip())).toBe(shapeOf(basicChip('GAC')))
   })
 
-  it('carries no suit symbol — only lit suit colours, refracted', () => {
-    const used = coloursIn(drifterChip())
+  it('wears the crown, and none of the five suit symbols', () => {
+    const drifter = drifterChip()
+    const centre = (sprite: PixelMap) =>
+      JSON.stringify(
+        Array.from({ length: GLYPH_SIZE }, (_, row) =>
+          Array.from(
+            { length: GLYPH_SIZE },
+            (_, col) => sprite[row + (CHIP_SIZE - GLYPH_SIZE) / 2][col + (CHIP_SIZE - GLYPH_SIZE) / 2],
+          ),
+        ),
+      )
 
-    for (const suit of SUIT_ORDER) expect(used.has(CHIP_COLOURS[suit].symbol)).toBe(false)
-    expect(used.has(PALETTE.starWhite)).toBe(true)
+    for (const suit of SUIT_ORDER) expect(centre(drifter)).not.toBe(centre(basicChip(suit)))
+    expect(countOf(CROWN_GLYPH)).toBeGreaterThan(0)
+    expect(CROWN_GLYPH).toHaveLength(GLYPH_SIZE)
+  })
+
+  it('carries a rainbow field, so it reads as no single suit', () => {
+    const rows = drifterChip().map((row) => row[CHIP_SIZE / 2])
+    const distinct = new Set(rows.filter((cell): cell is string => cell !== null))
+
+    // A suit chip has a handful of colours down its middle; a gradient has many.
+    expect(distinct.size).toBeGreaterThan(
+      new Set(basicChip('GAC').map((row) => row[CHIP_SIZE / 2])).size,
+    )
   })
 })
 
@@ -200,17 +224,93 @@ describe('constellation cards (GDD 11-5)', () => {
     }
   })
 
-  it('names the axis family in the frame, not in the chart', () => {
-    // The figures say nothing about which axis scores, so the frame has to.
+  it('carries a 2px frame with dropped corners', () => {
     for (const id of ALL_IDS) {
       const card = constellationCard(id)
-      const frame = AXIS_COLOURS[CONSTELLATION_RULES[id].axis]
 
-      expect(card[0][CARD_WIDTH / 2]).toBe(frame)
-      expect(card[CARD_HEIGHT / 2][0]).toBe(frame)
+      expect(card[0][CARD_WIDTH / 2]).not.toBeNull()
+      expect(card[CARD_FRAME - 1][CARD_WIDTH / 2]).not.toBeNull()
       // Corners are dropped, which is what rounds the card at this size.
       expect(card[0][0]).toBeNull()
       expect(card[CARD_HEIGHT - 1][CARD_WIDTH - 1]).toBeNull()
+    }
+  })
+
+  it('never lets the frame out-shine the chart (GDD 11-5)', () => {
+    // The subject is the figure. If a frame star burns brighter than the stars
+    // inside, the eye goes to the border and the card stops being readable.
+    for (const id of ALL_IDS) {
+      const card = constellationCard(id)
+      const chart = CONSTELLATION_CHARTS[id]
+      const chartMean =
+        chart.stars.reduce(
+          (total, entry) => total + luma(entry.mag === 2 ? PALETTE.starGlow : PALETTE.starWhite),
+          0,
+        ) / chart.stars.length
+
+      let brightestFrame = 0
+      for (let row = 0; row < CARD_HEIGHT; row++) {
+        for (let col = 0; col < CARD_WIDTH; col++) {
+          const inFrame =
+            row < CARD_FRAME ||
+            col < CARD_FRAME ||
+            row >= CARD_HEIGHT - CARD_FRAME ||
+            col >= CARD_WIDTH - CARD_FRAME
+          const cell = card[row][col]
+          if (inFrame && cell !== null) brightestFrame = Math.max(brightestFrame, luma(cell))
+        }
+      }
+
+      expect(brightestFrame).toBeLessThan(chartMean)
+    }
+  })
+
+  it('lays the 5×5 board under the chart, lighting only what scores', () => {
+    for (const id of ALL_IDS) {
+      const rule = CONSTELLATION_RULES[id]
+      const cells = scoringCells(id)
+
+      if (rule.axis === 'global') expect(cells).toHaveLength(GRID_CELLS * GRID_CELLS)
+      else if (rule.length !== null) expect(cells).toHaveLength(rule.length)
+
+      for (const [row, col] of cells) {
+        expect(row).toBeGreaterThanOrEqual(0)
+        expect(row).toBeLessThan(GRID_CELLS)
+        expect(col).toBeGreaterThanOrEqual(0)
+        expect(col).toBeLessThan(GRID_CELLS)
+      }
+    }
+
+    // A run of 3 down the middle column, which is what aries scores.
+    expect(scoringCells('aries')).toEqual([
+      [1, 2],
+      [2, 2],
+      [3, 2],
+    ])
+    expect(scoringCells('libra')).toEqual([
+      [2, 1],
+      [2, 2],
+      [2, 3],
+    ])
+  })
+
+  it('keeps the board quieter than the figure drawn on it', () => {
+    // Grid tones are mixed toward the card's background, so every one of them
+    // has to sit below the dimmest thing the chart itself draws.
+    for (const id of ALL_IDS) {
+      const card = constellationCard(id)
+      const chartArea = card
+        .slice(CARD_FRAME, CARD_HEIGHT - CARD_FRAME)
+        .map((row) => row.slice(CARD_FRAME, CARD_WIDTH - CARD_FRAME))
+      const board = coloursIn(chartArea).values()
+
+      for (const colour of board) {
+        const isChart =
+          colour === PALETTE.starWhite || colour === PALETTE.starGlow || colour === PALETTE.starLink
+        if (!isChart && colour !== PALETTE.panelEdge) {
+          expect(luma(colour)).toBeLessThan(luma(PALETTE.starLink))
+        }
+      }
     }
   })
 

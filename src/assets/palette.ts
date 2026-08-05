@@ -68,6 +68,32 @@ export const PALETTE = {
 
 export type ColourName = keyof typeof PALETTE
 
+// ------------------------------------------------------------------- tones
+// GDD 11-5 asks for two tones per card, made from its own colour. Derived tones
+// are mixes of colours already in the palette, so the palette itself stays at 32
+// — the list above is still the only place a colour is chosen.
+
+const channels = (colour: string): [number, number, number] => [
+  parseInt(colour.slice(1, 3), 16),
+  parseInt(colour.slice(3, 5), 16),
+  parseInt(colour.slice(5, 7), 16),
+]
+
+const hex = (value: number) => Math.round(value).toString(16).padStart(2, '0')
+
+/** `amount` of 0 keeps `from`, 1 gives `to`. */
+export function mix(from: string, to: string, amount: number): string {
+  const a = channels(from)
+  const b = channels(to)
+  return `#${a.map((value, i) => hex(value + (b[i] - value) * amount)).join('')}`
+}
+
+/** Perceived brightness, 0–255. Used to keep the frame quieter than the chart. */
+export function luma(colour: string): number {
+  const [r, g, b] = channels(colour)
+  return 0.299 * r + 0.587 * g + 0.114 * b
+}
+
 /** Base / edge / symbol for one chip. The edge is the 1px rim that lifts it off the void. */
 export interface ChipColours {
   readonly base: string

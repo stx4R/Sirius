@@ -71,6 +71,9 @@ export function SpriteGallery() {
           <p className="text-[11px]" style={{ color: PALETTE.starGlow }}>
             GDD 11절 · 칩 32×32 → 64px · 별자리 카드 36×52 → 72×104px · 이미지 파일 없음
           </p>
+          <a href="#" className="text-[11px] underline" style={{ color: PALETTE.nebulaTeal }}>
+            ← 게임으로
+          </a>
         </header>
 
         <Section title="기본 조각 5종" note="GDD 3-1 · 노치 6개 · 안쪽 링 · 점선 원 · 중앙 문양">

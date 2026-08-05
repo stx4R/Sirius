@@ -4,7 +4,7 @@
 // halved out of the five basics, so drawing five suits draws fifteen chips.
 
 import { CONSTELLATION_RULES } from '../core/config'
-import type { ConstellationId, SuitId } from '../core/types'
+import type { Chip, ConstellationId, SuitId } from '../core/types'
 import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, luma, mix } from './palette'
 import {
   CARD_FRAME,
@@ -144,6 +144,18 @@ export function drifterChip(): PixelMap {
     baseAt: refract,
     glyph: CROWN_GLYPH,
   })
+}
+
+/** The sprite for a chip as core describes it. */
+export function chipSprite(chip: Chip): PixelMap {
+  switch (chip.kind) {
+    case 'basic':
+      return basicChip(chip.suit)
+    case 'special':
+      return specialChip(chip.left, chip.right)
+    case 'drifter':
+      return drifterChip()
+  }
 }
 
 // -------------------------------------------------------- constellation card

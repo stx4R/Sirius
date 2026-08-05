@@ -420,7 +420,7 @@ export const SHOP_PRICES = {
   addBasicChip: 3,
   removeBasicChip: 4,
   specialChip: 8,
-  // The drifter has no price: ORION hands it over at the first shop (GDD 13-4).
+  // The drifter has no price: иєвυℓα hands it over at the first shop (GDD 13-4).
   constellation: 10,
   companion: COMPANION_TIER_PRICES,
   /** Reroll costs `base`, then rises by `increment` per use (GDD 9-2). */

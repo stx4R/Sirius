@@ -26,9 +26,30 @@ export interface ScoringContext {
   readonly chooseDrifterDirections: DrifterChooser
 }
 
+/**
+ * One suit's share of the settlement, split the way GDD 5-1 computes it. Every
+ * number here was already worked out inside `scoreBoard`; before this existed
+ * they were added into `total` and thrown away, which left the UI re-deriving
+ * them from the board — scoring logic in `src/ui/`, which CLAUDE.md §5 forbids.
+ */
+export interface SuitBreakdown {
+  readonly suit: SuitId
+  /** The lines that fired for this suit, in the order they fired. */
+  readonly lines: readonly ScoredLine[]
+  /** Σ over `lines` of cells × BASE_CHIP_SCORE × multiplier. */
+  readonly lineScore: number
+  /** Chips of this suit that belong to no firing line (GDD 5-1). */
+  readonly flatScore: number
+  /** GDD 6-3: cancer pays on the whole suit rather than on a line. */
+  readonly cancerBonus: number
+  readonly total: number
+}
+
 export interface ScoreResult {
   readonly total: number
   readonly lines: readonly ScoredLine[]
+  /** Suits that scored nothing are omitted. Ordered by SUIT_ORDER (GDD 3-1). */
+  readonly bySuit: readonly SuitBreakdown[]
 }
 
 const ORTHOGONAL: readonly (readonly [number, number])[] = [
@@ -124,6 +145,7 @@ export function scoreBoard(board: Board, ctx: ScoringContext): ScoreResult {
 
   let total = 0
   const lines: ScoredLine[] = []
+  const bySuit: SuitBreakdown[] = []
 
   for (const suit of SUIT_ORDER) {
     const count = counts[suit]
@@ -131,27 +153,48 @@ export function scoreBoard(board: Board, ctx: ScoringContext): ScoreResult {
 
     const grid = suits.map((row) => row.map((cell) => cell !== null && cell.has(suit)))
     const inLine = new Set<string>()
+    const suitLines: ScoredLine[] = []
+    let lineScore = 0
 
     for (const line of findLines(grid, ctx.owned)) {
       const multiplier = stackMultipliers(
         line.constellations.map((id) => multiplierFor(id, line.positions.length)),
         ctx.stackMode,
       )
-      total += line.positions.length * BASE_CHIP_SCORE * multiplier
+      lineScore += line.positions.length * BASE_CHIP_SCORE * multiplier
       for (const pos of line.positions) inLine.add(cellKey(pos))
-      lines.push({ ...line, multiplier })
+      const scored = { ...line, multiplier }
+      lines.push(scored)
+      suitLines.push(scored)
     }
 
-    total += (count - inLine.size) * BASE_CHIP_SCORE * NO_LINE_MULTIPLIER
+    const flatScore = (count - inLine.size) * BASE_CHIP_SCORE * NO_LINE_MULTIPLIER
 
     // The one constellation that pays on the whole suit rather than a line, and
     // as a bonus rather than a multiplier (GDD 5-1, 6-3). Ties all fire.
-    if (cancerOwned && count === mostPlaced) {
-      total += count * BASE_CHIP_SCORE * (multiplierFor('cancer', count) - 1)
-    }
+    const cancerBonus =
+      cancerOwned && count === mostPlaced
+        ? count * BASE_CHIP_SCORE * (multiplierFor('cancer', count) - 1)
+        : 0
+
+    total += lineScore + flatScore + cancerBonus
+    bySuit.push({
+      suit,
+      lines: suitLines,
+      lineScore: Math.round(lineScore),
+      flatScore: Math.round(flatScore),
+      cancerBonus: Math.round(cancerBonus),
+      total: Math.round(lineScore + flatScore + cancerBonus),
+    })
   }
 
   // Multipliers are decimals, so the running total drifts by ~1e-13. Scores are
   // integers everywhere in the GDD, so the drift is rounded off once at the end.
-  return { total: Math.round(total), lines }
+  //
+  // Under the shipped 'sum' mode every per-suit figure is an exact integer before
+  // the drift — cells × 10 × a one-decimal multiplier — so the rounded parts add
+  // back up to the rounded whole, and the settlement screen can show the sum as
+  // an equation. 'product' mode can put two decimals on a multiplier and break
+  // that; it is a Phase 2 comparison mode only and never reaches the screen.
+  return { total: Math.round(total), lines, bySuit }
 }

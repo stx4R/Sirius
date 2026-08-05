@@ -25,8 +25,12 @@ const key = (pos: Position) => `${pos.row},${pos.col}`
 
 export function Board({ board, holding, lit, onPlace }: Props) {
   return (
+    // `w-fit` pins the board to its own five tracks. Without it a flex parent's
+    // default `stretch` widens the container to whatever sits beside it — the
+    // hand is wider than 5×72, and the extra width showed as dead space to the
+    // right of the last column.
     <div
-      className="grid rounded"
+      className="grid w-fit rounded"
       style={{
         gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
         gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,

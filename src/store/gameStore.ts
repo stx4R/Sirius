@@ -126,8 +126,8 @@ export const useGame = create<GameStore>((set, get) => ({
     let next = game
 
     if (next.phase === 'roundEnd') next = endRound(next)
-    // P3-B has no shop screen, but the visit still happens: it is where ORION
-    // hands over the drifter (GDD 13-4). Opening and leaving keeps that rule.
+    // There is no shop screen yet, but the visit still happens: it is where
+    // иєвυℓα hands over the drifter (GDD 13-4). Opening and leaving keeps that rule.
     if (next.phase === 'shop') next = startRound(openShop(next))
     if (next.phase === 'draw') next = drawHand(next)
 

@@ -175,3 +175,74 @@ describe('settlement', () => {
     expect(result.total).toBe(36)
   })
 })
+
+describe('per-suit breakdown', () => {
+  it('splits one suit into line score and the flat remainder', () => {
+    const board = boardFrom([
+      'GAC GAC GAC .   .',
+      'GAC .   .   .   .',
+      'GAC .   .   .   .',
+      EMPTY,
+      EMPTY,
+    ])
+
+    const { bySuit } = scoreBoard(board, context(['aries']))
+
+    expect(bySuit).toHaveLength(1)
+    expect(bySuit[0]).toMatchObject({
+      suit: 'GAC',
+      lineScore: 36,
+      flatScore: 20,
+      cancerBonus: 0,
+      total: 56,
+    })
+  })
+
+  it('keeps the whole-suit cancer bonus in its own field', () => {
+    const board = boardFrom(['GAC GAC .   .   .', 'IMA IMA .   .   .', EMPTY, EMPTY, EMPTY])
+
+    const { bySuit } = scoreBoard(board, context(['cancer']))
+
+    expect(bySuit.map((entry) => entry.suit)).toEqual(['GAC', 'IMA'])
+    for (const entry of bySuit) {
+      expect(entry).toMatchObject({ lineScore: 0, flatScore: 20, cancerBonus: 2, total: 22 })
+    }
+  })
+
+  it('gives a special chip an entry under each of its two suits', () => {
+    const board = boardFrom(['GAC&IMA .   .   .   .', EMPTY, EMPTY, EMPTY, EMPTY])
+
+    const { bySuit } = scoreBoard(board, context([]))
+
+    expect(bySuit.map((entry) => entry.suit)).toEqual(['GAC', 'IMA'])
+    expect(bySuit.every((entry) => entry.total === 10)).toBe(true)
+  })
+
+  it('omits suits that scored nothing', () => {
+    const board = boardFrom(['GAC .   .   .   .', EMPTY, EMPTY, EMPTY, EMPTY])
+
+    expect(scoreBoard(board, context([])).bySuit.map((entry) => entry.suit)).toEqual(['GAC'])
+  })
+
+  // The settlement screen shows the suit columns as an equation that ends on the
+  // round score, so the parts have to add up to the whole exactly (GDD 5-1).
+  it('adds back up to the total, and accounts for every line', () => {
+    const boards = [
+      ['GAC GAC GAC .   .', 'GAC .   .   .   .', 'GAC .   .   .   .', EMPTY, EMPTY],
+      ['GAC GAC .   .   .', 'IMA IMA .   .   .', EMPTY, EMPTY, EMPTY],
+      ['GAC&IMA GAC&IMA GAC&IMA .   .', 'MIM MIM MIM .   .', EMPTY, EMPTY, EMPTY],
+      ['GAC GAC GAC GAC GAC', 'IMA IMA IMA IMA .', 'ACR .   .   .   .', EMPTY, EMPTY],
+      ['GAC .   .   .   .', 'GAC .   .   .   .', '*   .   .   .   .', 'MIM MIM MIM .   .', EMPTY],
+    ]
+    const owned = ['aries', 'libra', 'cancer', 'leo'] as const
+
+    for (const rows of boards) {
+      const result = scoreBoard(boardFrom(rows), context([...owned], MULTIPLIER_STACK_MODE))
+
+      const summed = result.bySuit.reduce((acc, entry) => acc + entry.total, 0)
+      expect(summed).toBe(result.total)
+
+      expect(result.bySuit.flatMap((entry) => entry.lines)).toEqual(result.lines)
+    }
+  })
+})

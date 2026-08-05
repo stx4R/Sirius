@@ -237,7 +237,7 @@ export function endRound(game: Game): Game {
   return { ...game, stardust, round: game.round + 1, phase: 'shop' }
 }
 
-/** GDD 13-4: the first visit to ORION is where the drifter is handed over. */
+/** GDD 13-4: the first visit to иєвυℓα is where the drifter is handed over. */
 export function openShop(game: Game): Game {
   const gifted = withLoadout(game, grantDrifter(loadoutOf(game)))
   return {

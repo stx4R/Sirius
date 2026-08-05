@@ -1,4 +1,4 @@
-// ORION's shop (GDD 9-2, 9-3). Stock rolling and purchase effects.
+// иєвυℓα's shop (GDD 9-2, 9-3). Stock rolling and purchase effects.
 //
 // The companion slot exists but stays empty while COMPANIONS_ENABLED is false:
 // their effect parameters arrive at P4 (GDD 7-1-b), so selling them now would
@@ -110,7 +110,7 @@ export function rollStock(loadout: Loadout, rng: Rng): ShopStock {
 }
 
 /**
- * GDD 13-4: ORION hands the drifter over at the first meeting rather than selling
+ * GDD 13-4: иєвυℓα hands the drifter over at the first meeting rather than selling
  * it. Priced at 10 it was bought by 98.6% of runs on the first visit and the rest
  * never cleared, so the choice was fiction; free, the stardust goes to real
  * decisions and DRIFT ORACLE reaches every player.

@@ -8,6 +8,7 @@
 // from 16 to 32 without a single symbol being redrawn.
 
 import { CONSTELLATION_RULES } from '../core/config'
+import { mulberry32 } from '../core/rng'
 import type { ConstellationId, SuitId } from '../core/types'
 
 export const GLYPH_SIZE = 16
@@ -473,77 +474,62 @@ export const CONSTELLATION_CHARTS: Readonly<Record<ConstellationId, StarChart>> 
   },
 }
 
-// -------------------------------------------------------- board coordinates
-// GDD 11-5: the 5×5 board laid faintly over the chart, with the cells this
-// constellation actually scores lit up. The sky and the board in one image.
+// ------------------------------------------------------------------ the sky
+// GDD 11-5: the night the figure is drawn on. Each card gets its own sky, so a
+// row of twelve does not read as twelve copies of one background.
+//
+// Seeded from the constellation's own index rather than rolled, so a card is the
+// same card every time it is drawn (CLAUDE.md §8).
 
-export const GRID_CELLS = 5
+/** 1px point, a small cross, or — rarely — a bright one. */
+export type SpeckKind = 'dot' | 'cross' | 'bright'
 
-/** Pixel span of one grid column, inside chart coordinates. */
-export const gridColumn = (index: number): [number, number] => [
-  Math.round((index * CHART_WIDTH) / GRID_CELLS),
-  Math.round(((index + 1) * CHART_WIDTH) / GRID_CELLS) - 1,
-]
-
-export const gridRow = (index: number): [number, number] => [
-  Math.round((index * CHART_HEIGHT) / GRID_CELLS),
-  Math.round(((index + 1) * CHART_HEIGHT) / GRID_CELLS) - 1,
-]
-
-/** A board cell, as row and column of the 5×5. */
-export type GridCell = readonly [row: number, col: number]
-
-/** Runs of `count` centred in the five, so the pattern sits in the middle. */
-const centredRun = (count: number): number[] => {
-  const start = Math.floor((GRID_CELLS - count) / 2)
-  return Array.from({ length: count }, (_, i) => start + i)
+export interface Speck {
+  readonly row: number
+  readonly col: number
+  readonly kind: SpeckKind
 }
 
-/**
- * Which cells a constellation lights. Read from the rule, so the diagram on the
- * card and the rule the engine scores cannot drift apart.
- */
-export function scoringCells(id: ConstellationId): GridCell[] {
-  const rule = CONSTELLATION_RULES[id]
-  const middle = Math.floor(GRID_CELLS / 2)
-
-  switch (rule.axis) {
-    case 'vertical':
-      return centredRun(rule.length ?? 0).map((row): GridCell => [row, middle])
-    case 'horizontal':
-      return centredRun(rule.length ?? 0).map((col): GridCell => [middle, col])
-    case 'diagonal':
-      return centredRun(rule.length ?? 0).map((at): GridCell => [at, at])
-    // GDD 6-1: an apex with a cell falling away on each side.
-    case 'shape_A':
-      return [
-        [1, middle],
-        [2, middle - 1],
-        [2, middle + 1],
-      ]
-    // GDD 6-2: a base of three with a column rising from its centre.
-    case 'shape_T':
-      return [
-        [3, middle - 1],
-        [3, middle],
-        [3, middle + 1],
-        [2, middle],
-      ]
-    // GDD 6-3: scored over the whole board, so the whole board lights.
-    case 'global':
-      return Array.from({ length: GRID_CELLS * GRID_CELLS }, (_, i): GridCell => [
-        Math.floor(i / GRID_CELLS),
-        i % GRID_CELLS,
-      ])
-  }
+/** A faint patch of nebulosity, drawn in a very dark tint of the card's colour. */
+export interface Nebula {
+  readonly row: number
+  readonly col: number
+  readonly radius: number
 }
 
-/**
- * Faint specks behind the figure. Hashed from the coordinate rather than rolled,
- * so every render of a card is the same card (CLAUDE.md §8).
- */
-export function isSpeck(row: number, col: number): boolean {
-  let h = Math.imul(col + 1, 374761393) + Math.imul(row + 1, 668265263)
-  h = Math.imul(h ^ (h >>> 13), 1274126177)
-  return ((h ^ (h >>> 16)) >>> 0) % 100 < 7
+export interface Sky {
+  readonly specks: readonly Speck[]
+  readonly nebulae: readonly Nebula[]
+}
+
+const SKY_SEED = 0x57a3
+const SPECK_COUNT = 52
+const BRIGHT_CHANCE = 0.06
+const CROSS_CHANCE = 0.24
+
+const CONSTELLATION_ORDER = Object.keys(CONSTELLATION_RULES) as ConstellationId[]
+
+export function skyOf(id: ConstellationId): Sky {
+  const rng = mulberry32(SKY_SEED + CONSTELLATION_ORDER.indexOf(id) * 977)
+  const top = CARD_FRAME
+  const left = CARD_FRAME
+  const height = CARD_HEIGHT - 2 * CARD_FRAME
+  const width = CARD_WIDTH - 2 * CARD_FRAME
+
+  const specks: Speck[] = Array.from({ length: SPECK_COUNT }, () => {
+    const row = top + Math.floor(rng() * height)
+    const col = left + Math.floor(rng() * width)
+    const roll = rng()
+    const kind: SpeckKind =
+      roll < BRIGHT_CHANCE ? 'bright' : roll < BRIGHT_CHANCE + CROSS_CHANCE ? 'cross' : 'dot'
+    return { row, col, kind }
+  })
+
+  const nebulae: Nebula[] = Array.from({ length: rng() < 0.5 ? 1 : 2 }, () => ({
+    row: top + Math.floor(rng() * height),
+    col: left + Math.floor(rng() * width),
+    radius: 5 + Math.floor(rng() * 4),
+  }))
+
+  return { specks, nebulae }
 }

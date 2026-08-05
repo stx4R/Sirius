@@ -15,10 +15,9 @@ import {
   CONSTELLATION_CHARTS,
   CROWN_GLYPH,
   GLYPH_SIZE,
-  GRID_CELLS,
   SUIT_GLYPHS,
   chipLayerAt,
-  scoringCells,
+  skyOf,
 } from '../src/assets/pixels'
 import type { Mask } from '../src/assets/pixels'
 import { CONSTELLATION_RULES, SPECIAL_SUIT_PAIRS } from '../src/core/config'
@@ -265,51 +264,34 @@ describe('constellation cards (GDD 11-5)', () => {
     }
   })
 
-  it('lays the 5×5 board under the chart, lighting only what scores', () => {
+  it('gives every card its own sky', () => {
+    // Twelve cards in a row must not read as twelve copies of one background.
+    const skies = ALL_IDS.map((id) => JSON.stringify(skyOf(id)))
+
+    expect(new Set(skies).size).toBe(ALL_IDS.length)
     for (const id of ALL_IDS) {
-      const rule = CONSTELLATION_RULES[id]
-      const cells = scoringCells(id)
-
-      if (rule.axis === 'global') expect(cells).toHaveLength(GRID_CELLS * GRID_CELLS)
-      else if (rule.length !== null) expect(cells).toHaveLength(rule.length)
-
-      for (const [row, col] of cells) {
-        expect(row).toBeGreaterThanOrEqual(0)
-        expect(row).toBeLessThan(GRID_CELLS)
-        expect(col).toBeGreaterThanOrEqual(0)
-        expect(col).toBeLessThan(GRID_CELLS)
-      }
+      const sky = skyOf(id)
+      expect(sky.specks.length).toBeGreaterThan(20)
+      expect(sky.nebulae.length).toBeGreaterThanOrEqual(1)
+      expect(new Set(sky.specks.map((speck) => speck.kind)).size).toBeGreaterThan(1)
+      // Redrawing a card must redraw the same card.
+      expect(skyOf(id)).toEqual(sky)
     }
-
-    // A run of 3 down the middle column, which is what aries scores.
-    expect(scoringCells('aries')).toEqual([
-      [1, 2],
-      [2, 2],
-      [3, 2],
-    ])
-    expect(scoringCells('libra')).toEqual([
-      [2, 1],
-      [2, 2],
-      [2, 3],
-    ])
   })
 
-  it('keeps the board quieter than the figure drawn on it', () => {
-    // Grid tones are mixed toward the card's background, so every one of them
-    // has to sit below the dimmest thing the chart itself draws.
+  it('keeps the sky quieter than the figure drawn on it', () => {
+    // Every background tone is mixed toward the card's own background, so all of
+    // them sit below even the line colour the chart joins its stars with. A
+    // brighter speck would read as one of the constellation's own stars.
+    const chartColours = new Set<string>([PALETTE.starWhite, PALETTE.starGlow, PALETTE.starLink])
+
     for (const id of ALL_IDS) {
-      const card = constellationCard(id)
-      const chartArea = card
+      const interior = constellationCard(id)
         .slice(CARD_FRAME, CARD_HEIGHT - CARD_FRAME)
         .map((row) => row.slice(CARD_FRAME, CARD_WIDTH - CARD_FRAME))
-      const board = coloursIn(chartArea).values()
 
-      for (const colour of board) {
-        const isChart =
-          colour === PALETTE.starWhite || colour === PALETTE.starGlow || colour === PALETTE.starLink
-        if (!isChart && colour !== PALETTE.panelEdge) {
-          expect(luma(colour)).toBeLessThan(luma(PALETTE.starLink))
-        }
+      for (const colour of coloursIn(interior)) {
+        if (!chartColours.has(colour)) expect(luma(colour)).toBeLessThan(luma(PALETTE.starLink))
       }
     }
   })

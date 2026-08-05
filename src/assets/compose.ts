@@ -16,13 +16,9 @@ import {
   CROWN_GLYPH,
   GLYPH_OFFSET,
   GLYPH_SIZE,
-  GRID_CELLS,
   SUIT_GLYPHS,
   chipLayerAt,
-  gridColumn,
-  gridRow,
-  isSpeck,
-  scoringCells,
+  skyOf,
 } from './pixels'
 import type { ChartStar, Magnitude, Mask } from './pixels'
 
@@ -205,40 +201,55 @@ function paintStar(out: (string | null)[][], entry: ChartStar): void {
 }
 
 /**
- * The 5×5 board, laid under the chart: faint cell outlines, with the cells this
- * constellation scores drawn up.
+ * The night sky behind the figure: nebulosity first, then specks over it.
  *
- * A scored cell is outlined rather than filled. A solid block at this size is a
- * slab of colour the figure has to compete with, and the figure is the subject —
- * the board is the surface it is being read against.
+ * Everything here is kept under the chart's own line colour, so the background
+ * can never compete with the figure drawn on it. A brighter speck would read as
+ * a star of the constellation and break the figure (GDD 11-5).
  */
-function paintBoard(out: (string | null)[][], id: ConstellationId, hue: string): void {
-  const global = CONSTELLATION_RULES[id].axis === 'global'
-  const faint = mix(PALETTE.nebulaDeep, hue, 0.1)
-  const outline = mix(PALETTE.nebulaDeep, hue, global ? 0.19 : 0.32)
-  const wash = mix(PALETTE.nebulaDeep, hue, global ? 0.07 : 0.13)
-  const scored = new Set(scoringCells(id).map(([row, col]) => `${row},${col}`))
+function paintSky(out: (string | null)[][], id: ConstellationId, hue: string): void {
+  const sky = skyOf(id)
+  const dim = PALETTE.panelEdge
+  const brightSpeck = mix(PALETTE.panelEdge, PALETTE.starGlow, 0.25)
+  const nebulaCore = mix(PALETTE.nebulaDeep, hue, 0.16)
+  const nebulaEdge = mix(PALETTE.nebulaDeep, hue, 0.08)
 
-  const put = (chartRow: number, chartCol: number, colour: string) => {
-    const row = CHART_ORIGIN.row + chartRow
-    const col = CHART_ORIGIN.col + chartCol
-    if (within(row, CARD_HEIGHT) && within(col, CARD_WIDTH)) out[row][col] = colour
+  const put = (row: number, col: number, colour: string) => {
+    const inside =
+      row >= CARD_FRAME &&
+      col >= CARD_FRAME &&
+      row < CARD_HEIGHT - CARD_FRAME &&
+      col < CARD_WIDTH - CARD_FRAME
+    if (inside) out[row][col] = colour
   }
 
-  for (let cellRow = 0; cellRow < GRID_CELLS; cellRow++) {
-    for (let cellCol = 0; cellCol < GRID_CELLS; cellCol++) {
-      const [top, bottom] = gridRow(cellRow)
-      const [left, right] = gridColumn(cellCol)
-      const isScored = scored.has(`${cellRow},${cellCol}`)
-
-      for (let row = top; row <= bottom; row++) {
-        for (let col = left; col <= right; col++) {
-          const onEdge = row === top || row === bottom || col === left || col === right
-          if (onEdge) put(row, col, isScored ? outline : faint)
-          else if (isScored) put(row, col, wash)
-        }
+  for (const nebula of sky.nebulae) {
+    for (let row = nebula.row - nebula.radius; row <= nebula.row + nebula.radius; row++) {
+      for (let col = nebula.col - nebula.radius; col <= nebula.col + nebula.radius; col++) {
+        // Squashed horizontally, so a patch reads as drifting gas rather than a disc.
+        const dy = row - nebula.row
+        const dx = (col - nebula.col) * 0.7
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        if (distance > nebula.radius) continue
+        put(row, col, distance > nebula.radius * 0.55 ? nebulaEdge : nebulaCore)
       }
     }
+  }
+
+  const CROSS: readonly (readonly [number, number])[] = [
+    [0, 0],
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ]
+  for (const speck of sky.specks) {
+    if (speck.kind === 'dot') {
+      put(speck.row, speck.col, dim)
+      continue
+    }
+    for (const [dr, dc] of CROSS) put(speck.row + dr, speck.col + dc, dim)
+    if (speck.kind === 'bright') put(speck.row, speck.col, brightSpeck)
   }
 }
 
@@ -311,14 +322,7 @@ export function constellationCard(id: ConstellationId): PixelMap {
       out[row][col] = PALETTE.nebulaDeep
     }
   }
-  paintBoard(out, id, hue)
-  for (let row = CARD_FRAME; row < CARD_HEIGHT - CARD_FRAME; row++) {
-    for (let col = CARD_FRAME; col < CARD_WIDTH - CARD_FRAME; col++) {
-      if (isSpeck(row, col) && out[row][col] === PALETTE.nebulaDeep) {
-        out[row][col] = PALETTE.panelEdge
-      }
-    }
-  }
+  paintSky(out, id, hue)
 
   for (const [from, to] of chart.links) {
     paintLine(out, chart.stars[from], chart.stars[to], PALETTE.starLink)

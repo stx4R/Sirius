@@ -2,17 +2,13 @@
 // Display only — no board, no hand, no game state.
 
 import type { ReactNode } from 'react'
-import {
-  CONSTELLATION_MULTIPLIERS,
-  CONSTELLATION_NAMES,
-  CONSTELLATION_RULES,
-  SPECIAL_SUIT_PAIRS,
-} from '../core/config'
+import { CONSTELLATION_NAMES, SPECIAL_SUIT_PAIRS } from '../core/config'
 import { SUIT_ORDER } from '../core/types'
-import type { ConstellationId, LineAxis, SuitId } from '../core/types'
-import { basicChip, constellationCard, drifterChip, specialChip } from '../assets/compose'
+import type { ConstellationId, SuitId } from '../core/types'
+import { basicChip, drifterChip, specialChip } from '../assets/compose'
 import type { PixelMap } from '../assets/compose'
-import { AXIS_COLOURS, PALETTE } from '../assets/palette'
+import { PALETTE } from '../assets/palette'
+import { ConstellationCard } from './ConstellationCard'
 import { PixelSprite } from './PixelSprite'
 
 /** GDD 3-1. Core carries no display names, so they live here with the sprites. */
@@ -24,72 +20,16 @@ const SUIT_LABELS: Readonly<Record<SuitId, string>> = {
   ACR: 'Acrux · 스페이드',
 }
 
-const AXIS_LABELS: Readonly<Record<LineAxis, string>> = {
-  vertical: '세로',
-  horizontal: '가로',
-  diagonal: '대각',
-  shape_A: '도형',
-  shape_T: '도형',
-  global: '전역',
-}
-
-/**
- * GDD 11-5: the card shows the figure, not the rule, so the rule is printed
- * beside it. Both strings are derived from config — the card and the engine
- * cannot disagree about what scores.
- */
-function conditionOf(id: ConstellationId): string {
-  const rule = CONSTELLATION_RULES[id]
-  switch (rule.axis) {
-    case 'shape_A':
-      return 'ㅅ자 패턴'
-    case 'shape_T':
-      return 'ㅗ자 패턴'
-    case 'global':
-      return '보드 최다 문양'
-    default:
-      return `${AXIS_LABELS[rule.axis]} ${rule.length}연속${rule.exact ? '' : ' 이상'}`
-  }
-}
-
-function multiplierOf(id: ConstellationId): string {
-  const spec = CONSTELLATION_MULTIPLIERS[id]
-  if (spec.kind === 'fixed') return `×${spec.value.toFixed(1)}`
-  const values = Object.values(spec.table)
-  return `×${Math.min(...values).toFixed(1)}~${Math.max(...values).toFixed(1)}`
-}
-
-function Caption({ children }: { children: ReactNode }) {
-  return (
-    <figcaption className="text-center text-[11px] leading-tight" style={{ color: PALETTE.starGlow }}>
-      {children}
-    </figcaption>
-  )
-}
-
 function Chip({ pixels, label, scale = 2 }: { pixels: PixelMap; label: string; scale?: number }) {
   return (
     <figure className="flex w-28 flex-col items-center gap-2">
       <PixelSprite pixels={pixels} scale={scale} alt={label} />
-      <Caption>{label}</Caption>
-    </figure>
-  )
-}
-
-function Card({ id }: { id: ConstellationId }) {
-  const frame = AXIS_COLOURS[CONSTELLATION_RULES[id].axis]
-  return (
-    <figure className="flex w-28 flex-col items-center gap-2">
-      <PixelSprite pixels={constellationCard(id)} scale={2} alt={CONSTELLATION_NAMES[id]} />
-      <Caption>
-        <span className="block font-bold" style={{ color: frame }}>
-          {CONSTELLATION_NAMES[id]}
-        </span>
-        <span className="block">{conditionOf(id)}</span>
-        <span className="block" style={{ color: PALETTE.starWhite }}>
-          {multiplierOf(id)}
-        </span>
-      </Caption>
+      <figcaption
+        className="text-center text-[11px] leading-tight"
+        style={{ color: PALETTE.starGlow }}
+      >
+        {label}
+      </figcaption>
     </figure>
   )
 }
@@ -155,10 +95,10 @@ export function SpriteGallery() {
 
         <Section
           title="별자리 카드 12종"
-          note="GDD 11-5 · 실제 성도 + 5×5 판정 격자 · 프레임 색 = 축"
+          note="GDD 11-5 · 카드마다 다른 별하늘 · 이름·조건·배율 항상 병기"
         >
           {CONSTELLATION_IDS.map((id) => (
-            <Card key={id} id={id} />
+            <ConstellationCard key={id} id={id} />
           ))}
         </Section>
 

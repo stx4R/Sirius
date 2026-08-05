@@ -150,6 +150,13 @@ export const CONSTELLATION_NAMES: Readonly<Record<ConstellationId, string>> = {
 
 export const OWNED_CONSTELLATION_LIMIT = 4
 
+/**
+ * GDD 13-5: the player starts holding one of these. Both are ×1.2 over a run of 3
+ * and differ only in axis, so the pick costs no balance — it exists to give R1 a
+ * decision and a score that responds to placement.
+ */
+export const STARTING_CONSTELLATION_CHOICES = ['aries', 'libra'] as const
+
 // ------------------------------------------------------------ companions
 // GDD 7
 
@@ -413,7 +420,8 @@ export const SHOP_PRICES = {
   addBasicChip: 3,
   removeBasicChip: 4,
   specialChip: 8,
-  drifterChip: 20,
+  /** Priced for DRIFT ORACLE exposure, not for score efficiency (GDD 13-4). */
+  drifterChip: 10,
   constellation: 10,
   companion: COMPANION_TIER_PRICES,
   /** Reroll costs `base`, then rises by `increment` per use (GDD 9-2). */
@@ -466,14 +474,18 @@ export interface ModePreset {
 }
 
 export const MODE_PRESETS: Readonly<Record<GameMode, ModePreset>> = {
+  // Back-solved by `npm run sim -- --solve` against GDD 13-3, replacing the
+  // hand-drawn ×1.62 curve whose last two rounds were above the rules' ceiling.
+  // The curve is nearly flat because the board resets every round and the
+  // constellation limit is 4 — scores do not compound the way the old curve assumed.
   full: {
     TOTAL_ROUNDS: 8,
-    TARGET_SCORES: [300, 500, 800, 1300, 2100, 3400, 5500, 9000],
+    TARGET_SCORES: [490, 630, 640, 880, 1080, 1250, 1330, 1530],
   },
   // GDD 12-4: full's rounds 1–3 verbatim. Phase 2 may lower these, never raise them.
   booth: {
     TOTAL_ROUNDS: 3,
-    TARGET_SCORES: [300, 500, 800],
+    TARGET_SCORES: [490, 630, 640],
   },
 }
 

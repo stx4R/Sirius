@@ -14,6 +14,7 @@ import {
   SHOP_SLOTS,
   SPECIAL_SUIT_PAIRS,
 } from './config'
+import { createInitialDeck } from './deck'
 import { sample } from './rng'
 import type { Rng } from './rng'
 import type { Chip, CompanionId, CompanionTier, ConstellationId, SuitId } from './types'
@@ -54,6 +55,21 @@ export interface Loadout {
   readonly nextChipId: number
   /** Optional until companions become purchasable at P4 (GDD 7-1-b). */
   readonly companions?: readonly CompanionId[]
+}
+
+/**
+ * GDD 13-5: the loadout a game opens with. `starting` is the player's pick from
+ * STARTING_CONSTELLATION_CHOICES and takes one of the four constellation slots,
+ * so R1 already has a line to build toward.
+ */
+export function createStartingLoadout(starting: ConstellationId): Loadout {
+  return {
+    deck: createInitialDeck(),
+    constellations: [starting],
+    stardust: 0,
+    drifterOwned: false,
+    nextChipId: 0,
+  }
 }
 
 /** Draws one tier by the published weights (GDD 7-1), then a companion of that tier. */

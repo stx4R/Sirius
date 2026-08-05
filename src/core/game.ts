@@ -52,6 +52,12 @@ export interface Game extends GameState {
   /** Reset at the start of every round (GDD 9-2). */
   readonly rerollsUsed: number
   readonly stock: ShopStock | null
+  /**
+   * The target curve in force, one entry per round. Defaults to the mode preset;
+   * P2 injects candidate curves so a new one can be measured without editing
+   * config.ts, and an all-zero curve to sample rounds without elimination.
+   */
+  readonly targets: readonly number[]
   readonly rng: Rng
 }
 
@@ -111,8 +117,10 @@ export function fromLoadout(
   mode: GameMode,
   rng: Rng,
   stackMode: MultiplierStackMode = MULTIPLIER_STACK_MODE,
+  targets: readonly number[] = MODE_PRESETS[mode].TARGET_SCORES,
 ): Game {
   return {
+    targets,
     mode,
     stackMode,
     phase: 'draw',
@@ -131,7 +139,7 @@ export function fromLoadout(
     round: 1,
     turn: 1,
     roundScore: 0,
-    targetScore: MODE_PRESETS[mode].TARGET_SCORES[0],
+    targetScore: targets[0],
     wagerHistory: [],
     drawHistory: [],
     rng,
@@ -147,7 +155,7 @@ export function startRound(game: Game): Game {
     hand: [],
     turn: 1,
     roundScore: 0,
-    targetScore: MODE_PRESETS[game.mode].TARGET_SCORES[game.round - 1],
+    targetScore: game.targets[game.round - 1],
     rerollsUsed: 0,
     stock: null,
     phase: 'draw',
@@ -297,6 +305,8 @@ export interface GameOptions {
   readonly shop: ShopPolicy
   readonly answerWager: Answer
   readonly answerOracle: Answer
+  /** Overrides the mode's target curve. See `Game.targets`. */
+  readonly targets?: readonly number[]
   readonly rng: Rng
 }
 
@@ -337,7 +347,13 @@ export function playRound(game: Game, options: GameOptions): Game {
 }
 
 export function playGame(startingLoadout: Loadout, options: GameOptions): GameResult {
-  let game = fromLoadout(startingLoadout, options.mode, options.rng, options.stackMode)
+  let game = fromLoadout(
+    startingLoadout,
+    options.mode,
+    options.rng,
+    options.stackMode,
+    options.targets,
+  )
   const roundScores: number[] = []
   let roundsCleared = 0
 
@@ -363,7 +379,7 @@ export function playGame(startingLoadout: Loadout, options: GameOptions): GameRe
     roundsCleared,
     clearedAll: game.status === 'cleared',
     roundScores,
-    targets: MODE_PRESETS[options.mode].TARGET_SCORES,
+    targets: game.targets,
     finalStardust: game.stardust,
     turnsPlayed: roundScores.length * TURNS_PER_ROUND,
   }

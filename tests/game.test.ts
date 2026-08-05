@@ -21,7 +21,9 @@ import {
 } from '../src/core/game'
 import type { Game, Placement, PlacementPolicy, ShopPolicy } from '../src/core/game'
 import { mulberry32 } from '../src/core/rng'
+import { createStartingLoadout } from '../src/core/shop'
 import type { Loadout } from '../src/core/shop'
+import type { ConstellationId } from '../src/core/types'
 
 const newGame = (seed = 42): Game => startGame('full', mulberry32(seed))
 
@@ -315,5 +317,65 @@ describe('full playthrough', () => {
       )
 
     expect(run()).toEqual(run())
+  })
+})
+
+describe('injected target curve', () => {
+  const emptyLoadout = (): Loadout => ({
+    deck: startGame('full', mulberry32(5)).ownedDeck,
+    constellations: [],
+    stardust: 0,
+    drifterOwned: false,
+    nextChipId: 0,
+  })
+
+  it('replaces the mode preset', () => {
+    const targets = MODE_PRESETS.full.TARGET_SCORES.map(() => 1_000_000)
+    const result = playGame(emptyLoadout(), { ...options(), targets })
+
+    expect(result.targets).toEqual(targets)
+    expect(result.roundScores).toHaveLength(1)
+    expect(result.clearedAll).toBe(false)
+  })
+
+  it('samples every round when nothing eliminates', () => {
+    const targets = MODE_PRESETS.full.TARGET_SCORES.map(() => 0)
+    const result = playGame(emptyLoadout(), { ...options(), targets })
+
+    expect(result.roundScores).toHaveLength(MODE_PRESETS.full.TOTAL_ROUNDS)
+    expect(result.clearedAll).toBe(true)
+  })
+})
+
+describe('GDD 13-5 starting constellation', () => {
+  /** Fills a single column, so a vertical run of 3 forms and aries can fire. */
+  const columnPolicy: PlacementPolicy = ({ board, hand }) => {
+    const taken = new Set(occupiedPositions(board).map((p) => `${p.row},${p.col}`))
+    const free: Placement[] = []
+    for (let col = 0; col < 5 && free.length < hand.length; col++) {
+      for (let row = 0; row < 5 && free.length < hand.length; row++) {
+        if (!taken.has(`${row},${col}`)) free.push({ chip: hand[free.length], position: position(row, col) })
+      }
+    }
+    return free
+  }
+
+  const round1Score = (constellations: readonly ConstellationId[], place: PlacementPolicy) =>
+    playGame(
+      { ...createStartingLoadout('aries'), constellations },
+      { ...options(place), targets: MODE_PRESETS.full.TARGET_SCORES.map(() => 0) },
+    ).roundScores[0]
+
+  it('leaves round 1 fixed at the flat base when nothing is owned', () => {
+    // 4 chips a turn for 5 turns, every settlement scoring the whole board:
+    // 40 + 80 + 120 + 160 + 200. No constellation, no line, no variance.
+    expect(round1Score([], fillPolicy)).toBe(600)
+    expect(round1Score([], columnPolicy)).toBe(600)
+  })
+
+  it('makes round 1 respond to placement once one is held', () => {
+    const withStarting = round1Score(['aries'], columnPolicy)
+
+    expect(withStarting).toBeGreaterThan(600)
   })
 })

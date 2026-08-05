@@ -51,12 +51,19 @@ export const PALETTE = {
   nebulaHydrogen: '#FF5C5C',
 
   // --- ui neutrals
+  //
+  // Three of these do double duty on the constellation cards (GDD 11-7). The
+  // tier frames above are reserved for P4 and were not touched to pay for it.
+  //   starWhite  bright text · star cores · the drifter's rim
+  //   starGlow   dim text    · the arms of a star
+  //   starLink   panel hairlines · the lines joining stars
+  //   panelEdge  panel borders · the faint specks behind a star chart
   void: '#0A0A12',
   panel: '#14121F',
   panelEdge: '#2E2A45',
   starWhite: '#F2F0FF',
-  starDim: '#5A5478',
-  textDim: '#9A94B8',
+  starGlow: '#9AA8CC',
+  starLink: '#46557F',
 } as const
 
 export type ColourName = keyof typeof PALETTE
@@ -77,9 +84,10 @@ export const CHIP_COLOURS: Readonly<Record<SuitId, ChipColours>> = {
 }
 
 /**
- * GDD 11-5: nine of the twelve constellations are "N stars along an axis", so the
- * axis has to be legible as colour before the count is even read. The starting
- * choice of aries (vertical) vs libra (horizontal) depends on it (GDD 10-3).
+ * GDD 11-5: the colour of a constellation card's frame. The star chart inside is
+ * blue-white for every card, so the axis has to be readable from the frame alone
+ * — the starting choice of aries (vertical) vs libra (horizontal) depends on
+ * telling the two apart at a glance (GDD 10-3).
  */
 export const AXIS_COLOURS: Readonly<Record<LineAxis, string>> = {
   vertical: PALETTE.nebulaTeal,

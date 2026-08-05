@@ -37,14 +37,17 @@ function toDataUrl(pixels: PixelMap): string {
 
 export function PixelSprite({ pixels, scale = 2, alt = '' }: Props) {
   const src = useMemo(() => toDataUrl(pixels), [pixels])
-  const size = pixels.length * Math.trunc(scale)
+  // Chips are square, constellation cards are 2:3, so both axes come from the map.
+  const factor = Math.trunc(scale)
+  const height = pixels.length * factor
+  const width = (pixels[0]?.length ?? 0) * factor
 
   return (
     <img
       src={src}
       alt={alt}
-      width={size}
-      height={size}
+      width={width}
+      height={height}
       style={{ imageRendering: 'pixelated' }}
     />
   )

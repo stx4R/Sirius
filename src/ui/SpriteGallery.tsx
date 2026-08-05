@@ -1,12 +1,18 @@
 // P3-A deliverable: every sprite the art pipeline produces, on one screen.
 // Display only — no board, no hand, no game state.
 
-import { CONSTELLATION_NAMES, SPECIAL_SUIT_PAIRS } from '../core/config'
+import type { ReactNode } from 'react'
+import {
+  CONSTELLATION_MULTIPLIERS,
+  CONSTELLATION_NAMES,
+  CONSTELLATION_RULES,
+  SPECIAL_SUIT_PAIRS,
+} from '../core/config'
 import { SUIT_ORDER } from '../core/types'
-import type { ConstellationId, SuitId } from '../core/types'
-import { basicChip, constellationIcon, drifterChip, specialChip } from '../assets/compose'
+import type { ConstellationId, LineAxis, SuitId } from '../core/types'
+import { basicChip, constellationCard, drifterChip, specialChip } from '../assets/compose'
 import type { PixelMap } from '../assets/compose'
-import { PALETTE } from '../assets/palette'
+import { AXIS_COLOURS, PALETTE } from '../assets/palette'
 import { PixelSprite } from './PixelSprite'
 
 /** GDD 3-1. Core carries no display names, so they live here with the sprites. */
@@ -18,27 +24,77 @@ const SUIT_LABELS: Readonly<Record<SuitId, string>> = {
   ACR: 'Acrux · 스페이드',
 }
 
-interface SpriteProps {
-  readonly pixels: PixelMap
-  readonly label: string
-  readonly scale?: number
+const AXIS_LABELS: Readonly<Record<LineAxis, string>> = {
+  vertical: '세로',
+  horizontal: '가로',
+  diagonal: '대각',
+  shape_A: '도형',
+  shape_T: '도형',
+  global: '전역',
 }
 
-function Sprite({ pixels, label, scale = 2 }: SpriteProps) {
+/**
+ * GDD 11-5: the card shows the figure, not the rule, so the rule is printed
+ * beside it. Both strings are derived from config — the card and the engine
+ * cannot disagree about what scores.
+ */
+function conditionOf(id: ConstellationId): string {
+  const rule = CONSTELLATION_RULES[id]
+  switch (rule.axis) {
+    case 'shape_A':
+      return 'ㅅ자 패턴'
+    case 'shape_T':
+      return 'ㅗ자 패턴'
+    case 'global':
+      return '보드 최다 문양'
+    default:
+      return `${AXIS_LABELS[rule.axis]} ${rule.length}연속${rule.exact ? '' : ' 이상'}`
+  }
+}
+
+function multiplierOf(id: ConstellationId): string {
+  const spec = CONSTELLATION_MULTIPLIERS[id]
+  if (spec.kind === 'fixed') return `×${spec.value.toFixed(1)}`
+  const values = Object.values(spec.table)
+  return `×${Math.min(...values).toFixed(1)}~${Math.max(...values).toFixed(1)}`
+}
+
+function Caption({ children }: { children: ReactNode }) {
   return (
-    <figure className="flex w-24 flex-col items-center gap-2">
+    <figcaption className="text-center text-[11px] leading-tight" style={{ color: PALETTE.starGlow }}>
+      {children}
+    </figcaption>
+  )
+}
+
+function Chip({ pixels, label, scale = 2 }: { pixels: PixelMap; label: string; scale?: number }) {
+  return (
+    <figure className="flex w-28 flex-col items-center gap-2">
       <PixelSprite pixels={pixels} scale={scale} alt={label} />
-      <figcaption
-        className="text-center text-[11px] leading-tight"
-        style={{ color: PALETTE.textDim }}
-      >
-        {label}
-      </figcaption>
+      <Caption>{label}</Caption>
     </figure>
   )
 }
 
-function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+function Card({ id }: { id: ConstellationId }) {
+  const frame = AXIS_COLOURS[CONSTELLATION_RULES[id].axis]
+  return (
+    <figure className="flex w-28 flex-col items-center gap-2">
+      <PixelSprite pixels={constellationCard(id)} scale={2} alt={CONSTELLATION_NAMES[id]} />
+      <Caption>
+        <span className="block font-bold" style={{ color: frame }}>
+          {CONSTELLATION_NAMES[id]}
+        </span>
+        <span className="block">{conditionOf(id)}</span>
+        <span className="block" style={{ color: PALETTE.starWhite }}>
+          {multiplierOf(id)}
+        </span>
+      </Caption>
+    </figure>
+  )
+}
+
+function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-4">
       <header className="flex items-baseline gap-3">
@@ -46,13 +102,13 @@ function Section({ title, note, children }: { title: string; note?: string; chil
           {title}
         </h2>
         {note !== undefined && (
-          <span className="text-[11px]" style={{ color: PALETTE.textDim }}>
+          <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
             {note}
           </span>
         )}
       </header>
       <div
-        className="flex flex-wrap gap-x-2 gap-y-5 rounded border p-5"
+        className="flex flex-wrap gap-x-2 gap-y-6 rounded border p-6"
         style={{ background: PALETTE.panel, borderColor: PALETTE.panelEdge }}
       >
         {children}
@@ -72,20 +128,20 @@ export function SpriteGallery() {
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
         <header className="flex flex-col gap-1">
           <h1 className="text-lg font-bold">STA-mble — 스프라이트 갤러리</h1>
-          <p className="text-[11px]" style={{ color: PALETTE.textDim }}>
-            GDD 11절 · 16×16 픽셀맵을 정수 2배로 표시 · 이미지 파일 없음
+          <p className="text-[11px]" style={{ color: PALETTE.starGlow }}>
+            GDD 11절 · 칩 32×32 → 64px · 별자리 카드 32×48 → 64×96px · 이미지 파일 없음
           </p>
         </header>
 
-        <Section title="기본 조각 5종" note="GDD 3-1">
+        <Section title="기본 조각 5종" note="GDD 3-1 · 노치 6개 · 안쪽 링 · 점선 원 · 중앙 문양">
           {SUIT_ORDER.map((suit) => (
-            <Sprite key={suit} pixels={basicChip(suit)} label={SUIT_LABELS[suit]} />
+            <Chip key={suit} pixels={basicChip(suit)} label={SUIT_LABELS[suit]} />
           ))}
         </Section>
 
-        <Section title="특수 조각 10종" note="GDD 3-2 · 기본 5종에서 합성 생성">
+        <Section title="특수 조각 10종" note="GDD 3-2 · 16열에서 잘라 합성">
           {SPECIAL_SUIT_PAIRS.map(([left, right]) => (
-            <Sprite
+            <Chip
               key={`${left}${right}`}
               pixels={specialChip(left, right)}
               label={`${left}&${right}`}
@@ -94,20 +150,21 @@ export function SpriteGallery() {
         </Section>
 
         <Section title="떠돌이 조각" note="GDD 3-3 · 고유 문양 없음">
-          <Sprite pixels={drifterChip()} label="떠돌이" />
+          <Chip pixels={drifterChip()} label="떠돌이" />
         </Section>
 
-        <Section title="별자리 아이콘 12종" note="GDD 6절 · 판정 패턴 도식">
+        <Section title="별자리 카드 12종" note="GDD 11-5 · 실제 성도 · 프레임 색 = 축">
           {CONSTELLATION_IDS.map((id) => (
-            <Sprite key={id} pixels={constellationIcon(id)} label={CONSTELLATION_NAMES[id]} />
+            <Card key={id} id={id} />
           ))}
         </Section>
 
-        <Section title="확대 검수" note="6배 · 경계가 뭉개지지 않는지 확인">
+        <Section title="확대 검수" note="4배 · 도트 경계와 노치 정렬 확인">
           {SUIT_ORDER.map((suit) => (
-            <Sprite key={suit} pixels={basicChip(suit)} label={suit} scale={6} />
+            <Chip key={suit} pixels={basicChip(suit)} label={suit} scale={4} />
           ))}
-          <Sprite pixels={drifterChip()} label="떠돌이" scale={6} />
+          <Chip pixels={drifterChip()} label="떠돌이" scale={4} />
+          <Chip pixels={specialChip('GAC', 'ACR')} label="GAC&ACR" scale={4} />
         </Section>
       </div>
     </main>

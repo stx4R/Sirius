@@ -115,7 +115,7 @@ TypeScript (strict) · Vite 8 · **React 19** · Zustand · Tailwind CSS · Fram
 
 - 모든 이미지에 `image-rendering: pixelated`
 - 정수배 스케일만 (1x, 2x, 3x) — 소수배 금지
-- 칩 32×32px, 보드 셀 40×40px
+- 칩 64×64px(원본 32×32), 별자리 카드 64×96px(원본 32×48), 보드 셀 72×72px — 규격은 GDD 11-4가 원본
 - 팔레트 32색 제한, `src/assets/palette.ts`에 정의
 
 ## 8. 재현 가능한 난수 (절대 규칙)

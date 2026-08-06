@@ -9,6 +9,10 @@
 // Every figure here is core's (`ScoreResult.bySuit`). This file does no scoring:
 // `Σ bySuit[].total === total` is pinned by scoring.test.ts, so the equation is
 // core's arithmetic laid out, not a second opinion about it (CLAUDE.md §5).
+//
+// The three pieces are placed separately on the canvas (GDD 11-10) and are all
+// on screen at all times — the panel showing zeroes between turns is what makes
+// the right half of the board stop looking empty.
 
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion'
 import { useEffect } from 'react'
@@ -36,7 +40,7 @@ export const stepsOf = (data: SettlementData): readonly SuitBreakdown[] => data.
 export const litCells = (step: SuitBreakdown | undefined): Set<string> =>
   new Set((step?.cells ?? []).map((pos) => `${pos.row},${pos.col}`))
 
-function CountUp({
+export function CountUp({
   value,
   ms,
   className,
@@ -77,19 +81,22 @@ function SuitColumn({
   active,
   revealed,
   ms,
+  width,
 }: {
   readonly suit: SuitId
   readonly step: SuitBreakdown | undefined
   readonly active: boolean
   readonly revealed: boolean
   readonly ms: number
+  readonly width: number
 }) {
   const ink = SUIT_INK[suit]
   const multipliers = step?.lines.map((line) => line.multiplier) ?? []
 
   return (
     <motion.div
-      className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded py-1.5"
+      className="flex flex-col items-center justify-center gap-1 rounded py-1"
+      style={{ width }}
       animate={{
         background: active ? PALETTE.nebulaDeep : 'rgba(0,0,0,0)',
         scale: active ? 1.06 : 1,
@@ -98,7 +105,7 @@ function SuitColumn({
     >
       <PixelSprite pixels={suitGlyph(suit)} scale={2} alt="" />
 
-      <span className="text-sm font-bold tabular-nums">
+      <span className="text-xl font-bold leading-none tabular-nums">
         {revealed && step !== undefined ? (
           <CountUp value={step.total} ms={ms} colour={ink} />
         ) : (
@@ -106,7 +113,7 @@ function SuitColumn({
         )}
       </span>
 
-      <span className="flex h-3 flex-wrap justify-center gap-0.5 text-[9px] leading-3">
+      <span className="flex h-3 flex-wrap justify-center gap-1 text-[10px] leading-3">
         {revealed &&
           multipliers.map((value, i) => (
             <motion.span
@@ -114,7 +121,7 @@ function SuitColumn({
               initial={ms === 0 ? false : { scale: 0.4, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: ms === 0 ? 0 : 0.25, delay: ms === 0 ? 0 : i * 0.06 }}
-              className="tabular-nums font-bold"
+              className="font-bold tabular-nums"
               style={{ color: PALETTE.nebulaAmber }}
             >
               ×{value.toFixed(1)}
@@ -125,35 +132,49 @@ function SuitColumn({
   )
 }
 
-interface Props {
-  readonly data: SettlementData
+export interface PanelProps {
+  readonly data: SettlementData | null
   readonly steps: readonly SuitBreakdown[]
   readonly index: number
   readonly onIndex: (index: number) => void
   readonly onDone: () => void
-  /** Round score before this turn, so the big figure counts from where it was. */
-  readonly roundScoreBefore: number
   readonly reduced: boolean
   readonly speed: number
   readonly onSpeed: (speed: number) => void
+  readonly width: number
+  readonly height: number
 }
 
-export function Settlement({
+/** How far the walk has got, shared by all three pieces. */
+export function revealedOf(steps: readonly SuitBreakdown[], index: number) {
+  const shown = steps.slice(0, index + 1)
+  return {
+    shown,
+    suits: new Set(shown.map((step) => step.suit)),
+    scored: shown.reduce((total, step) => total + step.total, 0),
+    current: steps[index],
+    running: index < steps.length,
+  }
+}
+
+export function SettlementPanel({
   data,
   steps,
   index,
   onIndex,
   onDone,
-  roundScoreBefore,
   reduced,
   speed,
   onSpeed,
-}: Props) {
-  const running = index < steps.length
+  width,
+  height,
+}: PanelProps) {
   const ms = reduced ? 0 : SPEEDS[speed].ms
+  const { suits, current, running } = revealedOf(steps, index)
+  const active = data !== null && running
 
   useEffect(() => {
-    if (!running) return
+    if (data === null || !running) return
     // '즉시' and reduced motion both land on the finished state in one hop; the
     // suit-by-suit reveal is the animation, so there is nothing left to pace.
     if (ms === 0) {
@@ -162,30 +183,28 @@ export function Settlement({
     }
     const timer = setTimeout(() => onIndex(index + 1), ms)
     return () => clearTimeout(timer)
-  }, [index, running, ms, steps.length, onIndex])
+  }, [data, index, running, ms, steps.length, onIndex])
 
-  const shown = steps.slice(0, index + 1)
-  const scoredSoFar = shown.reduce((total, step) => total + step.total, 0)
   const byId = new Map(steps.map((step) => [step.suit, step]))
-  const revealedSuits = new Set(shown.map((step) => step.suit))
-  const current = steps[index]
-
-  // Constellations that fired for the suit whose beat is running, named so the
-  // card lighting up on the left has a label here (GDD 11-5: never a card alone).
-  const firing = [
-    ...new Set((current?.lines ?? []).flatMap((line) => line.constellations)),
-  ]
+  const firing = [...new Set((current?.lines ?? []).flatMap((line) => line.constellations))]
+  const column = (width - 16) / SUIT_ORDER.length
 
   return (
     <section
-      className="flex flex-col gap-3 rounded p-3"
-      style={{ background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
+      className="flex flex-col rounded px-2 py-1.5"
+      style={{
+        width,
+        height,
+        background: PALETTE.panel,
+        outline: `1px solid ${PALETTE.panelEdge}`,
+      }}
     >
       <header className="flex items-center justify-between">
-        <h2 className="text-xs font-bold" style={{ color: PALETTE.starWhite }}>
+        <h2 className="text-[11px] font-bold" style={{ color: PALETTE.starWhite }}>
           정산
         </h2>
-        <div className="flex gap-1">
+
+        <div className="flex items-center gap-1">
           {SPEEDS.map((option, i) => (
             <button
               key={option.label}
@@ -200,45 +219,37 @@ export function Settlement({
               {option.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={active ? () => onIndex(steps.length) : onDone}
+            disabled={data === null}
+            className="ml-1 rounded px-2 py-0.5 text-[10px] font-bold"
+            style={{
+              background: data === null ? PALETTE.panelEdge : PALETTE.nebulaTeal,
+              color: data === null ? PALETTE.starLink : PALETTE.void,
+              cursor: data === null ? 'default' : 'pointer',
+            }}
+          >
+            {active ? '건너뛰기' : '다음 턴'}
+          </button>
         </div>
       </header>
 
-      <div className="flex gap-0.5">
+      <div className="flex flex-1 items-center">
         {SUIT_ORDER.map((suit) => (
           <SuitColumn
             key={suit}
             suit={suit}
             step={byId.get(suit)}
-            active={running && current?.suit === suit}
-            revealed={revealedSuits.has(suit)}
+            active={active && current?.suit === suit}
+            revealed={data !== null && suits.has(suit)}
             ms={ms}
+            width={column}
           />
         ))}
       </div>
 
-      <div
-        className="flex flex-wrap items-baseline justify-center gap-x-1 border-t pt-2 text-[11px] tabular-nums"
-        style={{ borderColor: PALETTE.panelEdge }}
-      >
-        {SUIT_ORDER.map((suit, i) => (
-          <span key={suit}>
-            {i > 0 && <span style={{ color: PALETTE.starLink }}> + </span>}
-            <span
-              style={{
-                color: revealedSuits.has(suit) ? SUIT_INK[suit] : PALETTE.starLink,
-              }}
-            >
-              {revealedSuits.has(suit) ? (byId.get(suit)?.total ?? 0) : 0}
-            </span>
-          </span>
-        ))}
-        <span style={{ color: PALETTE.starLink }}> = </span>
-        <span className="font-bold" style={{ color: PALETTE.starWhite }}>
-          {scoredSoFar.toLocaleString('ko-KR')}
-        </span>
-      </div>
-
-      <div className="flex h-4 items-center justify-center text-[10px]">
+      <div className="flex h-3 items-center justify-center text-[10px]">
         {firing.length > 0 && (
           <motion.span
             key={firing.join()}
@@ -253,34 +264,94 @@ export function Settlement({
           </motion.span>
         )}
       </div>
+    </section>
+  )
+}
 
-      <div className="flex flex-col items-center gap-0.5 border-t pt-2" style={{ borderColor: PALETTE.panelEdge }}>
-        <span className="text-[10px]" style={{ color: PALETTE.starGlow }}>
-          이번 라운드 누적
+/** `30 + 80 + 15 + 0 + 40 = 165`, right-aligned under the panel. */
+export function SettlementEquation({
+  data,
+  steps,
+  index,
+}: {
+  readonly data: SettlementData | null
+  readonly steps: readonly SuitBreakdown[]
+  readonly index: number
+}) {
+  const { suits, scored } = revealedOf(steps, index)
+  const byId = new Map(steps.map((step) => [step.suit, step]))
+  const shown = (suit: SuitId) => (data !== null && suits.has(suit) ? (byId.get(suit)?.total ?? 0) : 0)
+
+  return (
+    <div className="flex items-baseline justify-end gap-1 text-sm tabular-nums">
+      {SUIT_ORDER.map((suit, i) => (
+        <span key={suit} className="flex items-baseline gap-1">
+          {i > 0 && <span style={{ color: PALETTE.starLink }}>+</span>}
+          <span
+            style={{ color: data !== null && suits.has(suit) ? SUIT_INK[suit] : PALETTE.starLink }}
+          >
+            {shown(suit)}
+          </span>
         </span>
-        <CountUp
-          value={roundScoreBefore + (running ? scoredSoFar : data.awarded)}
-          ms={ms === 0 ? 0 : ms}
-          className="text-3xl font-bold tabular-nums"
-          colour={PALETTE.nebulaAmber}
+      ))}
+      <span style={{ color: PALETTE.starLink }}>=</span>
+      <span className="text-base font-bold" style={{ color: PALETTE.starWhite }}>
+        {(data === null ? 0 : scored).toLocaleString('ko-KR')}
+      </span>
+    </div>
+  )
+}
+
+/** The big amber figure: what this round has banked, and what it needs. */
+export function RoundTotal({
+  value,
+  target,
+  ms,
+}: {
+  readonly value: number
+  readonly target: number
+  readonly ms: number
+}) {
+  const reached = value >= target
+  const progress = Math.min(1, target === 0 ? 1 : value / target)
+
+  return (
+    <div className="flex w-64 flex-col items-center gap-1">
+      <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+        이번 라운드 누적
+      </span>
+      <CountUp
+        value={value}
+        ms={ms}
+        className="text-5xl font-bold leading-none tabular-nums"
+        colour={reached ? PALETTE.nebulaTeal : PALETTE.nebulaAmber}
+      />
+      <div className="mt-1 h-1.5 w-full rounded" style={{ background: PALETTE.panelEdge }}>
+        {/* `initial={false}` so the bar starts at its real width. A block div
+            with no width is 100% wide, and animating in from that flashed a full
+            bar on the first frame of every mount. */}
+        <motion.div
+          className="h-full rounded"
+          initial={false}
+          animate={{ width: `${progress * 100}%` }}
+          transition={{ duration: ms === 0 ? 0 : 0.5 }}
+          style={{ background: reached ? PALETTE.nebulaTeal : PALETTE.nebulaAmber }}
         />
       </div>
+      <span className="text-[10px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+        목표 {target.toLocaleString('ko-KR')}
+        {reached && ' · 달성'}
+      </span>
+    </div>
+  )
+}
 
-      {!data.exact && !running && (
-        <p className="text-[10px] leading-snug" style={{ color: PALETTE.nebulaAmber }}>
-          떠돌이 조각은 정산 순간 인접 3방향을 굴려 정합니다(GDD 3-3). 위 분해는 한 가지 결과를
-          보여준 것이고, 실제 획득 점수는 굴림 결과인 {data.awarded.toLocaleString('ko-KR')}점입니다.
-        </p>
-      )}
-
-      <button
-        type="button"
-        onClick={running ? () => onIndex(steps.length) : onDone}
-        className="rounded py-2 text-xs font-bold"
-        style={{ background: PALETTE.nebulaTeal, color: PALETTE.void }}
-      >
-        {running ? '건너뛰기' : '다음 턴'}
-      </button>
-    </section>
+/** GDD 3-3: the drifter's roll can make the shown breakdown differ from the award. */
+export function DrifterNote({ data }: { readonly data: SettlementData }) {
+  return (
+    <p className="text-[10px] leading-snug" style={{ color: PALETTE.nebulaAmber }}>
+      떠돌이 조각은 정산 순간 인접 3방향을 굴려 정합니다(GDD 3-3). 위 분해는 한 가지 결과이고,
+      실제 획득은 {data.awarded.toLocaleString('ko-KR')}점입니다.
+    </p>
   )
 }

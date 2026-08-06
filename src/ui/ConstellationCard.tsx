@@ -54,11 +54,12 @@ interface Props {
   readonly scale?: number
   /**
    * `stack` puts the text under the card, `row` beside it. Both keep the three
-   * strings attached, which is the rule GDD 11-5 actually sets — the four held
-   * constellations sit in a column next to a 360px board, and stacked captions
-   * would run past the bottom of it.
+   * strings attached, which is the rule GDD 11-5 actually sets; what varies is
+   * only where they sit.
    */
   readonly layout?: 'stack' | 'row'
+  /** Width of the text column, so a 2×2 grid can hold its cells to one size. */
+  readonly width?: number
   /** Lit while this constellation is firing in the settlement (GDD 5-1). */
   readonly firing?: boolean
   readonly reduced?: boolean
@@ -68,6 +69,7 @@ export function ConstellationCard({
   id,
   scale = 2,
   layout = 'stack',
+  width,
   firing = false,
   reduced = false,
 }: Props) {
@@ -79,8 +81,9 @@ export function ConstellationCard({
       className={
         layout === 'row'
           ? 'flex items-center gap-2 rounded p-1'
-          : 'flex w-28 flex-col items-center gap-2'
+          : 'flex flex-col items-center gap-1'
       }
+      style={layout === 'stack' ? { width } : undefined}
       animate={{
         scale: firing ? 1.08 : 1,
         boxShadow: firing ? `0 0 14px ${frame}` : '0 0 0 rgba(0,0,0,0)',
@@ -92,7 +95,7 @@ export function ConstellationCard({
         className={
           layout === 'row'
             ? 'text-left text-[10px] leading-tight'
-            : 'text-center text-[11px] leading-tight'
+            : 'text-center text-[9px] leading-tight'
         }
       >
         <span className="block font-bold" style={{ color: frame }}>

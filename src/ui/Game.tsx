@@ -1,13 +1,9 @@
 // The playable screen. Assembles the pieces and drives the turn; every rule it
 // appears to enforce is really core's, called through the store (CLAUDE.md §5).
 //
-// Laid out to fit 1366×768 without scrolling — a booth machine is what this runs
-// on, and a scrollbar there costs a participant (GDD 12).
-//
-//   ┌ stardust ───── round · turn ───────── round score ┐
-//   │ board 5×5   held constellations   settlement      │
-//   │             [end turn]            round total     │
-//   └ hand (fanned) ─────────────────── ORION ──────────┘
+// Everything is placed by absolute coordinate on the fixed 1120×630 canvas
+// (GDD 11-10). Nothing here reflows: the canvas scales as a whole, so a booth
+// laptop and a 2560px monitor show the same picture at different sizes.
 //
 // Two things are timed here rather than in the store: the shuffle beat, which
 // core has no notion of because its shuffle is instantaneous, and the settlement
@@ -18,14 +14,22 @@ import { MODE_PRESETS, OWNED_CONSTELLATION_LIMIT, TURNS_PER_ROUND } from '../cor
 import { PALETTE } from '../assets/palette'
 import { useGame } from '../store/gameStore'
 import { Board } from './Board'
+import { At, CANVAS_WIDTH, Canvas, LAYOUT } from './Canvas'
 import { ConstellationCard } from './ConstellationCard'
 import { DEV_TOOLS, DevPanel } from './DevPanel'
-import { HUD } from './HUD'
+import { RoundTurn, Stardust, StatusLine } from './HUD'
 import type { Status } from './HUD'
-import { Hand } from './Hand'
-import { OrionBubble, useOrion } from './Orion'
+import { Hand, HandCount } from './Hand'
+import { OrionBubble, OrionSprite, useOrion } from './Orion'
 import { usePrefersReducedMotion } from './motion'
-import { Settlement, litCells, stepsOf } from './Settlement'
+import {
+  DrifterNote,
+  RoundTotal,
+  SettlementEquation,
+  SettlementPanel,
+  litCells,
+  stepsOf,
+} from './Settlement'
 
 /** How long "칩을 섞는 중…" holds before the hand flies in. */
 const SHUFFLE_MS = 550
@@ -33,10 +37,10 @@ const SHUFFLE_MS = 550
 function Banner({ title, note, action }: { title: string; note: string; action: () => void }) {
   return (
     <div
-      className="flex flex-col gap-3 rounded p-6 text-center"
+      className="flex w-80 flex-col gap-3 rounded p-5 text-center"
       style={{ background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
-      <h2 className="text-xl font-bold" style={{ color: PALETTE.starWhite }}>
+      <h2 className="text-lg font-bold" style={{ color: PALETTE.starWhite }}>
         {title}
       </h2>
       <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
@@ -135,16 +139,34 @@ export function Game() {
   // Constellations lighting up on the suit whose beat is running (GDD 5-1 step 2).
   const firing = new Set((steps[step]?.lines ?? []).flatMap((line) => line.constellations))
 
-  return (
-    <main
-      className="flex h-screen flex-col gap-3 p-4 font-mono"
-      style={{ background: PALETTE.void, color: PALETTE.starWhite }}
-    >
-      <HUD game={game} status={status} reduced={reduced} />
+  // The turn the header names. Core advances the counter inside `endTurn`, so
+  // during a settlement the snapshot is the honest answer (GDD 4-1 unchanged).
+  const shownTurn = settlement?.turn ?? game.turn
 
-      {/* `items-center` splits the slack a 768px screen leaves above and below the
-          board, instead of pooling all of it between the board and the hand. */}
-      <div className="flex flex-1 items-center justify-center gap-5">
+  // The big figure runs from where the round stood to where the walk has got.
+  const scoredSoFar = steps.slice(0, step + 1).reduce((total, entry) => total + entry.total, 0)
+  const shownTotal =
+    settlement === null
+      ? game.roundScore
+      : settlement.roundScoreBefore + (settling ? scoredSoFar : settlement.awarded)
+
+  const cards = LAYOUT.constellations
+
+  return (
+    <Canvas>
+      <At x={LAYOUT.stardust.x} y={LAYOUT.stardust.y}>
+        <Stardust value={game.stardust} />
+      </At>
+
+      <At x={CANVAS_WIDTH / 2} y={LAYOUT.roundTurn.y} centre>
+        <RoundTurn game={game} turn={shownTurn} />
+      </At>
+
+      <At x={CANVAS_WIDTH / 2} y={LAYOUT.status.y} centre>
+        <StatusLine status={status} />
+      </At>
+
+      <At x={LAYOUT.board.x} y={LAYOUT.board.y}>
         <Board
           board={board}
           holding={settlement === null && !over && !shuffling ? selected : null}
@@ -153,97 +175,137 @@ export function Game() {
           reduced={reduced}
           onPlace={placeAt}
         />
+      </At>
 
-        <div className="flex w-36 flex-col gap-2">
-          <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
-            보유 별자리 {game.ownedConstellations.length} / {OWNED_CONSTELLATION_LIMIT}
-          </span>
+      <At x={cards.label.x} y={cards.label.y}>
+        <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+          보유 별자리 {game.ownedConstellations.length} / {OWNED_CONSTELLATION_LIMIT}
+        </span>
+      </At>
+
+      {/* Two by two: four cards with their mandatory text (GDD 11-5) do not fit
+          in a column above the end-turn button. See LAYOUT.constellations. */}
+      <At x={cards.x} y={cards.y} w={cards.cell * 2 + cards.gap}>
+        <div className="flex flex-wrap" style={{ gap: cards.gap }}>
           {game.ownedConstellations.map((id) => (
             <ConstellationCard
               key={id}
               id={id}
-              scale={1}
-              layout="row"
+              scale={2}
+              layout="stack"
+              width={cards.cell}
               firing={firing.has(id)}
               reduced={reduced}
             />
           ))}
-
-          <button
-            type="button"
-            onClick={commitTurn}
-            disabled={settlement !== null || over || shuffling}
-            className="mt-auto rounded py-2 text-xs font-bold"
-            style={{
-              background: settlement !== null || over ? PALETTE.panelEdge : PALETTE.nebulaAmber,
-              color: settlement !== null || over ? PALETTE.starGlow : PALETTE.void,
-              cursor: settlement !== null || over ? 'default' : 'pointer',
-            }}
-          >
-            {settlement !== null ? '대기 중' : '턴 종료'}
-          </button>
         </div>
+      </At>
 
-        <div className="flex w-72 flex-col gap-3">
-          {over ? (
-            <Banner
-              title={cleared ? '전 라운드 클리어' : '게임 오버'}
-              note={
-                cleared
-                  ? `${MODE_PRESETS[game.mode].TOTAL_ROUNDS}라운드를 모두 넘겼습니다.`
-                  : `라운드 ${game.round}에서 목표 ${game.targetScore.toLocaleString('ko-KR')}점에 ` +
-                    `${game.roundScore.toLocaleString('ko-KR')}점으로 미달했습니다.`
-              }
-              action={() => newGame()}
-            />
-          ) : settlement !== null ? (
-            <Settlement
-              data={settlement}
-              steps={steps}
-              index={step}
-              onIndex={setStep}
-              onDone={dismissSettlement}
-              roundScoreBefore={game.roundScore - settlement.awarded}
+      <At x={LAYOUT.endTurn.x} y={LAYOUT.endTurn.y} w={LAYOUT.endTurn.w} h={LAYOUT.endTurn.h}>
+        <button
+          type="button"
+          onClick={commitTurn}
+          disabled={settlement !== null || over || shuffling}
+          className="h-full w-full rounded text-xs font-bold"
+          style={{
+            background: settlement !== null || over ? PALETTE.panelEdge : PALETTE.nebulaAmber,
+            color: settlement !== null || over ? PALETTE.starGlow : PALETTE.void,
+            cursor: settlement !== null || over ? 'default' : 'pointer',
+          }}
+        >
+          {settlement !== null ? '대기 중' : '턴 종료'}
+        </button>
+      </At>
+
+      <At x={LAYOUT.settlement.x} y={LAYOUT.settlement.y}>
+        <SettlementPanel
+          data={settlement}
+          steps={steps}
+          index={step}
+          onIndex={setStep}
+          onDone={dismissSettlement}
+          reduced={reduced}
+          speed={speed}
+          onSpeed={setSpeed}
+          width={LAYOUT.settlement.w}
+          height={LAYOUT.settlement.h}
+        />
+      </At>
+
+      <At x={LAYOUT.equation.right} y={LAYOUT.equation.y}>
+        <div className="absolute right-0 top-0 whitespace-nowrap">
+          <SettlementEquation data={settlement} steps={steps} index={step} />
+        </div>
+      </At>
+
+      <At x={LAYOUT.roundTotal.centre} y={LAYOUT.roundTotal.y} centre>
+        <RoundTotal
+          value={shownTotal}
+          target={game.targetScore}
+          ms={reduced || speed === 2 ? 0 : 400}
+        />
+      </At>
+
+      {settlement !== null && !settlement.exact && !settling && (
+        <At x={LAYOUT.settlement.x} y={LAYOUT.roundTotal.y + 96} w={LAYOUT.settlement.w}>
+          <DrifterNote data={settlement} />
+        </At>
+      )}
+
+      {/* The hand stands down between the settlement and the next draw: core has
+          already returned it to the deck (GDD 4-2). */}
+      {!over && settlement === null && (
+        <>
+          <At x={LAYOUT.hand.x} y={LAYOUT.hand.y} z={20}>
+            <Hand
+              hand={shuffling ? [] : game.hand}
+              selected={selected}
+              placedThisTurn={staged.length}
+              width={LAYOUT.hand.w}
+              height={LAYOUT.hand.h}
               reduced={reduced}
-              speed={speed}
-              onSpeed={setSpeed}
+              onSelect={select}
             />
-          ) : (
-            <section
-              className="flex flex-col gap-2 rounded p-3"
-              style={{ background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
-            >
-              <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
-                손패에서 조각을 고르고 성도의 빈칸에 놓습니다. 고른 조각을 다시 누르면 선택이
-                풀립니다. 놓은 조각은 되돌릴 수 없습니다.
-              </p>
-              <p className="text-[10px]" style={{ color: PALETTE.starLink }}>
-                배치하지 않은 손패는 덱으로 돌아가 다시 섞입니다.
-              </p>
-            </section>
-          )}
-        </div>
-      </div>
+          </At>
+          <At x={LAYOUT.hand.label.x} y={LAYOUT.hand.label.y}>
+            <HandCount hand={game.hand} placedThisTurn={staged.length} />
+          </At>
+        </>
+      )}
 
-      <div className="flex items-end justify-between gap-6">
-        {/* The hand is empty between the settlement and the next draw — core has
-            already returned it to the deck (GDD 4-2) — so the fan stands down
-            rather than reporting "손패 0장". */}
-        {over || settlement !== null ? (
-          <div />
-        ) : (
-          <Hand
-            hand={shuffling ? [] : game.hand}
-            selected={selected}
-            placedThisTurn={staged.length}
-            reduced={reduced}
-            onSelect={select}
+      <At x={LAYOUT.bubble.x} y={LAYOUT.bubble.y}>
+        <OrionBubble
+          line={orion.line}
+          reduced={reduced}
+          width={LAYOUT.bubble.w}
+          height={LAYOUT.bubble.h}
+        />
+      </At>
+
+      <At x={LAYOUT.orion.x} y={LAYOUT.orion.y}>
+        <OrionSprite width={LAYOUT.orion.w} height={LAYOUT.orion.h} />
+      </At>
+
+      {over && (
+        <At x={CANVAS_WIDTH / 2} y={220} centre z={30}>
+          <Banner
+            title={cleared ? '전 라운드 클리어' : '게임 오버'}
+            note={
+              cleared
+                ? `${MODE_PRESETS[game.mode].TOTAL_ROUNDS}라운드를 모두 넘겼습니다.`
+                : `라운드 ${game.round}에서 목표 ${game.targetScore.toLocaleString('ko-KR')}점에 ` +
+                  `${game.roundScore.toLocaleString('ko-KR')}점으로 미달했습니다.`
+            }
+            action={() => newGame()}
           />
-        )}
-        <OrionBubble line={orion.line} reduced={reduced} />
-      </div>
+        </At>
+      )}
 
-      {DEV_TOOLS && <DevPanel game={game} onPatch={devSet} onRestart={() => newGame()} />}
-    </main>
+      {DEV_TOOLS && (
+        <At x={LAYOUT.dev.x} y={LAYOUT.dev.y} z={40}>
+          <DevPanel game={game} onPatch={devSet} onRestart={() => newGame()} />
+        </At>
+      )}
+    </Canvas>
   )
 }

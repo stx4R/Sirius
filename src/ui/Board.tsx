@@ -13,6 +13,9 @@ import { PixelSprite } from './PixelSprite'
 
 /** GDD 11-4: 72px cell = 64px chip plus 8px of gutter. */
 export const CELL_SIZE = 72
+/** GDD 11-10: 2px between cells, so the board measures 5×72 + 4×2 = 368. */
+export const CELL_GAP = 2
+export const BOARD_PIXELS = BOARD_SIZE * CELL_SIZE + (BOARD_SIZE - 1) * CELL_GAP
 
 /**
  * A pale hairline, so twenty-five empty cells read as a chart to place onto
@@ -44,17 +47,16 @@ const key = (pos: Position) => `${pos.row},${pos.col}`
 
 export function Board({ board, holding, lit, dim = false, reduced = false, onPlace }: Props) {
   return (
-    // `w-fit` pins the board to its own five tracks. Without it a flex parent's
-    // default `stretch` widens the container to whatever sits beside it — the
-    // hand is wider than 5×72, and the extra width showed as dead space to the
-    // right of the last column.
+    // Sized in absolute pixels rather than by its parent: the board sits at a
+    // fixed spot on the canvas (GDD 11-10), and the canvas is what scales.
     <div
-      className="grid w-fit rounded"
+      className="grid rounded"
       style={{
+        width: BOARD_PIXELS,
+        height: BOARD_PIXELS,
         gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
         gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
-        background: PALETTE.panel,
-        outline: `1px solid ${PALETTE.panelEdge}`,
+        gap: CELL_GAP,
       }}
     >
       {board.flatMap((row, r) =>

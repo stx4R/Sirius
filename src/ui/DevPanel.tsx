@@ -65,7 +65,7 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed right-4 top-4 rounded px-3 py-1.5 text-[11px]"
+        className="rounded px-3 py-1.5 text-[11px]"
         style={{ background: PALETTE.panel, color: PALETTE.starGlow, outline: `1px solid ${PALETTE.panelEdge}` }}
       >
         DEV ▸
@@ -75,7 +75,9 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
 
   return (
     <aside
-      className="fixed right-4 top-4 flex max-h-[92vh] w-64 flex-col gap-4 overflow-y-auto rounded p-4 text-[11px]"
+      // Anchored to its right edge so it opens leftwards into the canvas rather
+      // than off the plane (GDD 11-10 puts the toggle at x=1050 of 1120).
+      className="absolute right-0 top-0 flex max-h-[600px] w-64 flex-col gap-4 overflow-y-auto rounded p-4 text-[11px]"
       style={{ background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
       <header className="flex items-center justify-between">

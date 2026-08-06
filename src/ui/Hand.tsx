@@ -25,41 +25,42 @@ const CHIP = 64
 /** Centre-to-centre. 46 leaves 18px of overlap, short of the 16px+16px of gutter. */
 const SPREAD = 46
 /** Downward drop per step from the middle, squared — this is what curves the fan. */
-const ARC_DROP = 3.4
+const ARC_DROP = 2.6
 /** Degrees of tilt per step from the middle. */
 const TILT = 4
 
-const LIFT_HOVER = 22
-const LIFT_SELECTED = 32
+const LIFT_HOVER = 18
+const LIFT_SELECTED = 26
 /** How far a chip leans aside to make room for the one being hovered. */
 const MAKE_ROOM = 16
 
-const FAN_WIDTH = HAND_SIZE * SPREAD + CHIP
-const FAN_HEIGHT = CHIP + ARC_DROP * (HAND_SIZE / 2) ** 2 + LIFT_SELECTED
+/** GDD 11-10 gives the hand a 400×104 box; eight chips at this spread take 386. */
+export const FAN_WIDTH = (HAND_SIZE - 1) * SPREAD + CHIP
 
 interface Props {
   readonly hand: readonly Chip[]
   readonly selected: Chip | null
   readonly placedThisTurn: number
+  readonly width: number
+  readonly height: number
   readonly reduced?: boolean
   readonly onSelect: (chip: Chip) => void
 }
 
-export function Hand({ hand, selected, placedThisTurn, reduced = false, onSelect }: Props) {
+export function Hand({
+  hand,
+  selected,
+  placedThisTurn,
+  width,
+  height,
+  reduced = false,
+  onSelect,
+}: Props) {
   const full = placedThisTurn >= MAX_PLACEMENTS_PER_TURN
   const [hovered, setHovered] = useState<number | null>(null)
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-3 text-[11px]">
-        <span style={{ color: PALETTE.starGlow }}>손패 {hand.length}장</span>
-        <span style={{ color: full ? PALETTE.nebulaAmber : PALETTE.starGlow }}>
-          이번 턴 배치 {placedThisTurn} / {MAX_PLACEMENTS_PER_TURN}
-          {full && ' — 턴을 종료하세요'}
-        </span>
-      </div>
-
-      <div className="relative" style={{ width: FAN_WIDTH, height: FAN_HEIGHT }}>
+      <div className="relative" style={{ width, height }}>
         {hand.map((chip, i) => {
           const isSelected = selected?.id === chip.id
           const isHovered = hovered === i
@@ -124,7 +125,27 @@ export function Hand({ hand, selected, placedThisTurn, reduced = false, onSelect
             </motion.button>
           )
         })}
-      </div>
+    </div>
+  )
+}
+
+/** The counter that rides under the fan (GDD 11-10). */
+export function HandCount({
+  hand,
+  placedThisTurn,
+}: {
+  readonly hand: readonly Chip[]
+  readonly placedThisTurn: number
+}) {
+  const full = placedThisTurn >= MAX_PLACEMENTS_PER_TURN
+
+  return (
+    <div className="flex items-center gap-3 whitespace-nowrap text-[11px]">
+      <span style={{ color: PALETTE.starGlow }}>손패 {hand.length}장</span>
+      <span style={{ color: full ? PALETTE.nebulaAmber : PALETTE.starGlow }}>
+        이번 턴 배치 {placedThisTurn} / {MAX_PLACEMENTS_PER_TURN}
+        {full && ' — 턴을 종료하세요'}
+      </span>
     </div>
   )
 }

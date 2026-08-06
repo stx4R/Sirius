@@ -50,6 +50,14 @@ export interface Settlement {
   readonly awarded: number
   /** False when the drifter's roll made the breakdown differ from the award. */
   readonly exact: boolean
+  /**
+   * The turn this settles, captured before `endTurn` advances the counter. The
+   * header would otherwise read "턴 2" while turn 1 was still being counted.
+   * Display only — core's transitions are unchanged (GDD 4-1).
+   */
+  readonly turn: number
+  /** The round score this turn started from, so the total counts up from it. */
+  readonly roundScoreBefore: number
 }
 
 interface GameStore {
@@ -125,7 +133,14 @@ export const useGame = create<GameStore>((set, get) => ({
       game: settled,
       staged: [],
       selected: null,
-      settlement: { result, board: game.board, awarded, exact: result.total === awarded },
+      settlement: {
+        result,
+        board: game.board,
+        awarded,
+        exact: result.total === awarded,
+        turn: game.turn,
+        roundScoreBefore: game.roundScore,
+      },
     })
   },
 

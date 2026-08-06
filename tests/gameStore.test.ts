@@ -107,6 +107,42 @@ describe('turn and round', () => {
     expect(shown).toBe(settlement.awarded)
   })
 
+  // GDD 4-1 has `endTurn` advance the turn counter, so by the time the settlement
+  // is on screen `game.turn` already names the *next* turn. The snapshot is what
+  // the header reads from; core's transitions are untouched.
+  it('remembers which turn is being settled, not the one core moved on to', () => {
+    store().newGame(7)
+
+    for (let turn = 1; turn <= 3; turn++) {
+      expect(store().game.turn).toBe(turn)
+      placeChips(MAX_PLACEMENTS_PER_TURN)
+      store().commitTurn()
+
+      const settlement = store().settlement!
+      expect(settlement.turn).toBe(turn)
+      expect(store().game.turn).toBe(turn + 1)
+
+      store().dismissSettlement()
+    }
+  })
+
+  it('snapshots the round score the settled turn started from', () => {
+    store().newGame(7)
+    placeChips(MAX_PLACEMENTS_PER_TURN)
+    store().commitTurn()
+    expect(store().settlement!.roundScoreBefore).toBe(0)
+
+    store().dismissSettlement()
+    const carried = store().game.roundScore
+
+    placeChips(MAX_PLACEMENTS_PER_TURN)
+    store().commitTurn()
+    const second = store().settlement!
+    expect(second.roundScoreBefore).toBe(carried)
+    // What the big figure counts up to is where the round actually stands.
+    expect(second.roundScoreBefore + second.awarded).toBe(store().game.roundScore)
+  })
+
   it('plays a full round of five turns and checks the target', () => {
     store().newGame(7)
 

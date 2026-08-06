@@ -5,7 +5,17 @@
 
 import { CONSTELLATION_RULES } from '../core/config'
 import type { Chip, ConstellationId, SuitId } from '../core/types'
-import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, SUIT_INK, luma, mix } from './palette'
+import {
+  AXIS_COLOURS,
+  CHIP_COLOURS,
+  NEBULA_GLOW,
+  NEBULA_INK,
+  PALETTE,
+  SUIT_INK,
+  luma,
+  mix,
+} from './palette'
+import type { NebulaMood } from './palette'
 import {
   CARD_FRAME,
   CARD_HEIGHT,
@@ -18,6 +28,7 @@ import {
   GLYPH_SIZE,
   LOCK_GLYPH,
   SUIT_GLYPHS,
+  nebulaLayers,
   chipLayerAt,
   skyOf,
 } from './pixels'
@@ -145,6 +156,37 @@ export function drifterChip(): PixelMap {
     baseAt: refract,
     glyph: CROWN_GLYPH,
   })
+}
+
+/**
+ * иєвυℓα at 60×78 (GDD 11-9), shown at 2× beside ORION's 120×156.
+ *
+ * `mood` changes only the light out of the hood. She has no face to put an
+ * expression on — that is the point of the design — so interest and a closed
+ * deal read as the glow brightening, and the rim picks up a little of it so the
+ * whole silhouette answers rather than one spot.
+ */
+export function nebulaSprite(mood: NebulaMood = 'idle'): PixelMap {
+  const glow = NEBULA_GLOW[mood]
+
+  return nebulaLayers().map((row) =>
+    row.map((layer) => {
+      switch (layer) {
+        case 'outside':
+          return null
+        case 'glow':
+          return glow
+        case 'hollow':
+          return NEBULA_INK.hollow
+        case 'rim':
+          return mix(NEBULA_INK.rim, glow, mood === 'idle' ? 0 : 0.35)
+        case 'fold':
+          return NEBULA_INK.veilFold
+        case 'veil':
+          return NEBULA_INK.veil
+      }
+    }),
+  )
 }
 
 /**

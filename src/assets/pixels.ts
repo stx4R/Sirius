@@ -235,6 +235,89 @@ export function chipLayerAt(row: number, col: number): ChipLayer {
 /** Top-left of the 16×16 symbol box inside the chip. */
 export const GLYPH_OFFSET = (CHIP_SIZE - GLYPH_SIZE) / 2
 
+// ------------------------------------------------------------------ иєвυℓα
+// GDD 11-9. Built from geometry rather than a hand-drawn map, like the chip —
+// 60×78 is 4,680 cells and the shape is a silhouette, not a portrait.
+//
+// The whole design goal is that the silhouette alone says "unidentified". So the
+// hood has an opening where a face should be and there is nothing inside it but
+// light. ORION is a person with a nebula for a body; иєвυℓα is a nebula wearing
+// the shape of a person, and the reading has to survive at 60px with no features
+// to lean on.
+
+export const NEBULA_WIDTH = 60
+export const NEBULA_HEIGHT = 78
+
+export type NebulaLayer = 'outside' | 'rim' | 'veil' | 'fold' | 'hollow' | 'glow'
+
+const NEBULA_CX = (NEBULA_WIDTH - 1) / 2
+/** The hood, and the opening cut into the front of it. */
+const HOOD = { cy: 27, rx: 19, ry: 25 }
+const FACE = { cy: 32, rx: 11, ry: 14 }
+/** Where the light sits inside the opening — low and slightly right, not centred. */
+const CORE = { cx: NEBULA_CX + 1.5, cy: 34, rx: 6.5, ry: 7.5 }
+
+const SHOULDER_Y = 42
+
+const inEllipse = (x: number, y: number, cx: number, cy: number, rx: number, ry: number) =>
+  ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1
+
+/** Half-width of the robe at a row: it flares steadily from the shoulders down. */
+function robeHalfWidth(y: number): number {
+  if (y < SHOULDER_Y) return 0
+  return 14 + ((y - SHOULDER_Y) / (NEBULA_HEIGHT - SHOULDER_Y)) * 15
+}
+
+/**
+ * How far down each column of the robe reaches.
+ *
+ * Two sine waves rather than noise. Random per-column cuts put a 1px spike next
+ * to a 1px gap and the hem came out as static; two low frequencies beating
+ * against each other keep neighbouring columns close, so the bottom reads as
+ * strands hanging off a robe. It is also flatly deterministic, which is the
+ * cheapest possible way to satisfy CLAUDE.md §8.
+ */
+const HEM_BOTTOM = Array.from({ length: NEBULA_WIDTH }, (_, x) => {
+  // Driven off the distance from the centre line, not from x, so she is
+  // symmetric — a lopsided hem read as damage rather than as drapery.
+  const fromCentre = Math.abs(x - NEBULA_CX) / NEBULA_CX
+  const drape = Math.sin(fromCentre * 9.5) * 2 + Math.sin(fromCentre * 3.6) * 3
+  return NEBULA_HEIGHT - 1 - Math.round(fromCentre * 26 + drape)
+})
+
+function isBody(x: number, y: number): boolean {
+  if (inEllipse(x, y, NEBULA_CX, HOOD.cy, HOOD.rx, HOOD.ry)) return true
+  if (y < SHOULDER_Y || y > HEM_BOTTOM[x]) return false
+  return Math.abs(x - NEBULA_CX) <= robeHalfWidth(y)
+}
+
+/** GDD 11-9: one grid of layers, rim derived from what has empty space beside it. */
+export function nebulaLayers(): NebulaLayer[][] {
+  const body: boolean[][] = Array.from({ length: NEBULA_HEIGHT }, (_, y) =>
+    Array.from({ length: NEBULA_WIDTH }, (_, x) => isBody(x, y)),
+  )
+
+  return body.map((row, y) =>
+    row.map((solid, x): NebulaLayer => {
+      if (!solid) return 'outside'
+
+      // The hood's opening. Nothing in it but the light — no eyes, no mouth.
+      if (y < SHOULDER_Y + 4 && inEllipse(x, y, NEBULA_CX, FACE.cy, FACE.rx, FACE.ry)) {
+        return inEllipse(x, y, CORE.cx, CORE.cy, CORE.rx, CORE.ry) ? 'glow' : 'hollow'
+      }
+
+      const open = (dx: number, dy: number) =>
+        body[y + dy]?.[x + dx] !== true
+      if (open(-1, 0) || open(0, -1) || open(1, 0) || open(0, 1)) return 'rim'
+
+      // Folds run down the robe, spaced so the cloth reads as cloth at 2×.
+      const fromCentre = Math.abs(x - NEBULA_CX)
+      if (y > SHOULDER_Y && fromCentre > 4 && Math.round(fromCentre) % 7 === 0) return 'fold'
+      return 'veil'
+    }),
+  )
+}
+
 // -------------------------------------------------------------- star charts
 // GDD 11-5: the card carries the constellation's own figure, not a diagram of
 // the rule it scores. These are stylised asterisms — the recognisable gesture of

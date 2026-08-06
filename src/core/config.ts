@@ -428,18 +428,30 @@ export const SHOP_PRICES = {
   rerollIncrement: 1,
 } as const
 
-/** Items on offer per shop visit (GDD 9-3). */
+/**
+ * Items on offer per shop visit (GDD 9-3).
+ *
+ * No drifter slot: GDD 13-4 turned it from stock into a gift at the first
+ * meeting, and a dead `drifterChips` here was a standing invitation to put it
+ * back on a shelf and quietly break that rule.
+ */
 export const SHOP_SLOTS = {
   specialChips: 4,
   constellations: 2,
   companions: 2,
-  drifterChips: 1,
 } as const
 
 /**
- * Companion effects land at P4 (GDD 7-1-b). Until then the shop builds the slot
- * but leaves it empty, so nothing is sold that does nothing. Flip to true at P4.
+ * Two flags, because "on the shelf" and "can be bought" are different questions
+ * and P4-A needs one true and the other false.
+ *
+ * The shop shows the two companion slots so the player can see what the system
+ * is and what a tier costs (GDD 7-1's published odds are a teaching device, and
+ * they teach nothing behind an empty slot). Buying stays shut until the effect
+ * parameters exist at P4-B (GDD 7-1-b) — selling a companion that does nothing
+ * would take stardust for no effect.
  */
+export const COMPANIONS_STOCKED = true
 export const COMPANIONS_ENABLED = false
 
 // ------------------------------------------------- probability layer

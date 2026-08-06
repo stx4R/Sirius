@@ -1,12 +1,16 @@
 // иєвυℓα's shop (GDD 9-2, 9-3). Stock rolling and purchase effects.
 //
-// The companion slot exists but stays empty while COMPANIONS_ENABLED is false:
-// their effect parameters arrive at P4 (GDD 7-1-b), so selling them now would
-// only drain stardust for nothing.
+// Companions are stocked but not sold at P4-A: the shelf shows what they are and
+// what a tier costs, while `COMPANIONS_ENABLED` keeps the buy shut until their
+// effect parameters exist at P4-B (GDD 7-1-b). Selling one now would take
+// stardust for nothing.
+//
+// GDD 13-4: the drifter is not stock. иєвυℓα gives it away at the first meeting,
+// so it has no price and never appears on a shelf — see `grantDrifter`.
 
 import {
   COMPANIONS,
-  COMPANIONS_ENABLED,
+  COMPANIONS_STOCKED,
   COMPANION_TIER_WEIGHTS,
   CONSTELLATION_MULTIPLIERS,
   OWNED_CONSTELLATION_LIMIT,
@@ -28,10 +32,23 @@ const COMPANION_IDS = Object.keys(COMPANIONS) as CompanionId[]
 export interface ShopStock {
   readonly specials: readonly SuitPair[]
   readonly constellations: readonly ConstellationId[]
-  /** Empty until COMPANIONS_ENABLED (GDD 7-1-b). */
+  /** On the shelf from P4-A; purchasable only once COMPANIONS_ENABLED (GDD 7-1-b). */
   readonly companions: readonly CompanionId[]
 }
 
+/**
+ * ★ There is deliberately no `companion` variant here, and there must not be one
+ * until P4-B.
+ *
+ * P2-B measured the whole target curve with companions inactive (GDD 13-6). If a
+ * companion could reach game state by any route those numbers stop describing
+ * the shipped game. A runtime guard could be forgotten; leaving the variant out
+ * of the union makes a companion purchase unrepresentable — `applyPurchase`
+ * cannot be handed one, so `Loadout.companions` cannot grow. That is the
+ * strongest form of the guarantee, and it is why COMPANIONS_ENABLED has nothing
+ * to switch on yet: stocking a shelf (COMPANIONS_STOCKED) and selling from it
+ * are separate, and only the first is on.
+ */
 export type Purchase =
   | { readonly kind: 'addBasic'; readonly suit: SuitId }
   | { readonly kind: 'removeBasic'; readonly suit: SuitId }
@@ -105,7 +122,7 @@ export function rollStock(loadout: Loadout, rng: Rng): ShopStock {
       SHOP_SLOTS.constellations,
       rng,
     ),
-    companions: COMPANIONS_ENABLED ? rollCompanions(loadout.companions ?? [], rng) : [],
+    companions: COMPANIONS_STOCKED ? rollCompanions(loadout.companions ?? [], rng) : [],
   }
 }
 
@@ -145,6 +162,7 @@ export function rerollPrice(timesUsed: number): number {
 export function canAfford(loadout: Loadout, purchase: Purchase): boolean {
   return loadout.stardust >= priceOf(purchase)
 }
+
 
 /** Applies a purchase the caller has already confirmed with `canAfford`. */
 export function applyPurchase(loadout: Loadout, purchase: Purchase): Loadout {

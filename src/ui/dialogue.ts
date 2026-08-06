@@ -51,3 +51,54 @@ export function lineFor(beat: Beat, rng: Rng): string {
   const lines = ORION_LINES[beat]
   return lines[Math.floor(rng() * lines.length)]
 }
+
+// ------------------------------------------------------------------ иєвυℓα
+// GDD 11-9. She keeps the shop; ORION never does.
+//
+// The two exist to contrast, and the dialogue is where a player actually feels
+// it. ORION reports and leaves the decision alone. иєвυℓα works the sale — she
+// nudges, flatters and needles — but she never pushes: the stardust is the
+// player's and the game does not pretend otherwise. If a line ever reads as
+// pressure rather than patter, it belongs to the wrong character.
+
+export type ShopBeat = 'enter' | 'bought' | 'reroll' | 'broke' | 'leave'
+
+export const NEBULA_LINES: Readonly<Record<ShopBeat, readonly string[]>> = {
+  enter: [
+    '어서 오게. 별을 팔러 왔나, 사러 왔나',
+    '먼 길이었지. 좋은 게 들어와 있다네',
+    '자네가 올 줄 알았지',
+    '구경은 공짜야. 손해 볼 것 없지 않나',
+    '오늘은 뭘 가져갈 텐가',
+  ],
+  bought: [
+    '좋은 눈이야',
+    '후회 없을 걸세',
+    '역시 볼 줄 아는군',
+    '그건 값을 하지, 두고 보게',
+    '거래 성립. 즐거웠네',
+  ],
+  reroll: [
+    '마음에 안 드나? 다시 펼쳐 보지',
+    '까다롭군. 나쁘지 않아',
+    '기다리게, 안쪽에 더 있으니',
+    '별은 얼마든지 있다네',
+  ],
+  broke: [
+    '스타더스트가 모자라는군',
+    '외상은 안 되네. 규칙이야',
+    '다음에 오게. 물건은 도망가지 않아',
+    '더 벌어 오면 그때 이야기하지',
+  ],
+  leave: [
+    '또 보세',
+    '별빛 아래서 다시 만나지',
+    '가는 길에 조심하고',
+    '다음 성역에서 기다리겠네',
+  ],
+}
+
+export function shopLineFor(beat: ShopBeat, rng: Rng): string {
+  const lines = NEBULA_LINES[beat]
+  return lines[Math.floor(rng() * lines.length)]
+}

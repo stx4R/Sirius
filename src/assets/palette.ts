@@ -126,6 +126,39 @@ export const SUIT_INK: Readonly<Record<SuitId, string>> = {
 }
 
 /**
+ * иєвυℓα (GDD 11-9). Derived tones, so the palette stays at 32 — the same way
+ * the constellation cards make theirs.
+ *
+ * Two colours were off limits and both are the obvious ones. `mimosa` is a chip
+ * suit: dressing the shopkeeper in it would put her in the same purple as the
+ * pieces on the board. `nebulaMagenta` codes the diagonal constellation axis
+ * (11-5), and spending it on a character would blur what the axis colours mean.
+ *
+ * So the veil is magenta pushed almost all the way into the deep nebula — far
+ * darker than mimosa (luma 117) at 40, which separates them by value as well as
+ * by hue. Only the light leaking out of the hood is allowed to be bright.
+ */
+export const NEBULA_INK = {
+  /** The robe and hood: near-black plum. */
+  veil: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.22),
+  /** One value up, for folds in the cloth. */
+  veilFold: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.38),
+  /** The lit edge that lifts the silhouette off the void. */
+  rim: mix(PALETTE.nebulaMagenta, PALETTE.starWhite, 0.3),
+  /** Inside the hood, where a face would be and is not. */
+  hollow: PALETTE.void,
+} as const
+
+/** GDD 11-9: she has no expressions — the light out of the hood answers instead. */
+export type NebulaMood = 'idle' | 'keen' | 'dealt'
+
+export const NEBULA_GLOW: Readonly<Record<NebulaMood, string>> = {
+  idle: mix(PALETTE.nebulaMagenta, PALETTE.nebulaDeep, 0.45),
+  keen: PALETTE.nebulaMagenta,
+  dealt: mix(PALETTE.nebulaMagenta, PALETTE.starWhite, 0.5),
+}
+
+/**
  * GDD 11-5: the colour of a constellation card's frame. The star chart inside is
  * blue-white for every card, so the axis has to be readable from the frame alone
  * — the starting choice of aries (vertical) vs libra (horizontal) depends on

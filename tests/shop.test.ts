@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   COMPANIONS_ENABLED,
+  COMPANIONS_STOCKED,
+  MULTIPLIER_STACK_MODE,
   OWNED_CONSTELLATION_LIMIT,
   SHOP_PRICES,
   SHOP_SLOTS,
@@ -8,15 +10,17 @@ import {
 } from '../src/core/config'
 import { createInitialDeck } from '../src/core/deck'
 import { mulberry32 } from '../src/core/rng'
+import { buy, fromLoadout, openShop, playRound } from '../src/core/game'
 import {
   ALL_CONSTELLATIONS,
   applyPurchase,
+  createStartingLoadout,
   canAfford,
   grantDrifter,
   rerollPrice,
   rollStock,
 } from '../src/core/shop'
-import type { Loadout } from '../src/core/shop'
+import type { Loadout, Purchase } from '../src/core/shop'
 import type { Chip } from '../src/core/types'
 
 const loadout = (over: Partial<Loadout> = {}): Loadout => ({
@@ -60,9 +64,11 @@ describe('shop stock', () => {
     expect(rollStock(loadout(), mulberry32(3))).not.toHaveProperty('drifter')
   })
 
-  it('leaves the companion slot empty while companions are disabled', () => {
+  // P4-A split "on the shelf" from "for sale": the slot fills so the player can
+  // see the system and its tier prices, while the till stays shut (GDD 7-1-b).
+  it('fills the companion slot even though none can be bought', () => {
     expect(COMPANIONS_ENABLED).toBe(false)
-    expect(rollStock(loadout(), mulberry32(5)).companions).toEqual([])
+    expect(rollStock(loadout(), mulberry32(5)).companions).toHaveLength(SHOP_SLOTS.companions)
   })
 
   it('raises the reroll price by one per use', () => {
@@ -144,5 +150,88 @@ describe('purchases', () => {
     expect(
       canAfford(loadout({ stardust: SHOP_PRICES.specialChip - 1 }), { kind: 'special', pair }),
     ).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------- P4-A
+// GDD 7-1-b. The shelf is on, the till is not. P2-B measured the entire target
+// curve with companions inactive (GDD 13-6), so a companion reaching game state
+// by any route would invalidate those numbers — these pin the seal shut.
+describe('companions are stocked but never owned (P4-A)', () => {
+  it('puts companions on the shelf', () => {
+    const stock = rollStock(createStartingLoadout('aries'), mulberry32(3))
+
+    expect(COMPANIONS_STOCKED).toBe(true)
+    expect(stock.companions.length).toBeGreaterThan(0)
+    expect(new Set(stock.companions).size).toBe(stock.companions.length)
+  })
+
+  it('offers no way to buy one', () => {
+    // The guarantee is structural: `Purchase` has no companion variant, so a
+    // companion purchase cannot be constructed, let alone applied. If this ever
+    // fails to compile, the seal has been broken.
+    const kinds: Purchase['kind'][] = ['addBasic', 'removeBasic', 'special', 'constellation']
+
+    expect(COMPANIONS_ENABLED).toBe(false)
+    expect(kinds).not.toContain('companion')
+  })
+
+  it('leaves the loadout untouched when the shop is walked through', () => {
+    const before = createStartingLoadout('aries')
+    const stock = rollStock(before, mulberry32(11))
+    // Everything on the shelf, applied: only the sellable kinds exist.
+    const after = stock.specials.reduce<Loadout>(
+      (loadout, pair) =>
+        canAfford(loadout, { kind: 'special', pair })
+          ? applyPurchase(loadout, { kind: 'special', pair })
+          : loadout,
+      { ...before, stardust: 100 },
+    )
+
+    expect(after.companions ?? []).toEqual([])
+  })
+
+  it('finishes a full eight-round game with no companion ever held', () => {
+    let game = fromLoadout(createStartingLoadout('aries'), 'full', mulberry32(20260101))
+    const seen: number[] = []
+
+    while (game.status === 'playing') {
+      game = playRound(game, {
+        mode: 'full',
+        stackMode: MULTIPLIER_STACK_MODE,
+        // Fill the board left to right; the score is beside the point here.
+        place: ({ board, hand }) => {
+          const free: { row: number; col: number }[] = []
+          board.forEach((row, r) =>
+            row.forEach((cell, c) => {
+              if (cell === null) free.push({ row: r, col: c })
+            }),
+          )
+          return hand
+            .slice(0, 4)
+            .map((chip, i) => ({ chip, position: free[i] }))
+            .filter((p) => p.position !== undefined) as never
+        },
+        shop: () => [],
+        answerWager: () => true,
+        answerOracle: () => true,
+        rng: game.rng,
+      })
+      seen.push(game.ownedCompanions.length)
+      if (game.status !== 'playing') break
+
+      // Walk the shop the way the screen does, buying everything on offer.
+      game = openShop(game)
+      for (const pair of game.stock?.specials ?? []) {
+        game = buy(game, { kind: 'special', pair })
+      }
+      for (const id of game.stock?.constellations ?? []) {
+        game = buy(game, { kind: 'constellation', id, replaces: null })
+      }
+      seen.push(game.ownedCompanions.length)
+    }
+
+    expect(seen.length).toBeGreaterThan(0)
+    expect(new Set(seen)).toEqual(new Set([0]))
   })
 })

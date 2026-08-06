@@ -9,11 +9,12 @@ import {
   constellationCard,
   drifterChip,
   lockIcon,
+  nebulaSprite,
   specialChip,
   suitGlyph,
 } from '../src/assets/compose'
 import type { PixelMap } from '../src/assets/compose'
-import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, luma } from '../src/assets/palette'
+import { AXIS_COLOURS, CHIP_COLOURS, NEBULA_INK, PALETTE, luma } from '../src/assets/palette'
 import {
   CARD_FRAME,
   CARD_HEIGHT,
@@ -23,7 +24,10 @@ import {
   CROWN_GLYPH,
   GLYPH_SIZE,
   LOCK_SIZE,
+  NEBULA_HEIGHT,
+  NEBULA_WIDTH,
   SUIT_GLYPHS,
+  nebulaLayers,
   chipLayerAt,
   skyOf,
 } from '../src/assets/pixels'
@@ -242,6 +246,55 @@ describe('UI sprites', () => {
       const ink = [...colours][0]
       expect(luma(ink)).toBeGreaterThan(luma(PALETTE.panel))
     }
+  })
+})
+
+describe('иєвυℓα (GDD 11-9)', () => {
+  it('is 60×78, the same frame ORION gets (GDD 11-4)', () => {
+    const sprite = nebulaSprite()
+
+    expect(sprite).toHaveLength(NEBULA_HEIGHT)
+    expect(sprite[0]).toHaveLength(NEBULA_WIDTH)
+    expect(NEBULA_HEIGHT).toBe(78)
+    expect(NEBULA_WIDTH).toBe(60)
+  })
+
+  // The whole design rests on this: the hood has an opening and there is no face
+  // in it. If a feature ever appears there she stops being unidentified.
+  it('puts nothing but light inside the hood', () => {
+    const inside = new Set(
+      nebulaLayers()
+        .flatMap((row, y) => row.map((layer, x) => ({ layer, y, x })))
+        .filter(({ layer }) => layer === 'hollow' || layer === 'glow')
+        .map(({ layer }) => layer),
+    )
+
+    expect(inside).toEqual(new Set(['hollow', 'glow']))
+    // And there is actually an opening to speak of.
+    expect(nebulaLayers().flat().filter((l) => l === 'glow').length).toBeGreaterThan(60)
+  })
+
+  // GDD 11-9: her purple must not merge with the Mimosa chips on the board.
+  it('keeps the veil clear of the Mimosa chip', () => {
+    expect(NEBULA_INK.veil).not.toBe(PALETTE.mimosa)
+    // Separated by value, not only by hue — a dark plum against a mid purple.
+    expect(luma(PALETTE.mimosa) - luma(NEBULA_INK.veil)).toBeGreaterThan(40)
+    // And the diagonal-axis magenta stays reserved for the cards (GDD 11-5).
+    expect(Object.values(NEBULA_INK)).not.toContain(PALETTE.nebulaMagenta)
+  })
+
+  it('answers with light rather than a face, one tone per mood', () => {
+    const glows = (['idle', 'keen', 'dealt'] as const).map((mood) => {
+      const sprite = nebulaSprite(mood)
+      return nebulaLayers()
+        .flatMap((row, y) => row.map((layer, x) => (layer === 'glow' ? sprite[y][x] : null)))
+        .find((c): c is string => c !== null)!
+    })
+
+    expect(new Set(glows).size).toBe(3)
+    // Interest and a closed deal read brighter than resting.
+    expect(luma(glows[1])).toBeGreaterThan(luma(glows[0]))
+    expect(luma(glows[2])).toBeGreaterThan(luma(glows[1]))
   })
 })
 

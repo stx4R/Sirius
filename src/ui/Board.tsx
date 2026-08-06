@@ -2,15 +2,27 @@
 // placement is legal is core's answer, given when the store replays the staged
 // list through `placeChips`.
 
+import { AnimatePresence, motion } from 'framer-motion'
 import { BOARD_SIZE } from '../core/config'
 import { position } from '../core/board'
 import type { Board as BoardState, Chip, Position } from '../core/types'
-import { chipSprite } from '../assets/compose'
-import { PALETTE } from '../assets/palette'
+import { chipSprite, lockIcon } from '../assets/compose'
+import { PALETTE, mix } from '../assets/palette'
+import { LAND_SPRING } from './motion'
 import { PixelSprite } from './PixelSprite'
 
 /** GDD 11-4: 72px cell = 64px chip plus 8px of gutter. */
 export const CELL_SIZE = 72
+
+/**
+ * A pale hairline, so twenty-five empty cells read as a chart to place onto
+ * rather than as one dark rectangle. Derived from the palette rather than added
+ * to it — `mix` is how the cards make their tones too (GDD 11-7).
+ */
+const CELL_BORDER = mix(PALETTE.panelEdge, PALETTE.starWhite, 0.32)
+
+/** How far down a chip that is not this suit's turn is pushed. */
+const DIM_BRIGHTNESS = 0.4
 
 interface Props {
   readonly board: BoardState
@@ -18,12 +30,19 @@ interface Props {
   readonly holding: Chip | null
   /** Cells the settlement is currently lighting up, as "row,col". */
   readonly lit?: ReadonlySet<string>
+  /**
+   * Drops every chip that is not lit to 40% while the deck is shuffling or the
+   * settlement is between suits, so what is being counted right now is the only
+   * bright thing on the board.
+   */
+  readonly dim?: boolean
+  readonly reduced?: boolean
   readonly onPlace: (pos: Position) => void
 }
 
 const key = (pos: Position) => `${pos.row},${pos.col}`
 
-export function Board({ board, holding, lit, onPlace }: Props) {
+export function Board({ board, holding, lit, dim = false, reduced = false, onPlace }: Props) {
   return (
     // `w-fit` pins the board to its own five tracks. Without it a flex parent's
     // default `stretch` widens the container to whatever sits beside it — the
@@ -50,14 +69,56 @@ export function Board({ board, holding, lit, onPlace }: Props) {
               type="button"
               disabled={cell !== null || holding === null}
               onClick={() => onPlace(pos)}
-              className="group flex items-center justify-center transition-colors"
+              className="group relative flex items-center justify-center rounded transition-colors"
               style={{
-                border: `1px solid ${isLit ? PALETTE.starWhite : PALETTE.panelEdge}`,
-                background: isLit ? PALETTE.nebulaDeep : 'transparent',
+                border: `1px solid ${CELL_BORDER}`,
                 cursor: canDrop ? 'pointer' : 'default',
               }}
             >
-              {cell !== null && <PixelSprite pixels={chipSprite(cell)} scale={2} alt="" />}
+              {/* The gold ring a suit's chips wear on its beat (GDD 5-1 order). */}
+              <AnimatePresence>
+                {isLit && (
+                  <motion.span
+                    className="pointer-events-none absolute inset-0.5 rounded"
+                    initial={reduced ? false : { opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: reduced ? 0 : 0.2 }}
+                    style={{
+                      border: `2px solid ${PALETTE.nebulaAmber}`,
+                      boxShadow: `0 0 10px ${PALETTE.nebulaAmber}`,
+                    }}
+                  />
+                )}
+              </AnimatePresence>
+
+              {cell !== null && (
+                <motion.span
+                  className="relative"
+                  // The same layoutId the chip carried in the hand, so Framer
+                  // flies this one element into the cell. LAND_SPRING is
+                  // under-damped, which is where the bounce on landing comes from.
+                  layoutId={cell.id}
+                  animate={{
+                    filter: dim && !isLit ? `brightness(${DIM_BRIGHTNESS})` : 'brightness(1)',
+                  }}
+                  transition={reduced ? { duration: 0 } : LAND_SPRING}
+                >
+                  <PixelSprite pixels={chipSprite(cell)} scale={2} alt="" />
+
+                  {/* GDD 4-2: a placement is fixed the moment it lands. */}
+                  <motion.span
+                    className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full"
+                    initial={reduced ? false : { scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={reduced ? { duration: 0 } : { ...LAND_SPRING, delay: 0.12 }}
+                    style={{ background: PALETTE.void, outline: `1px solid ${PALETTE.starLink}` }}
+                  >
+                    <PixelSprite pixels={lockIcon()} scale={1} alt="" />
+                  </motion.span>
+                </motion.span>
+              )}
+
               {canDrop && (
                 <span className="opacity-0 transition-opacity group-hover:opacity-40">
                   <PixelSprite pixels={chipSprite(holding)} scale={2} alt="" />

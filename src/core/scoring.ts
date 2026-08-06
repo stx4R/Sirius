@@ -34,6 +34,13 @@ export interface ScoringContext {
  */
 export interface SuitBreakdown {
   readonly suit: SuitId
+  /**
+   * Every cell judged as this suit — set `S` in GDD 5-1's pseudocode, in
+   * row-major order. The settlement screen lights these up on the suit's turn,
+   * so the cells it highlights are the ones core actually scored rather than a
+   * second reading of the board taken in `src/ui/`.
+   */
+  readonly cells: readonly Position[]
   /** The lines that fired for this suit, in the order they fired. */
   readonly lines: readonly ScoredLine[]
   /** Σ over `lines` of cells × BASE_CHIP_SCORE × multiplier. */
@@ -152,6 +159,9 @@ export function scoreBoard(board: Board, ctx: ScoringContext): ScoreResult {
     if (count === 0) continue
 
     const grid = suits.map((row) => row.map((cell) => cell !== null && cell.has(suit)))
+    const cells = grid.flatMap((row, r) =>
+      row.flatMap((has, c) => (has ? [position(r, c)] : [])),
+    )
     const inLine = new Set<string>()
     const suitLines: ScoredLine[] = []
     let lineScore = 0
@@ -180,6 +190,7 @@ export function scoreBoard(board: Board, ctx: ScoringContext): ScoreResult {
     total += lineScore + flatScore + cancerBonus
     bySuit.push({
       suit,
+      cells,
       lines: suitLines,
       lineScore: Math.round(lineScore),
       flatScore: Math.round(flatScore),

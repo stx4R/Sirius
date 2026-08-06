@@ -481,7 +481,10 @@ export const MODE_PRESETS: Readonly<Record<GameMode, ModePreset>> = {
     TOTAL_ROUNDS: 8,
     TARGET_SCORES: [490, 630, 640, 880, 1080, 1250, 1330, 1530],
   },
-  // GDD 12-4: full's rounds 1–3 verbatim. Phase 2 may lower these, never raise them.
+  // GDD 12-4: full's rounds 1–3 verbatim. The rule these must not break is the
+  // clear rate — 70% or better — not any individual figure. R2 rose from 500 to
+  // 630 precisely because the old number was below the floor score and eliminated
+  // nobody; what matters is difficulty, which GDD 12-4 spells out.
   booth: {
     TOTAL_ROUNDS: 3,
     TARGET_SCORES: [490, 630, 640],

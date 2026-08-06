@@ -2,7 +2,7 @@
 //
 // Two quite different objects live here:
 //   · the suit chip, a 32×32 round token of concentric layers (GDD 11-4)
-//   · the constellation card, a 32×48 star chart (GDD 11-5)
+//   · the constellation card, a 36×52 star chart (GDD 11-5)
 //
 // Suit symbols stay 16×16 and sit in the middle of the chip, so the chip grew
 // from 16 to 32 without a single symbol being redrawn.
@@ -149,6 +149,32 @@ export const CROWN_GLYPH: Mask = mask([
   '................',
   '................',
   '................',
+])
+
+/**
+ * A placement is fixed the moment it lands (GDD 4-2), and the board gives no
+ * other sign of it — a chip in a cell looks the same whether it was played this
+ * turn or four turns ago. This padlock pops in over a chip as it settles to say
+ * the choice is spent.
+ *
+ * 12×12 rather than the 16×16 of a suit symbol: it rides on the corner of a chip
+ * as a badge, so at 16 it would cover the symbol underneath it.
+ */
+export const LOCK_SIZE = 12
+
+export const LOCK_GLYPH: Mask = mask([
+  '............',
+  '....####....',
+  '...##..##...',
+  '...##..##...',
+  '.##########.',
+  '.##########.',
+  '.####..####.',
+  '.####..####.',
+  '.####..####.',
+  '.##########.',
+  '.##########.',
+  '............',
 ])
 
 // ---------------------------------------------------------------- chip body

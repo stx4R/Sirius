@@ -59,6 +59,13 @@ interface GameStore {
   staged: Placement[]
   selected: Chip | null
   settlement: Settlement | null
+  /**
+   * The seed this run was built from. ORION's lines are drawn from a generator
+   * of their own, seeded off this one (CLAUDE.md §8) — taking them from
+   * `game.rng` would spend draws the deck and the drifter are counting on, and a
+   * replayed seed would stop producing the same run.
+   */
+  seed: number
 
   newGame: (seed?: number) => void
   select: (chip: Chip) => void
@@ -80,10 +87,11 @@ export const useGame = create<GameStore>((set, get) => ({
   staged: [],
   selected: null,
   settlement: null,
+  seed: 1,
 
   newGame: (seed = Date.now() % 100000) => {
     const game = openingGame(seed)
-    set({ game, turnStart: game, staged: [], selected: null, settlement: null })
+    set({ game, turnStart: game, staged: [], selected: null, settlement: null, seed })
   },
 
   select: (chip) => set({ selected: get().selected?.id === chip.id ? null : chip }),

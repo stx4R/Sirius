@@ -1,117 +1,188 @@
-// The settlement, walked one step at a time in the order of the pseudocode in
-// GDD 5-1: suit by suit, line by line, each line's contribution landing on the
-// running total.
+// The settlement, walked one suit at a time in the fixed order of GDD 3-1:
+// Gacrux → Imai → Ginan → Mimosa → Acrux.
 //
 // A number that changes tells the player nothing about why it changed. This is
-// the screen where the scoring rules are actually taught, so it is worth the
-// time it takes — and worth a skip button, because it is not worth it twice.
+// the screen where the scoring rules are actually taught, so each suit gets its
+// own beat — its chips light up on the board, its constellations fire, its column
+// counts up — and the columns then read off as the equation they already are.
+//
+// Every figure here is core's (`ScoreResult.bySuit`). This file does no scoring:
+// `Σ bySuit[].total === total` is pinned by scoring.test.ts, so the equation is
+// core's arithmetic laid out, not a second opinion about it (CLAUDE.md §5).
 
-import { useEffect, useMemo, useState } from 'react'
-import { BASE_CHIP_SCORE, CONSTELLATION_NAMES } from '../core/config'
-import { resolveSuits } from '../core/scoring'
+import { animate, motion, useMotionValue, useTransform } from 'framer-motion'
+import { useEffect } from 'react'
+import { CONSTELLATION_NAMES } from '../core/config'
+import type { SuitBreakdown } from '../core/scoring'
 import { SUIT_ORDER } from '../core/types'
-import type { Position, ScoredLine, SuitId } from '../core/types'
-import { CHIP_COLOURS, PALETTE } from '../assets/palette'
+import type { SuitId } from '../core/types'
+import { suitGlyph } from '../assets/compose'
+import { PALETTE, SUIT_INK } from '../assets/palette'
+import { SUIT_STEP_MS } from './motion'
+import { PixelSprite } from './PixelSprite'
 import type { Settlement as SettlementData } from '../store/gameStore'
 
+/** GDD 5-1 runs five suits; at 1× the whole settlement lands inside three seconds. */
 const SPEEDS = [
-  { label: '0.5×', ms: 1600 },
-  { label: '1×', ms: 800 },
-  { label: '2×', ms: 400 },
+  { label: '1×', ms: SUIT_STEP_MS },
+  { label: '2×', ms: SUIT_STEP_MS / 2 },
+  { label: '즉시', ms: 0 },
 ] as const
 
-const SUIT_LABELS: Readonly<Record<SuitId, string>> = {
-  GAC: 'Gacrux',
-  IMA: 'Imai',
-  GIN: 'Ginan',
-  MIM: 'Mimosa',
-  ACR: 'Acrux',
-}
+/** The suits that scored, in order. Core omits the ones worth nothing. */
+export const stepsOf = (data: SettlementData): readonly SuitBreakdown[] => data.result.bySuit
 
-export interface Step {
-  /** `null` on the closing step, which sweeps up every chip that formed no line. */
-  readonly suit: SuitId | null
-  readonly positions: readonly Position[]
-  readonly constellations: readonly string[]
-  readonly multiplier: number
-  readonly points: number
+/** Which board cells the current suit's beat lights up, as "row,col". */
+export const litCells = (step: SuitBreakdown | undefined): Set<string> =>
+  new Set((step?.cells ?? []).map((pos) => `${pos.row},${pos.col}`))
+
+function CountUp({
+  value,
+  ms,
+  className,
+  colour,
+}: {
+  readonly value: number
+  readonly ms: number
+  readonly className?: string
+  readonly colour: string
+}) {
+  const count = useMotionValue(0)
+  const text = useTransform(count, (n) => Math.round(n).toLocaleString('ko-KR'))
+
+  useEffect(() => {
+    const controls = animate(count, value, { duration: ms / 1000, ease: 'easeOut' })
+    return () => controls.stop()
+  }, [count, value, ms])
+
+  return (
+    <motion.span className={className} style={{ color: colour }}>
+      {text}
+    </motion.span>
+  )
 }
 
 /**
- * Which suit a line was scored as. `scoreBoard` emits lines in suit order but
- * does not label them, so the suit is recovered by intersecting the suits of the
- * cells the line covers — core's own reading of the board, not a second opinion
- * about it. It decides presentation order only; no score depends on it.
+ * One suit's column: its symbol, what it scored, and the multipliers that got it
+ * there.
+ *
+ * The multipliers are listed one per firing line rather than combined into a
+ * single figure for the suit. GDD 5-2 stacks multipliers *within* a line and
+ * nowhere else, so a suit with a ×2.5 line and a ×1.2 line has no one multiplier
+ * — inventing an average would teach a rule the game does not have.
  */
-function suitOfLine(data: SettlementData, line: ScoredLine): SuitId | null {
-  const suits = resolveSuits(data.board, (adjacent) => adjacent.slice(0, 3))
-  let shared: SuitId[] | null = null
+function SuitColumn({
+  suit,
+  step,
+  active,
+  revealed,
+  ms,
+}: {
+  readonly suit: SuitId
+  readonly step: SuitBreakdown | undefined
+  readonly active: boolean
+  readonly revealed: boolean
+  readonly ms: number
+}) {
+  const ink = SUIT_INK[suit]
+  const multipliers = step?.lines.map((line) => line.multiplier) ?? []
 
-  for (const pos of line.positions) {
-    const cell = suits[pos.row][pos.col]
-    if (cell === null) continue
-    shared = shared === null ? [...cell] : shared.filter((suit) => cell.has(suit))
-  }
-  if (shared === null || shared.length === 0) return null
-  return [...shared].sort((a, b) => SUIT_ORDER.indexOf(a) - SUIT_ORDER.indexOf(b))[0]
+  return (
+    <motion.div
+      className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded py-1.5"
+      animate={{
+        background: active ? PALETTE.nebulaDeep : 'rgba(0,0,0,0)',
+        scale: active ? 1.06 : 1,
+      }}
+      transition={{ duration: ms === 0 ? 0 : 0.2 }}
+    >
+      <PixelSprite pixels={suitGlyph(suit)} scale={2} alt="" />
+
+      <span className="text-sm font-bold tabular-nums">
+        {revealed && step !== undefined ? (
+          <CountUp value={step.total} ms={ms} colour={ink} />
+        ) : (
+          <span style={{ color: PALETTE.starLink }}>0</span>
+        )}
+      </span>
+
+      <span className="flex h-3 flex-wrap justify-center gap-0.5 text-[9px] leading-3">
+        {revealed &&
+          multipliers.map((value, i) => (
+            <motion.span
+              key={i}
+              initial={ms === 0 ? false : { scale: 0.4, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: ms === 0 ? 0 : 0.25, delay: ms === 0 ? 0 : i * 0.06 }}
+              className="tabular-nums font-bold"
+              style={{ color: PALETTE.nebulaAmber }}
+            >
+              ×{value.toFixed(1)}
+            </motion.span>
+          ))}
+      </span>
+    </motion.div>
+  )
 }
-
-export function stepsOf(data: SettlementData): Step[] {
-  const lines = data.result.lines.map((line): Step => {
-    const points = line.positions.length * BASE_CHIP_SCORE * line.multiplier
-    return {
-      suit: suitOfLine(data, line),
-      positions: line.positions,
-      constellations: line.constellations,
-      multiplier: line.multiplier,
-      points: Math.round(points),
-    }
-  })
-
-  // Whatever the lines did not account for is the flat base every chip earns
-  // (GDD 5-1). Taking it as the remainder keeps this display honest about core's
-  // total rather than recomputing it.
-  const fromLines = lines.reduce((total, step) => total + step.points, 0)
-  const flat = data.result.total - fromLines
-  if (flat === 0) return lines
-
-  return [...lines, { suit: null, positions: [], constellations: [], multiplier: 1, points: flat }]
-}
-
-export const litCells = (step: Step | undefined): Set<string> =>
-  new Set((step?.positions ?? []).map((pos) => `${pos.row},${pos.col}`))
 
 interface Props {
   readonly data: SettlementData
-  readonly steps: readonly Step[]
+  readonly steps: readonly SuitBreakdown[]
   readonly index: number
   readonly onIndex: (index: number) => void
   readonly onDone: () => void
+  /** Round score before this turn, so the big figure counts from where it was. */
+  readonly roundScoreBefore: number
+  readonly reduced: boolean
+  readonly speed: number
+  readonly onSpeed: (speed: number) => void
 }
 
-export function Settlement({ data, steps, index, onIndex, onDone }: Props) {
-  const [speed, setSpeed] = useState(1)
+export function Settlement({
+  data,
+  steps,
+  index,
+  onIndex,
+  onDone,
+  roundScoreBefore,
+  reduced,
+  speed,
+  onSpeed,
+}: Props) {
   const running = index < steps.length
+  const ms = reduced ? 0 : SPEEDS[speed].ms
 
   useEffect(() => {
     if (!running) return
-    const timer = setTimeout(() => onIndex(index + 1), SPEEDS[speed].ms)
+    // '즉시' and reduced motion both land on the finished state in one hop; the
+    // suit-by-suit reveal is the animation, so there is nothing left to pace.
+    if (ms === 0) {
+      onIndex(steps.length)
+      return
+    }
+    const timer = setTimeout(() => onIndex(index + 1), ms)
     return () => clearTimeout(timer)
-  }, [index, running, speed, onIndex])
+  }, [index, running, ms, steps.length, onIndex])
 
-  const shown = useMemo(
-    () => steps.slice(0, Math.min(index + 1, steps.length)),
-    [steps, index],
-  )
-  const runningTotal = shown.reduce((total, step) => total + step.points, 0)
+  const shown = steps.slice(0, index + 1)
+  const scoredSoFar = shown.reduce((total, step) => total + step.total, 0)
+  const byId = new Map(steps.map((step) => [step.suit, step]))
+  const revealedSuits = new Set(shown.map((step) => step.suit))
+  const current = steps[index]
+
+  // Constellations that fired for the suit whose beat is running, named so the
+  // card lighting up on the left has a label here (GDD 11-5: never a card alone).
+  const firing = [
+    ...new Set((current?.lines ?? []).flatMap((line) => line.constellations)),
+  ]
 
   return (
     <section
-      className="flex w-80 flex-col gap-3 rounded p-4"
+      className="flex flex-col gap-3 rounded p-3"
       style={{ background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
       <header className="flex items-center justify-between">
-        <h2 className="text-sm font-bold" style={{ color: PALETTE.starWhite }}>
+        <h2 className="text-xs font-bold" style={{ color: PALETTE.starWhite }}>
           정산
         </h2>
         <div className="flex gap-1">
@@ -119,8 +190,8 @@ export function Settlement({ data, steps, index, onIndex, onDone }: Props) {
             <button
               key={option.label}
               type="button"
-              onClick={() => setSpeed(i)}
-              className="rounded px-2 py-0.5 text-[10px]"
+              onClick={() => onSpeed(i)}
+              className="rounded px-1.5 py-0.5 text-[10px]"
               style={{
                 background: i === speed ? PALETTE.panelEdge : 'transparent',
                 color: i === speed ? PALETTE.starWhite : PALETTE.starGlow,
@@ -132,62 +203,67 @@ export function Settlement({ data, steps, index, onIndex, onDone }: Props) {
         </div>
       </header>
 
-      <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-1">
-        {shown.length === 0 && (
-          <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
-            발동한 라인이 없습니다.
-          </span>
-        )}
-        {shown.map((step, i) => (
-          <div
-            key={i}
-            className="flex items-baseline justify-between gap-2 rounded px-2 py-1 text-[11px]"
-            style={{
-              background: i === index ? PALETTE.nebulaDeep : 'transparent',
-              color: PALETTE.starGlow,
-            }}
-          >
-            <span className="flex-1">
-              {step.suit === null ? (
-                <span>라인 미형성 칩 · 기본 점수</span>
-              ) : (
-                <>
-                  <span
-                    className="font-bold"
-                    style={{ color: CHIP_COLOURS[step.suit].edge }}
-                  >
-                    {SUIT_LABELS[step.suit]}
-                  </span>
-                  {step.constellations.length > 0 && (
-                    <span>
-                      {' · '}
-                      {step.constellations
-                        .map((id) => CONSTELLATION_NAMES[id as keyof typeof CONSTELLATION_NAMES])
-                        .join(' + ')}
-                      {` ×${step.multiplier.toFixed(1)}`}
-                    </span>
-                  )}
-                  <span style={{ color: PALETTE.starLink }}>{` (${step.positions.length}칸)`}</span>
-                </>
-              )}
-            </span>
-            <span className="tabular-nums font-bold" style={{ color: PALETTE.starWhite }}>
-              +{step.points.toLocaleString('ko-KR')}
-            </span>
-          </div>
+      <div className="flex gap-0.5">
+        {SUIT_ORDER.map((suit) => (
+          <SuitColumn
+            key={suit}
+            suit={suit}
+            step={byId.get(suit)}
+            active={running && current?.suit === suit}
+            revealed={revealedSuits.has(suit)}
+            ms={ms}
+          />
         ))}
       </div>
 
       <div
-        className="flex items-baseline justify-between border-t pt-2"
+        className="flex flex-wrap items-baseline justify-center gap-x-1 border-t pt-2 text-[11px] tabular-nums"
         style={{ borderColor: PALETTE.panelEdge }}
       >
-        <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
-          {running ? '누적' : '이번 턴 획득'}
+        {SUIT_ORDER.map((suit, i) => (
+          <span key={suit}>
+            {i > 0 && <span style={{ color: PALETTE.starLink }}> + </span>}
+            <span
+              style={{
+                color: revealedSuits.has(suit) ? SUIT_INK[suit] : PALETTE.starLink,
+              }}
+            >
+              {revealedSuits.has(suit) ? (byId.get(suit)?.total ?? 0) : 0}
+            </span>
+          </span>
+        ))}
+        <span style={{ color: PALETTE.starLink }}> = </span>
+        <span className="font-bold" style={{ color: PALETTE.starWhite }}>
+          {scoredSoFar.toLocaleString('ko-KR')}
         </span>
-        <span className="text-xl font-bold tabular-nums" style={{ color: PALETTE.nebulaTeal }}>
-          {(running ? runningTotal : data.awarded).toLocaleString('ko-KR')}
+      </div>
+
+      <div className="flex h-4 items-center justify-center text-[10px]">
+        {firing.length > 0 && (
+          <motion.span
+            key={firing.join()}
+            initial={ms === 0 ? false : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ color: PALETTE.nebulaAmber }}
+          >
+            {firing
+              .map((id) => CONSTELLATION_NAMES[id as keyof typeof CONSTELLATION_NAMES])
+              .join(' · ')}{' '}
+            발동
+          </motion.span>
+        )}
+      </div>
+
+      <div className="flex flex-col items-center gap-0.5 border-t pt-2" style={{ borderColor: PALETTE.panelEdge }}>
+        <span className="text-[10px]" style={{ color: PALETTE.starGlow }}>
+          이번 라운드 누적
         </span>
+        <CountUp
+          value={roundScoreBefore + (running ? scoredSoFar : data.awarded)}
+          ms={ms === 0 ? 0 : ms}
+          className="text-3xl font-bold tabular-nums"
+          colour={PALETTE.nebulaAmber}
+        />
       </div>
 
       {!data.exact && !running && (

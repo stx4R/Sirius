@@ -1,75 +1,101 @@
-// Round, turn, score against target, stardust, and what constellations are held.
+// The top bar: stardust on the left, round and turn in the middle, and under
+// them the status line that says what the screen is waiting for.
+//
 // Every value is read straight off core's state.
 
+import { AnimatePresence, motion } from 'framer-motion'
 import { MODE_PRESETS, TURNS_PER_ROUND } from '../core/config'
 import type { Game } from '../core/game'
 import { PALETTE } from '../assets/palette'
-import { ConstellationCard } from './ConstellationCard'
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
-        {label}
-      </span>
-      <span className="text-lg font-bold tabular-nums" style={{ color: tone ?? PALETTE.starWhite }}>
-        {value}
-      </span>
-    </div>
-  )
+/** What the player is meant to do or wait for, at all times. */
+export type Status = 'shuffling' | 'choosing' | 'placing' | 'settling' | 'settled'
+
+const STATUS_TEXT: Readonly<Record<Status, string>> = {
+  shuffling: '칩을 섞는 중…',
+  choosing: '칩을 고르세요',
+  placing: '원하는 위치에 놓으세요',
+  settling: '정산 중입니다',
+  settled: '정산 완료',
 }
 
-export function HUD({ game }: { game: Game }) {
+export function HUD({
+  game,
+  status,
+  reduced,
+}: {
+  readonly game: Game
+  readonly status: Status
+  readonly reduced: boolean
+}) {
   const total = MODE_PRESETS[game.mode].TOTAL_ROUNDS
   const reached = game.roundScore >= game.targetScore
   const progress = Math.min(1, game.targetScore === 0 ? 1 : game.roundScore / game.targetScore)
 
   return (
-    <aside className="flex w-56 flex-col gap-5">
-      <div className="grid grid-cols-2 gap-4">
-        <Stat label="라운드" value={`${game.round} / ${total}`} />
-        <Stat label="턴" value={`${game.turn} / ${TURNS_PER_ROUND}`} />
+    <header className="flex items-start justify-between gap-6">
+      <div className="flex w-40 flex-col gap-0.5">
+        <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+          스타더스트
+        </span>
+        <span
+          className="text-2xl font-bold tabular-nums leading-none"
+          style={{ color: PALETTE.nebulaAmber }}
+        >
+          {game.stardust}
+        </span>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Stat
-          label="라운드 점수"
-          value={game.roundScore.toLocaleString('ko-KR')}
-          tone={reached ? PALETTE.nebulaTeal : PALETTE.starWhite}
-        />
+      <div className="flex flex-1 flex-col items-center gap-1">
+        <div className="flex items-baseline gap-4 text-sm font-bold tabular-nums">
+          <span style={{ color: PALETTE.starWhite }}>
+            라운드 {game.round}
+            <span style={{ color: PALETTE.starLink }}> / {total}</span>
+          </span>
+          <span style={{ color: PALETTE.starWhite }}>
+            턴 {game.turn}
+            <span style={{ color: PALETTE.starLink }}> / {TURNS_PER_ROUND}</span>
+          </span>
+        </div>
+
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={status}
+            initial={reduced ? false : { opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? undefined : { opacity: 0, y: 4 }}
+            transition={{ duration: reduced ? 0 : 0.18 }}
+            className="text-[11px]"
+            style={{ color: PALETTE.starGlow }}
+          >
+            {STATUS_TEXT[status]}
+          </motion.span>
+        </AnimatePresence>
+      </div>
+
+      <div className="flex w-40 flex-col gap-1">
+        <div className="flex items-baseline justify-between text-[10px]">
+          <span style={{ color: PALETTE.starGlow }}>라운드 점수</span>
+          <span
+            className="text-sm font-bold tabular-nums"
+            style={{ color: reached ? PALETTE.nebulaTeal : PALETTE.starWhite }}
+          >
+            {game.roundScore.toLocaleString('ko-KR')}
+          </span>
+        </div>
         <div className="h-1.5 w-full rounded" style={{ background: PALETTE.panelEdge }}>
-          <div
-            className="h-full rounded transition-all duration-500"
-            style={{
-              width: `${progress * 100}%`,
-              background: reached ? PALETTE.nebulaTeal : PALETTE.nebulaAmber,
-            }}
+          <motion.div
+            className="h-full rounded"
+            animate={{ width: `${progress * 100}%` }}
+            transition={{ duration: reduced ? 0 : 0.5 }}
+            style={{ background: reached ? PALETTE.nebulaTeal : PALETTE.nebulaAmber }}
           />
         </div>
-        <span className="text-[11px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+        <span className="text-right text-[10px] tabular-nums" style={{ color: PALETTE.starGlow }}>
           목표 {game.targetScore.toLocaleString('ko-KR')}
           {reached && ' · 달성'}
         </span>
       </div>
-
-      <Stat label="스타더스트" value={String(game.stardust)} tone={PALETTE.nebulaAmber} />
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
-          보유 별자리 {game.ownedConstellations.length} / 4
-        </span>
-        {game.ownedConstellations.length === 0 ? (
-          <span className="text-[11px]" style={{ color: PALETTE.starLink }}>
-            없음 — 모든 칩이 기본 점수만 냅니다
-          </span>
-        ) : (
-          <div className="flex flex-wrap gap-1">
-            {game.ownedConstellations.map((id) => (
-              <ConstellationCard key={id} id={id} scale={1} />
-            ))}
-          </div>
-        )}
-      </div>
-    </aside>
+    </header>
   )
 }

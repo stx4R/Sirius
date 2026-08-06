@@ -101,7 +101,9 @@ describe('turn and round', () => {
 
     // No drifter is in play, so the breakdown is exact rather than one sample.
     expect(settlement.exact).toBe(true)
-    const shown = stepsOf(settlement).reduce((total, step) => total + step.points, 0)
+    // The settlement screen prints the suit columns as an equation, so the beats
+    // it walks have to add up to the score core handed out (GDD 5-1).
+    const shown = stepsOf(settlement).reduce((total, step) => total + step.total, 0)
     expect(shown).toBe(settlement.awarded)
   })
 

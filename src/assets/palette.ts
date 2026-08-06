@@ -110,6 +110,22 @@ export const CHIP_COLOURS: Readonly<Record<SuitId, ChipColours>> = {
 }
 
 /**
+ * The colour that stands for a suit in text and numbers on a dark panel — the
+ * settlement screen colours each suit's column with it.
+ *
+ * Four suits use their chip's base colour. Acrux cannot: `#2B2B38` against the
+ * void is all but invisible, which is the case GDD 11-7 flags, so it takes its
+ * bright edge instead. No new colour enters the palette either way.
+ */
+export const SUIT_INK: Readonly<Record<SuitId, string>> = {
+  GAC: PALETTE.gacrux,
+  IMA: PALETTE.imai,
+  GIN: PALETTE.ginan,
+  MIM: PALETTE.mimosa,
+  ACR: PALETTE.acruxEdge,
+}
+
+/**
  * GDD 11-5: the colour of a constellation card's frame. The star chart inside is
  * blue-white for every card, so the axis has to be readable from the frame alone
  * — the starting choice of aries (vertical) vs libra (horizontal) depends on

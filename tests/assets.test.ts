@@ -4,7 +4,14 @@
 // chip's layers are symmetric enough for the seam to be invisible.
 
 import { describe, expect, it } from 'vitest'
-import { basicChip, constellationCard, drifterChip, specialChip } from '../src/assets/compose'
+import {
+  basicChip,
+  constellationCard,
+  drifterChip,
+  lockIcon,
+  specialChip,
+  suitGlyph,
+} from '../src/assets/compose'
 import type { PixelMap } from '../src/assets/compose'
 import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, luma } from '../src/assets/palette'
 import {
@@ -15,6 +22,7 @@ import {
   CONSTELLATION_CHARTS,
   CROWN_GLYPH,
   GLYPH_SIZE,
+  LOCK_SIZE,
   SUIT_GLYPHS,
   chipLayerAt,
   skyOf,
@@ -212,8 +220,33 @@ describe('drifter chip (GDD 11-6)', () => {
   })
 })
 
+describe('UI sprites', () => {
+  it('draws a padlock small enough to badge a chip without hiding its symbol', () => {
+    const lock = lockIcon()
+
+    expect(lock).toHaveLength(LOCK_SIZE)
+    expect(lock[0]).toHaveLength(LOCK_SIZE)
+    // A chip is 32×32 with its symbol in the middle 16 (GDD 11-4), so a badge in
+    // the corner has 8px of clear margin to sit in on each side.
+    expect(LOCK_SIZE).toBeLessThan((CHIP_SIZE - GLYPH_SIZE) / 2 + GLYPH_SIZE)
+    expect(coloursIn(lock)).toEqual(new Set([PALETTE.starWhite]))
+  })
+
+  it('inks a suit symbol in a colour that survives the void', () => {
+    for (const suit of SUIT_ORDER) {
+      const colours = coloursIn(suitGlyph(suit))
+
+      expect(colours.size).toBe(1)
+      // GDD 11-7 flags Acrux: its base is all but the background, so the symbol
+      // takes the bright edge instead and stays readable on a dark panel.
+      const ink = [...colours][0]
+      expect(luma(ink)).toBeGreaterThan(luma(PALETTE.panel))
+    }
+  })
+})
+
 describe('constellation cards (GDD 11-5)', () => {
-  it('draws a 32×48 card for every constellation', () => {
+  it('draws a 36×52 card for every constellation', () => {
     expect(ALL_IDS).toHaveLength(12)
 
     for (const id of ALL_IDS) {

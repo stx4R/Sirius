@@ -224,6 +224,45 @@ describe('per-suit breakdown', () => {
     expect(scoreBoard(board, context([])).bySuit.map((entry) => entry.suit)).toEqual(['GAC'])
   })
 
+  // The settlement screen lights `cells` up on the suit's turn, so it has to be
+  // every cell the suit was scored over — lines and the flat remainder alike.
+  it('lists every cell a suit was judged over, a special chip under both suits', () => {
+    const board = boardFrom([
+      'GAC GAC .       .   .',
+      '.   .   GAC&IMA .   .',
+      EMPTY,
+      EMPTY,
+      EMPTY,
+    ])
+
+    const { bySuit } = scoreBoard(board, context([]))
+    const cellsOf = (suit: string) =>
+      bySuit
+        .find((entry) => entry.suit === suit)!
+        .cells.map((pos) => `${pos.row},${pos.col}`)
+
+    expect(cellsOf('GAC')).toEqual(['0,0', '0,1', '1,2'])
+    expect(cellsOf('IMA')).toEqual(['1,2'])
+  })
+
+  it('counts one cell per suit even when a drifter reads the same suit twice', () => {
+    // The drifter at (1,1) reads three neighbours, two of them GAC. GDD 3-3
+    // unions the suits, so the cell is one GAC cell and not two.
+    const board = boardFrom([
+      '.   GAC .   .   .',
+      'GAC *   IMA .   .',
+      EMPTY,
+      EMPTY,
+      EMPTY,
+    ])
+
+    const { bySuit } = scoreBoard(board, context([]))
+    const gac = bySuit.find((entry) => entry.suit === 'GAC')!
+
+    expect(gac.cells.map((pos) => `${pos.row},${pos.col}`)).toEqual(['0,1', '1,0', '1,1'])
+    expect(gac.total).toBe(gac.cells.length * 10)
+  })
+
   // The settlement screen shows the suit columns as an equation that ends on the
   // round score, so the parts have to add up to the whole exactly (GDD 5-1).
   it('adds back up to the total, and accounts for every line', () => {

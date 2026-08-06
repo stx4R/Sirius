@@ -5,7 +5,7 @@
 
 import { CONSTELLATION_RULES } from '../core/config'
 import type { Chip, ConstellationId, SuitId } from '../core/types'
-import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, luma, mix } from './palette'
+import { AXIS_COLOURS, CHIP_COLOURS, PALETTE, SUIT_INK, luma, mix } from './palette'
 import {
   CARD_FRAME,
   CARD_HEIGHT,
@@ -16,6 +16,7 @@ import {
   CROWN_GLYPH,
   GLYPH_OFFSET,
   GLYPH_SIZE,
+  LOCK_GLYPH,
   SUIT_GLYPHS,
   chipLayerAt,
   skyOf,
@@ -144,6 +145,24 @@ export function drifterChip(): PixelMap {
     baseAt: refract,
     glyph: CROWN_GLYPH,
   })
+}
+
+/**
+ * The bare 16×16 suit symbol, for naming a suit where a whole chip would be too
+ * loud — the settlement screen heads each column with one (GDD 5-1's suit order).
+ */
+export function suitGlyph(suit: SuitId): PixelMap {
+  const ink = SUIT_INK[suit]
+  return SUIT_GLYPHS[suit].map((row) => row.map((on) => (on ? ink : null)))
+}
+
+/**
+ * The padlock badge for a chip that has just been fixed to the board. One colour
+ * and a transparent ground — the dark disc it needs to read against a bright chip
+ * is the badge the board draws under it, not part of the sprite.
+ */
+export function lockIcon(): PixelMap {
+  return LOCK_GLYPH.map((row) => row.map((on) => (on ? PALETTE.starWhite : null)))
 }
 
 /** The sprite for a chip as core describes it. */

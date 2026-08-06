@@ -8,6 +8,7 @@
 // All three strings are derived from config, so the card and the engine cannot
 // disagree about what the constellation does.
 
+import { motion } from 'framer-motion'
 import {
   CONSTELLATION_MULTIPLIERS,
   CONSTELLATION_NAMES,
@@ -51,16 +52,49 @@ export function multiplierOf(id: ConstellationId): string {
 interface Props {
   readonly id: ConstellationId
   readonly scale?: number
+  /**
+   * `stack` puts the text under the card, `row` beside it. Both keep the three
+   * strings attached, which is the rule GDD 11-5 actually sets — the four held
+   * constellations sit in a column next to a 360px board, and stacked captions
+   * would run past the bottom of it.
+   */
+  readonly layout?: 'stack' | 'row'
+  /** Lit while this constellation is firing in the settlement (GDD 5-1). */
+  readonly firing?: boolean
+  readonly reduced?: boolean
 }
 
-export function ConstellationCard({ id, scale = 2 }: Props) {
+export function ConstellationCard({
+  id,
+  scale = 2,
+  layout = 'stack',
+  firing = false,
+  reduced = false,
+}: Props) {
   const frame = AXIS_COLOURS[CONSTELLATION_RULES[id].axis]
   const name = CONSTELLATION_NAMES[id]
 
   return (
-    <figure className="flex w-28 flex-col items-center gap-2">
+    <motion.figure
+      className={
+        layout === 'row'
+          ? 'flex items-center gap-2 rounded p-1'
+          : 'flex w-28 flex-col items-center gap-2'
+      }
+      animate={{
+        scale: firing ? 1.08 : 1,
+        boxShadow: firing ? `0 0 14px ${frame}` : '0 0 0 rgba(0,0,0,0)',
+      }}
+      transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 18 }}
+    >
       <PixelSprite pixels={constellationCard(id)} scale={scale} alt={name} />
-      <figcaption className="text-center text-[11px] leading-tight">
+      <figcaption
+        className={
+          layout === 'row'
+            ? 'text-left text-[10px] leading-tight'
+            : 'text-center text-[11px] leading-tight'
+        }
+      >
         <span className="block font-bold" style={{ color: frame }}>
           {name}
         </span>
@@ -71,6 +105,6 @@ export function ConstellationCard({ id, scale = 2 }: Props) {
           {multiplierOf(id)}
         </span>
       </figcaption>
-    </figure>
+    </motion.figure>
   )
 }

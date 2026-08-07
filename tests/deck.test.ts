@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { INITIAL_DECK } from '../src/core/config'
-import { createInitialDeck, drawFromDeck, returnToDeck } from '../src/core/deck'
+import { countDeck, createInitialDeck, drawFromDeck, returnToDeck } from '../src/core/deck'
 import { mulberry32 } from '../src/core/rng'
 import { SUIT_ORDER } from '../src/core/types'
 import type { Chip, SuitId } from '../src/core/types'
@@ -47,6 +47,41 @@ describe('deck', () => {
     expect(rest).toHaveLength(42)
     expect(deck).toHaveLength(50)
     expect(rest.some((chip) => drawn.includes(chip))).toBe(false)
+  })
+
+  // The shop prints these and STAR-CHART (GDD 8-1) turns them into draw
+  // probabilities at P5, which is why the count lives in core.
+  it('counts the opening deck as ten basics of each suit', () => {
+    const counts = countDeck(createInitialDeck())
+
+    for (const suit of SUIT_ORDER) {
+      expect(counts.bySuit[suit]).toBe(10)
+      expect(counts.basicsBySuit[suit]).toBe(10)
+    }
+  })
+
+  it('counts a special under both of its suits, and as no basic (GDD 3-2)', () => {
+    const deck: Chip[] = [
+      { id: 'a', kind: 'basic', suit: 'GAC' },
+      { id: 'b', kind: 'special', left: 'GAC', right: 'MIM' },
+    ]
+
+    const counts = countDeck(deck)
+
+    expect(counts.bySuit.GAC).toBe(2)
+    expect(counts.bySuit.MIM).toBe(1)
+    expect(counts.basicsBySuit.GAC).toBe(1)
+    expect(counts.basicsBySuit.MIM).toBe(0)
+  })
+
+  // GDD 3-3: it has no suit until it is scored, so it belongs to neither total.
+  it('counts the drifter under no suit at all', () => {
+    const counts = countDeck([{ id: 'd', kind: 'drifter' }])
+
+    for (const suit of SUIT_ORDER) {
+      expect(counts.bySuit[suit]).toBe(0)
+      expect(counts.basicsBySuit[suit]).toBe(0)
+    }
   })
 
   it('returns unplaced chips and reshuffles reproducibly', () => {

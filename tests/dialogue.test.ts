@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { mulberry32 } from '../src/core/rng'
-import { ORION_LINES, lineFor } from '../src/ui/dialogue'
-import type { Beat } from '../src/ui/dialogue'
+import { NEBULA_LINES, ORION_LINES, lineFor, shopLineFor } from '../src/ui/dialogue'
+import type { Beat, ShopBeat } from '../src/ui/dialogue'
 
 const BEATS = Object.keys(ORION_LINES) as Beat[]
+const SHOP_BEATS = Object.keys(NEBULA_LINES) as ShopBeat[]
 
 describe("ORION's lines", () => {
   // A booth run is 40 turns (GDD 4-2). One line per beat would be forty
@@ -39,5 +40,43 @@ describe("ORION's lines", () => {
     const drawn = new Set(Array.from({ length: 40 }, () => lineFor('turnStart', rng)))
 
     expect(drawn.size).toBeGreaterThan(1)
+  })
+})
+
+describe("иєвυℓα's lines", () => {
+  it('answers every beat the shop can reach, with something to vary between', () => {
+    const beats: ShopBeat[] = ['enter', 'bought', 'reroll', 'broke', 'locked', 'leave']
+
+    expect(SHOP_BEATS.sort()).toEqual([...beats].sort())
+    for (const beat of beats) {
+      expect(NEBULA_LINES[beat].length).toBeGreaterThan(1)
+      expect(new Set(NEBULA_LINES[beat]).size).toBe(NEBULA_LINES[beat].length)
+    }
+  })
+
+  // GDD 7-1-b keeps the companion shelf stocked and shut, and a slot that simply
+  // ignores a click reads as a broken button rather than as a locked one.
+  it('has something to say about the companions it will not sell', () => {
+    expect(NEBULA_LINES.locked.length).toBeGreaterThan(1)
+  })
+
+  it('only ever speaks a line from its own bank', () => {
+    const rng = mulberry32(31)
+    for (let i = 0; i < 200; i++) {
+      const beat = SHOP_BEATS[i % SHOP_BEATS.length]
+      expect(NEBULA_LINES[beat]).toContain(shopLineFor(beat, rng))
+    }
+  })
+
+  // CLAUDE.md §8, and the reason her generator is offset from ORION's: two
+  // streams seeded off one run must not turn out to be the same stream.
+  it('replays for a seed without echoing ORION', () => {
+    const hers = (seed: number) => {
+      const rng = mulberry32(seed)
+      return SHOP_BEATS.map((beat) => shopLineFor(beat, rng))
+    }
+
+    expect(hers(4242)).toEqual(hers(4242))
+    expect(hers(4242)).not.toEqual(hers(99))
   })
 })

@@ -13,7 +13,7 @@
 // axes needs 5 distinct hues, and real nebulae come in exactly this kind of
 // spread — so the coding reads as astronomy rather than as a legend.
 
-import type { LineAxis, SuitId } from '../core/types'
+import type { CompanionTier, LineAxis, SuitId } from '../core/types'
 
 export const PALETTE = {
   // --- chips: base, the 1px lit edge, and the symbol (GDD 3-1 base values)
@@ -134,28 +134,56 @@ export const SUIT_INK: Readonly<Record<SuitId, string>> = {
  * pieces on the board. `nebulaMagenta` codes the diagonal constellation axis
  * (11-5), and spending it on a character would blur what the axis colours mean.
  *
- * So the veil is magenta pushed almost all the way into the deep nebula — far
- * darker than mimosa (luma 117) at 40, which separates them by value as well as
- * by hue. Only the light leaking out of the hood is allowed to be bright.
+ * So the veil is magenta pushed deep into the nebula blue — a plum at luma 65
+ * against mimosa's 117, which separates them by value as well as by hue and is
+ * what the test enforces.
+ *
+ * It was darker still, and at 60×78 on the void that made her a black cut-out
+ * with a rim: the purple this character is supposed to be simply did not read.
+ * The four cloth tones now step 0.30 / 0.39 / 0.46 into the magenta so the robe,
+ * the sleeves and the folds are told apart by value, with the hood's shade below
+ * all of them and only the light inside it allowed to be bright.
  */
 export const NEBULA_INK = {
-  /** The robe and hood: near-black plum. */
-  veil: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.22),
+  /** The robe and hood. */
+  veil: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.3),
   /** One value up, for folds in the cloth. */
-  veilFold: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.38),
+  veilFold: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.46),
+  /** The sleeves, between the robe and its folds — an arm has to be its own shape. */
+  sleeve: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.39),
   /** The lit edge that lifts the silhouette off the void. */
   rim: mix(PALETTE.nebulaMagenta, PALETTE.starWhite, 0.3),
-  /** Inside the hood, where a face would be and is not. */
-  hollow: PALETTE.void,
+  /**
+   * Deep shade under the hood.
+   *
+   * Emphatically *not* `void`. It was, and a face-shaped patch of the background
+   * colour does not read as a shadowed face — it reads as a hole punched through
+   * her, which is what made the first sprite look like a nozzle. Keeping it a
+   * plum darker than the veil says "inside the hood" instead.
+   */
+  hollow: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.14),
 } as const
 
 /** GDD 11-9: she has no expressions — the light out of the hood answers instead. */
 export type NebulaMood = 'idle' | 'keen' | 'dealt'
 
 export const NEBULA_GLOW: Readonly<Record<NebulaMood, string>> = {
-  idle: mix(PALETTE.nebulaMagenta, PALETTE.nebulaDeep, 0.45),
+  idle: mix(PALETTE.nebulaMagenta, PALETTE.nebulaDeep, 0.3),
   keen: PALETTE.nebulaMagenta,
   dealt: mix(PALETTE.nebulaMagenta, PALETTE.starWhite, 0.5),
+}
+
+/**
+ * GDD 7-1: the five tier colours, claiming the slots the budget above reserved
+ * for them. The shop shelf is the first thing to use them — a tier is a rarity
+ * and a price, and a frame colour says both at a glance before the text does.
+ */
+export const TIER_COLOURS: Readonly<Record<CompanionTier, string>> = {
+  rare: PALETTE.tierRare,
+  superRare: PALETTE.tierSuperRare,
+  epic: PALETTE.tierEpic,
+  mythic: PALETTE.tierMythic,
+  legendary: PALETTE.tierLegendary,
 }
 
 /**

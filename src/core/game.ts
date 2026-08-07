@@ -19,7 +19,7 @@ import { createInitialDeck, drawFromDeck, returnToDeck } from './deck'
 import { shuffle } from './rng'
 import type { Rng } from './rng'
 import { randomDrifterChooser, scoreBoard } from './scoring'
-import { applyPurchase, canAfford, grantDrifter, rerollPrice, rollStock } from './shop'
+import { applyPurchase, canAfford, grantDrifter, rerollPrice, rollStock, soldOut } from './shop'
 import type { Loadout, Purchase, ShopStock } from './shop'
 import type {
   Board,
@@ -248,11 +248,21 @@ export function openShop(game: Game): Game {
   }
 }
 
-/** Ignores a purchase the player cannot afford. */
+/** Ignores a purchase the player cannot afford, and sells the slot only once. */
 export function buy(game: Game, purchase: Purchase): Game {
   const loadout = loadoutOf(game)
   if (!canAfford(loadout, purchase)) return game
-  return withLoadout(game, applyPurchase(loadout, purchase))
+
+  // `applyPurchase` hands the same loadout back when it refuses — a constellation
+  // already owned, a suit the deck has none of. Nothing was paid then, so nothing
+  // leaves the shelf either.
+  const bought = applyPurchase(loadout, purchase)
+  if (bought === loadout) return game
+
+  return {
+    ...withLoadout(game, bought),
+    stock: game.stock === null ? null : soldOut(game.stock, purchase),
+  }
 }
 
 /** GDD 9-2: base price, then one more stardust per use within the same shop visit. */

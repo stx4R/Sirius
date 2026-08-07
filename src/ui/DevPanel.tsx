@@ -1,9 +1,9 @@
 // Developer panel. Compiled out of production by DEV_TOOLS.
 //
-// P3-B has no shop, so nothing can be bought: without this panel every chip is
-// worth its flat base and the game cannot be judged. It reaches straight into
-// core's state on purpose — it is not implementing a rule, it is standing in for
-// the systems that arrive at P4.
+// The shop arrived at P4-A, so a loadout can now be built by playing for it. This
+// stays because reaching a given board still means clearing the rounds in front
+// of it, and a balance question should not cost five turns to ask. It reaches
+// straight into core's state on purpose — it implements no rule, it skips to one.
 
 import { useState } from 'react'
 import {

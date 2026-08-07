@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { CANVAS_HEIGHT, CANVAS_WIDTH, LAYOUT, canvasScale } from '../src/ui/Canvas'
+import {
+  CANVAS_HEIGHT,
+  CANVAS_WIDTH,
+  LAYOUT,
+  NEBULA_SCALE,
+  SHOP_LAYOUT,
+  canvasScale,
+} from '../src/ui/Canvas'
+import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH } from '../src/assets/pixels'
+import { OWNED_CONSTELLATION_LIMIT } from '../src/core/config'
 
 describe('canvas scale (GDD 11-10)', () => {
   // CLAUDE.md §7 allows integer scaling only: a 32×32 chip drawn at 1.22× lands
@@ -85,5 +94,155 @@ describe('canvas layout (GDD 11-10)', () => {
 
     expect(gap).toBeGreaterThanOrEqual(0)
     expect(gap).toBeLessThanOrEqual(40)
+  })
+})
+
+// P4-A: the shop is drawn on the same plane and answers to the same rules
+// (GDD 11-10). Its coordinates are a second table, so they get a second check.
+describe('shop layout (GDD 9-3, 11-10)', () => {
+  const shelf = SHOP_LAYOUT
+  const boxes = {
+    specials: { x: shelf.specials.x, y: shelf.specials.y, w: shelf.specials.w, h: shelf.specials.h },
+    constellations: {
+      x: shelf.constellations.x,
+      y: shelf.constellations.y,
+      w: shelf.constellations.w,
+      h: shelf.constellations.h,
+    },
+    companions: {
+      x: shelf.companions.x,
+      y: shelf.companions.y,
+      w: shelf.companions.w,
+      h: shelf.companions.h,
+    },
+    reroll: { x: shelf.reroll.x, y: shelf.reroll.y, w: shelf.reroll.w, h: shelf.reroll.h },
+    bubble: { x: shelf.bubble.x, y: shelf.bubble.y, w: shelf.bubble.w, h: shelf.bubble.h },
+    nebula: { x: shelf.nebula.x, y: shelf.nebula.y, w: shelf.nebula.w, h: shelf.nebula.h },
+    deck: { x: shelf.deck.x, y: shelf.deck.y, w: shelf.deck.w, h: shelf.deck.h },
+    inventory: { x: shelf.inventory.x, y: shelf.inventory.y, w: shelf.inventory.w, h: shelf.inventory.h },
+    leave: { x: shelf.leave.x, y: shelf.leave.y, w: shelf.leave.w, h: shelf.leave.h },
+  }
+
+  it('keeps every placed box on the plane', () => {
+    for (const [name, box] of Object.entries(boxes)) {
+      expect(box.x, `${name} left`).toBeGreaterThanOrEqual(0)
+      expect(box.y, `${name} top`).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.w, `${name} right`).toBeLessThanOrEqual(CANVAS_WIDTH)
+      expect(box.y + box.h, `${name} bottom`).toBeLessThanOrEqual(CANVAS_HEIGHT)
+    }
+  })
+
+  // `replace` is deliberately absent from `boxes`: it is a modal that covers the
+  // screen it is asked over, so it overlaps the deck panel by design (GDD 11-10
+  // exempts modal overlays from the pairwise check). It is checked on its own
+  // below instead — inside the plane, and wide enough for its five cards.
+  it('overlaps nothing', () => {
+    const entries = Object.entries(boxes)
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const [nameA, a] = entries[i]
+        const [nameB, b] = entries[j]
+        const apart =
+          a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y
+
+        expect(apart, `${nameA} overlaps ${nameB}`).toBe(true)
+      }
+    }
+  })
+
+  it('fits the entries it says each shelf row holds', () => {
+    const rows = [
+      { row: shelf.specials, count: 4 },
+      { row: shelf.constellations, count: 2 },
+      { row: shelf.companions, count: 2 },
+    ]
+
+    for (const { row, count } of rows) {
+      expect(row.entry * count + row.gap * (count - 1)).toBeLessThanOrEqual(row.w)
+    }
+  })
+
+  it('keeps each group label clear of the row under it', () => {
+    for (const row of [shelf.specials, shelf.constellations, shelf.companions]) {
+      expect(row.label.y).toBeLessThan(row.y)
+      expect(row.label.x).toBe(row.x)
+    }
+  })
+
+  it('seats the bubble to иєвυℓα and leaves them touching', () => {
+    const gap = shelf.nebula.x - (shelf.bubble.x + shelf.bubble.w)
+
+    expect(gap).toBeGreaterThanOrEqual(0)
+    expect(gap).toBeLessThanOrEqual(40)
+  })
+
+  // GDD 8-1 puts STAR-CHART beside BLACK-HOLE at P5, and the deck panel is where
+  // it goes — so the two have to be neighbours before it arrives.
+  it('stacks the deck panel directly above BLACK-HOLE', () => {
+    expect(shelf.deck.x).toBe(shelf.inventory.x)
+    expect(shelf.deck.w).toBe(shelf.inventory.w)
+    expect(shelf.inventory.y).toBeGreaterThanOrEqual(shelf.deck.y + shelf.deck.h)
+  })
+
+  // GDD 11-9: she owns the bottom-right of her own screen, standing to the floor.
+  it('plants иєвυℓα in the bottom-right corner at whole-number scale', () => {
+    expect(Number.isInteger(NEBULA_SCALE)).toBe(true)
+    expect(shelf.nebula.w).toBe(NEBULA_WIDTH * NEBULA_SCALE)
+    expect(shelf.nebula.h).toBe(NEBULA_HEIGHT * NEBULA_SCALE)
+    // Bottom-right: she reaches the floor and sits in the right-hand half.
+    expect(shelf.nebula.y + shelf.nebula.h).toBe(CANVAS_HEIGHT)
+    expect(shelf.nebula.x).toBeGreaterThan(CANVAS_WIDTH / 2)
+  })
+
+  // GDD 6: buying a fifth constellation means dropping one, and the choice is
+  // made against five full cards. This is the case a screenshot is hardest to
+  // reach — it needs four constellations held and a purchase attempted — so the
+  // geometry is checked here instead.
+  it('fits all five cards of the replacement prompt inside it, and it on the plane', () => {
+    const { y, w, h, card, gap, arrow } = shelf.replace
+    const cards = OWNED_CONSTELLATION_LIMIT + 1
+    // p-4 on the panel, and the arrow sits between the held cards and the new one.
+    const PADDING = 16 * 2
+    const needed = card * cards + gap * cards + arrow
+
+    expect(needed).toBeLessThanOrEqual(w - PADDING)
+    expect(w).toBeLessThanOrEqual(CANVAS_WIDTH)
+    expect(y + h).toBeLessThanOrEqual(CANVAS_HEIGHT)
+    // Centred on the plane, so both edges land inside it.
+    expect(CANVAS_WIDTH / 2 - w / 2).toBeGreaterThanOrEqual(0)
+    expect(CANVAS_WIDTH / 2 + w / 2).toBeLessThanOrEqual(CANVAS_WIDTH)
+  })
+
+  // CLAUDE.md §7: whole multiples only. `card` is an entry footprint and `card`
+  // is not a multiple of 36 — the card *image* inside it has to be, and this is
+  // what stops the two being confused again.
+  it('draws the prompt cards at a whole multiple of the 36×52 map', () => {
+    expect(shelf.replace.cardImage % CARD_WIDTH).toBe(0)
+    expect(shelf.replace.cardImage / CARD_WIDTH).toBe(2)
+    // The image plus its text column and padding is the entry footprint.
+    expect(shelf.replace.card).toBeGreaterThan(shelf.replace.cardImage)
+  })
+
+  // GDD 11-10's shop table is a copy of SHOP_LAYOUT, and a copy drifts unless
+  // something compares them. Every key here has a row there and no row is spare.
+  it('has one SHOP_LAYOUT entry per row of the GDD 11-10 shop table', () => {
+    const rows = [
+      'stardust', // 스타더스트
+      'title', // 상점 제목
+      'note', // 다음 라운드·목표 안내
+      'specials', // 특수 조각 4 (+ 라벨)
+      'constellations', // 별자리 2 (+ 라벨)
+      'companions', // 동반성 2 (+ 라벨)
+      'reroll', // 리롤 버튼
+      'leave', // 다음 라운드 버튼
+      'rerollNote', // 리롤 안내
+      'deck', // 덱 구성 패널
+      'inventory', // BLACK-HOLE
+      'bubble', // 말풍선
+      'nebula', // иєвυℓα
+      'replace', // 별자리 교체 프롬프트
+    ]
+
+    expect(Object.keys(SHOP_LAYOUT).sort()).toEqual([...rows].sort())
   })
 })

@@ -16,12 +16,14 @@ import { isEmpty } from '../core/board'
 import { MULTIPLIER_STACK_MODE } from '../core/config'
 import type { MultiplierStackMode } from '../core/config'
 import {
+  buy,
   drawHand,
   endRound,
   endTurn,
   fromLoadout,
   openShop,
   placeChips,
+  reroll,
   startRound,
 } from '../core/game'
 import type { Game, Placement } from '../core/game'
@@ -29,6 +31,7 @@ import { mulberry32 } from '../core/rng'
 import { scoreBoard } from '../core/scoring'
 import type { ScoreResult } from '../core/scoring'
 import { createStartingLoadout } from '../core/shop'
+import type { Purchase } from '../core/shop'
 import type { Board, Chip, ConstellationId, Position } from '../core/types'
 
 /** GDD 13-5: the player picks one to start with. P3-B has no title screen yet. */
@@ -80,6 +83,11 @@ interface GameStore {
   placeAt: (pos: Position) => void
   commitTurn: () => void
   dismissSettlement: () => void
+  /** GDD 9-2. Core decides whether the purse reaches and what leaves the shelf. */
+  buyItem: (purchase: Purchase) => void
+  rerollStock: () => void
+  /** GDD 4-2: leaving the shop is what starts the next round. */
+  leaveShop: () => void
   /** Dev only. Replaces core state wholesale; never call from game UI. */
   devSet: (patch: (game: Game) => Game) => void
 }
@@ -149,12 +157,29 @@ export const useGame = create<GameStore>((set, get) => ({
     let next = game
 
     if (next.phase === 'roundEnd') next = endRound(next)
-    // There is no shop screen yet, but the visit still happens: it is where
-    // иєвυℓα hands over the drifter (GDD 13-4). Opening and leaving keeps that rule.
-    if (next.phase === 'shop') next = startRound(openShop(next))
-    if (next.phase === 'draw') next = drawHand(next)
+    // The shop is a screen of its own from P4-A, so the walk stops here: core
+    // rolls the stock and hands over the drifter (GDD 13-4), and the next round
+    // does not start until `leaveShop`.
+    if (next.phase === 'shop') next = openShop(next)
+    else if (next.phase === 'draw') next = drawHand(next)
 
     set({ game: next, turnStart: next, staged: [], selected: null, settlement: null })
+  },
+
+  buyItem: (purchase) => {
+    const game = buy(get().game, purchase)
+    set({ game, turnStart: game })
+  },
+
+  rerollStock: () => {
+    const game = reroll(get().game)
+    set({ game, turnStart: game })
+  },
+
+  leaveShop: () => {
+    if (get().game.phase !== 'shop') return
+    const game = drawHand(startRound(get().game))
+    set({ game, turnStart: game, staged: [], selected: null, settlement: null })
   },
 
   devSet: (patch) => {

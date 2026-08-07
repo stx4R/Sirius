@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim": "tsx sim/monte.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify": "tsc --noEmit && vitest run && vite build",
+    "shot": "node tools/screenshot.mjs"
   },
   "dependencies": {
     "framer-motion": "^12.23.12",

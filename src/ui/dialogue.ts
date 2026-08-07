@@ -61,7 +61,7 @@ export function lineFor(beat: Beat, rng: Rng): string {
 // player's and the game does not pretend otherwise. If a line ever reads as
 // pressure rather than patter, it belongs to the wrong character.
 
-export type ShopBeat = 'enter' | 'bought' | 'reroll' | 'broke' | 'leave'
+export type ShopBeat = 'enter' | 'bought' | 'reroll' | 'broke' | 'locked' | 'leave'
 
 export const NEBULA_LINES: Readonly<Record<ShopBeat, readonly string[]>> = {
   enter: [
@@ -89,6 +89,15 @@ export const NEBULA_LINES: Readonly<Record<ShopBeat, readonly string[]>> = {
     '외상은 안 되네. 규칙이야',
     '다음에 오게. 물건은 도망가지 않아',
     '더 벌어 오면 그때 이야기하지',
+  ],
+  // The companion shelf is stocked and shut (GDD 7-1-b). A slot that simply
+  // refuses a click reads as a broken button, so she says why — and being the
+  // one who decides what is for sale is in character for her besides.
+  locked: [
+    '그건 아직 내놓을 때가 아니야',
+    '눈독은 들여 두게. 곧 풀릴 물건이니',
+    '값을 못 매기는 물건은 못 파는 법이지',
+    '조금만 더 기다리게. 서로 손해 볼 것 없지 않나',
   ],
   leave: [
     '또 보세',

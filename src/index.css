@@ -3,3 +3,17 @@
 img {
   image-rendering: pixelated;
 }
+
+/*
+ * Korean has no space between the characters of a word, so the default line
+ * breaking treats every character as a break opportunity and a bubble wraps
+ * mid-word — "…들어와 있 / 다네". `keep-all` breaks at spaces instead.
+ *
+ * It is set here rather than on the elements that happen to show Korean today
+ * because every element on both screens shows Korean, and the rule is a fact
+ * about the language rather than about any one panel (GDD 12-2: a booth
+ * participant reads this unaided, so nothing may be hard to read by accident).
+ */
+body {
+  word-break: keep-all;
+}

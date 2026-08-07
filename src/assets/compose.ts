@@ -27,12 +27,13 @@ import {
   GLYPH_OFFSET,
   GLYPH_SIZE,
   LOCK_GLYPH,
+  NEBULA_LIGHT,
   SUIT_GLYPHS,
   nebulaLayers,
   chipLayerAt,
   skyOf,
 } from './pixels'
-import type { ChartStar, Magnitude, Mask } from './pixels'
+import type { ChartStar, Magnitude, Mask, NebulaLayer } from './pixels'
 
 /** One sprite. `null` is transparent. */
 export type PixelMap = readonly (readonly (string | null)[])[]
@@ -158,28 +159,92 @@ export function drifterChip(): PixelMap {
   })
 }
 
+/** How far the eye core is lifted out of the glow it sits in. */
+const EYE_CORE_MIX = 0.45
 /**
- * иєвυℓα at 60×78 (GDD 11-9), shown at 2× beside ORION's 120×156.
+ * The most the brightest rim pixel may reach, as a share of the eye core. Below
+ * 1 by construction, so the hierarchy 11-9 states — only the light out of the
+ * hood is bright — is enforced by arithmetic rather than by choosing a tone and
+ * hoping. Same device, same reason, as `frameTones` (GDD 11-5).
+ */
+const RIM_CEILING = 0.8
+/** Above 1 the rim gives out early, so the hem is unlit well before it runs out. */
+const RIM_FALLOFF = 1.6
+
+/**
+ * The rim tone at a pixel, as a falloff from the hood's light.
+ *
+ * ★ The second version ran one bright pink all the way round her, and it broke
+ * both halves of the design at once. It out-shone the eyes, so the look went
+ * round the outline instead of landing on her face; and a silhouette closed by
+ * an unbroken bright line cannot scatter downward, which is what made her read
+ * as a sticker on the background rather than as something coming apart.
+ *
+ * So: the brightest tone is stepped toward the deep until it is safely under the
+ * eye core, exactly as a card frame is stepped under its chart, and every rim
+ * pixel is then mixed between that and the veil by its distance from the light.
+ * Near the hood it is the full tone; at the far end it *is* the veil, which is
+ * to say there is no outline down there at all.
+ */
+function nebulaRim(glow: string, layers: readonly (readonly NebulaLayer[])[]) {
+  const core = mix(glow, PALETTE.starWhite, EYE_CORE_MIX)
+  // The rim answers the mood too, so the whole silhouette responds and not one
+  // spot — it just may not answer louder than the eyes.
+  let brightest = mix(NEBULA_INK.rim, glow, glow === NEBULA_GLOW.idle ? 0 : 0.35)
+  // A tenth at a time, the same step `frameTones` takes.
+  while (luma(brightest) > luma(core) * RIM_CEILING) {
+    brightest = mix(brightest, PALETTE.nebulaDeep, 0.1)
+  }
+
+  const reach = (x: number, y: number) => Math.hypot(x - NEBULA_LIGHT.x, y - NEBULA_LIGHT.y)
+  const distances = layers.flatMap((row, y) =>
+    row.flatMap((layer, x) => (layer === 'rim' ? [reach(x, y)] : [])),
+  )
+  // Measured off the sprite rather than assumed, so the nearest rim pixel really
+  // does reach the ceiling and the farthest really does vanish into the veil.
+  const near = Math.min(...distances)
+  const span = Math.max(...distances) - near
+
+  return (x: number, y: number) => {
+    const away = span === 0 ? 0 : (reach(x, y) - near) / span
+    return mix(NEBULA_INK.veil, brightest, (1 - away) ** RIM_FALLOFF)
+  }
+}
+
+/**
+ * иєвυℓα at 60×78 (GDD 11-9), shown at 3× in the shop.
  *
  * `mood` changes only the light out of the hood. She has no face to put an
  * expression on — that is the point of the design — so interest and a closed
- * deal read as the glow brightening, and the rim picks up a little of it so the
- * whole silhouette answers rather than one spot.
+ * deal read as the glow brightening, and the rim, which is graded off that same
+ * light, brightens with it.
  */
 export function nebulaSprite(mood: NebulaMood = 'idle'): PixelMap {
   const glow = NEBULA_GLOW[mood]
+  const layers = nebulaLayers()
+  const rimAt = nebulaRim(glow, layers)
 
-  return nebulaLayers().map((row) =>
-    row.map((layer) => {
+  return layers.map((row, y) =>
+    row.map((layer, x) => {
       switch (layer) {
         case 'outside':
           return null
+        // The gaze. Brightest thing on her by some way — it is what the eye lands
+        // on first, and everything else on her is graded down from it.
+        case 'eye':
+          return mix(glow, PALETTE.starWhite, EYE_CORE_MIX)
         case 'glow':
           return glow
+        // The core's light falling on the inside of the hood. Without this step
+        // the glow sits on the shade like a sticker instead of coming out of it.
+        case 'hollowLit':
+          return mix(NEBULA_INK.hollow, glow, 0.45)
         case 'hollow':
           return NEBULA_INK.hollow
         case 'rim':
-          return mix(NEBULA_INK.rim, glow, mood === 'idle' ? 0 : 0.35)
+          return rimAt(x, y)
+        case 'sleeve':
+          return NEBULA_INK.sleeve
         case 'fold':
           return NEBULA_INK.veilFold
         case 'veil':

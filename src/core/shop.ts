@@ -163,6 +163,36 @@ export function canAfford(loadout: Loadout, purchase: Purchase): boolean {
   return loadout.stardust >= priceOf(purchase)
 }
 
+/**
+ * Takes what was just bought off the shelf. A slot holds one item and sells it
+ * once; the next one costs a reroll.
+ *
+ * This is a rule, not a display choice, which is why it is here and not in the
+ * screen that draws the shelf. P2-B measured the target curve against a shop
+ * policy that buys each stocked item at most once (`sim/player.ts`), so a shelf
+ * that refilled itself for free would let a player past a target the curve was
+ * never checked against.
+ *
+ * The basic chips are not a slot: GDD 9-3 lists add and remove as standing
+ * offers, so they survive every purchase.
+ */
+export function soldOut(stock: ShopStock, purchase: Purchase): ShopStock {
+  switch (purchase.kind) {
+    case 'special': {
+      const [left, right] = purchase.pair
+      return {
+        ...stock,
+        specials: stock.specials.filter((pair) => pair[0] !== left || pair[1] !== right),
+      }
+    }
+    case 'constellation':
+      return { ...stock, constellations: stock.constellations.filter((id) => id !== purchase.id) }
+    case 'addBasic':
+    case 'removeBasic':
+      return stock
+  }
+}
+
 
 /** Applies a purchase the caller has already confirmed with `canAfford`. */
 export function applyPurchase(loadout: Loadout, purchase: Purchase): Loadout {
@@ -194,10 +224,16 @@ export function applyPurchase(loadout: Loadout, purchase: Purchase): Loadout {
       }
     case 'constellation': {
       if (paid.constellations.includes(purchase.id)) return loadout
-      const kept =
-        paid.constellations.length < OWNED_CONSTELLATION_LIMIT
-          ? paid.constellations
-          : paid.constellations.filter((id) => id !== purchase.replaces)
+      // GDD 6 holds the limit at 4, and GDD 13-6 measured the target curve on
+      // that. A fifth card has to name one of the four it replaces; anything
+      // else is refused, which by `buy`'s rule costs nothing and sells nothing.
+      const atLimit = paid.constellations.length >= OWNED_CONSTELLATION_LIMIT
+      const validReplace =
+        purchase.replaces != null && paid.constellations.includes(purchase.replaces)
+      if (atLimit && !validReplace) return loadout
+      const kept = atLimit
+        ? paid.constellations.filter((id) => id !== purchase.replaces)
+        : paid.constellations
       return { ...paid, constellations: [...kept, purchase.id] }
     }
   }

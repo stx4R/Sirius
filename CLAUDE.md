@@ -79,6 +79,7 @@ src/
 
 tests/          ← Vitest
 sim/            ← Node 몬테카를로 시뮬레이터 (core만 import)
+tools/          ← 스크린샷·측정 스크립트 (게임 코드 아님)
 ```
 
 **위반 시 즉시 중단해야 할 것**
@@ -110,6 +111,11 @@ TypeScript (strict) · Vite 8 · **React 19** · Zustand · Tailwind CSS · Fram
 - tsconfig 단일 파일 — `npx tsc --noEmit`이 검증 명령이므로 project references를 쓰지 않는다
 - `"strict": true` 필수 — 템플릿 기본값이 아니므로 삭제하지 말 것
 - Vitest 4 — Vite 8(rolldown)과의 타입 충돌 회피
+- 프로젝트 경로는 ASCII·공백 없는 단순 경로여야 한다 (`C:\dev\stamble`).
+  한글·공백·OneDrive가 섞인 경로에서 rolldown(Vite 8)이
+  STATUS_STACK_BUFFER_OVERRUN으로 크래시한다. tsc·vitest는 영향 없다.
+  워킹 트리를 클라우드 동기화 폴더로 되돌리지 않는다
+- 검증 명령은 `npm run verify`다
 
 ## 7. 도트 그래픽 규칙
 
@@ -142,13 +148,62 @@ type Rng = () => number;   // [0, 1)
 **`docs/GDD.md`가 유일한 정본이다.** 외부에서 전달된 GDD 사본으로 덮어쓰지 않는다.
 GDD 수정은 프롬프트의 지시문으로만 이루어지며, 반영은 Claude Code가 한다.
 
-## 10. 단계별 커밋
+## 10. Git 커밋 규칙 (Sirius)
 
 각 Phase의 verify를 통과하면 **즉시 커밋한다.** 통과하지 않은 상태로 다음 Phase를 시작하지 않는다.
 
+### 10-1. 커밋 대상
+
+- 원격 저장소: `https://github.com/stx4R/Sirius`
+- 기능 추가·버그 수정·리팩터링·설정 변경·문서 수정 등 **저장소 파일에 변경이 생기면 반드시 커밋**한다
+- 커밋 단위는 **"완결된 작업 하나"**. 작업 중간에 커밋하지 말고, 요청받은 작업이 끝난 뒤에 커밋한다
+- 커밋 전 `npm test`를 실행해 통과를 확인한다. 실패하면 커밋하지 말고 실패 내용을 먼저 보고한다
+- 커밋 후에는 `main` 브랜치로 바로 push한다
+- push가 거부되면(non-fast-forward 등) **절대 `--force`를 쓰지 않는다.** 상황을 보고하고 지시를 기다린다
+- 성공 보고의 근거는 로그의 마지막 줄이 아니라 종료 코드다.
+  PowerShell에서는 `$LASTEXITCODE`로 확인한다
+- 커밋 전에 `git rev-parse --show-toplevel`이 프로젝트 루트인지 확인한다.
+  상위 디렉터리에 저장소가 있으면 `git add -A`가 무관한 파일 전체를 스테이징한다
+
+### 10-2. AI 사용 흔적 금지 (필수)
+
+커밋에 Claude / Claude Code / AI 관련 기록이 **절대 남지 않도록** 한다.
+
+- `🤖 Generated with Claude Code` 같은 푸터를 붙이지 않는다
+- `Co-Authored-By: Claude <noreply@anthropic.com>` 트레일러를 붙이지 않는다.
+  GitHub Contributors 목록은 커밋 author와 `Co-Authored-By` 트레일러로 만들어지므로,
+  이 트레일러가 없어야 Claude가 기여자로 표시되지 않는다
+- author/committer는 항상 저장소에 설정된 본인의 `user.name` / `user.email`을 쓴다.
+  `--author`로 다른 신원을 지정하지 않는다
+- 커밋 메시지 본문, PR 설명, 코드 주석 어디에도 AI 사용 사실을 적지 않는다
+
+기본 동작을 끄기 위해 `.claude/settings.json`에 `"includeCoAuthoredBy": false`를 둔다.
+커밋 직후 확인한다:
+
+```bash
+git log -1 --format='%an <%ae>%n%cn <%ce>%n%B'
 ```
-git add -A && git commit -m "P1: core scoring engine"
-```
+
+### 10-3. 커밋 메시지 형식
+
+**`Sirius v<MAJOR>.<MINOR>.<PATCH>` 제목 한 줄이 전부다.** 각 자리 범위는 0~99.
+**본문(body)은 쓰지 않는다.** 변경 요약·파일 목록·부연 설명을 덧붙이지 않는다.
+
+| 자리 | 올리는 기준 | Sirius 기준 |
+|---|---|---|
+| MAJOR | 코드·파일의 **주요한** 업데이트 | 새 게임 시스템·모드 추가, `src/core/` 아키텍처 변경, 개발 페이즈 완료(예: P3-B → P4), 기존 데이터·설정 호환성이 깨지는 변경 |
+| MINOR | 코드·파일의 **자잘한** 업데이트 | 기능 하나 추가, UI 컴포넌트·화면 추가, 새 테스트 스위트 추가, `config.ts` 값 조정 |
+| PATCH | MINOR보다 **더 자잘한** 업데이트 | 버그 수정, 오타·문구 수정, 스타일 미세 조정, 주석·문서 수정, 동작 변화 없는 내부 정리 |
+
+**버전 결정 절차**
+
+1. 직전 버전을 확인한다 — `git log --grep='^Sirius v' -1 --pretty=%s`
+2. 이번 변경을 MAJOR / MINOR / PATCH 중 하나로 분류한다
+3. 해당 자리를 1 올리고, **그보다 하위 자리는 0으로 초기화**한다
+   (예: `Sirius v1.4.7` + MINOR → `Sirius v1.5.0`)
+4. 어떤 자리가 99를 넘으면 상위 자리를 1 올리고 해당 자리를 0으로 만든다
+5. `Sirius vX.X.X` 형식의 커밋이 하나도 없으면 `Sirius v0.1.0`부터 시작한다
+6. **분류가 애매하면 커밋 전에 어느 자리를 올릴지 묻는다**
 
 ## 11. 언어
 

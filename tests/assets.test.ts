@@ -14,6 +14,7 @@ import {
   suitGlyph,
 } from '../src/assets/compose'
 import type { PixelMap } from '../src/assets/compose'
+import type { NebulaLayer } from '../src/assets/pixels'
 import { AXIS_COLOURS, CHIP_COLOURS, NEBULA_INK, PALETTE, luma } from '../src/assets/palette'
 import {
   CARD_FRAME,
@@ -24,6 +25,7 @@ import {
   CROWN_GLYPH,
   GLYPH_SIZE,
   LOCK_SIZE,
+  NEBULA_FADE_TOP,
   NEBULA_HEIGHT,
   NEBULA_WIDTH,
   SUIT_GLYPHS,
@@ -33,8 +35,10 @@ import {
 } from '../src/assets/pixels'
 import type { Mask } from '../src/assets/pixels'
 import { CONSTELLATION_RULES, SPECIAL_SUIT_PAIRS } from '../src/core/config'
+import { mulberry32 } from '../src/core/rng'
+import { createStartingLoadout, rollStock } from '../src/core/shop'
 import { SUIT_ORDER } from '../src/core/types'
-import type { ConstellationId } from '../src/core/types'
+import type { ConstellationId, SuitId } from '../src/core/types'
 
 const PALETTE_LIMIT = 32
 
@@ -259,19 +263,114 @@ describe('иєвυℓα (GDD 11-9)', () => {
     expect(NEBULA_WIDTH).toBe(60)
   })
 
-  // The whole design rests on this: the hood has an opening and there is no face
-  // in it. If a feature ever appears there she stops being unidentified.
-  it('puts nothing but light inside the hood', () => {
-    const inside = new Set(
-      nebulaLayers()
-        .flatMap((row, y) => row.map((layer, x) => ({ layer, y, x })))
-        .filter(({ layer }) => layer === 'hollow' || layer === 'glow')
-        .map(({ layer }) => layer),
+  // The hood interior, graded from the eyes outward. A flat dark patch the shape
+  // of a face reads as a hole punched through her, not as a face in shadow —
+  // that is what the first version did, and it is why she read as a nozzle.
+  it('lights the inside of the hood instead of cutting a hole in it', () => {
+    const layers = nebulaLayers()
+    const count = (name: NebulaLayer) => layers.flat().filter((l) => l === name).length
+
+    // All four steps are present, so the light actually falls off rather than
+    // sitting on the shade as a sticker.
+    for (const step of ['hollow', 'hollowLit', 'glow', 'eye'] as const) {
+      expect(count(step), step).toBeGreaterThan(0)
+    }
+    // Nothing inside her is the background colour. This is the rule the hole broke.
+    expect(nebulaSprite().flat().filter((c) => c === PALETTE.void)).toHaveLength(0)
+  })
+
+  // GDD 11-9: a gaze needs two points and a gap. One blob is a lamp.
+  it('gives her a pair of eyes, not one light', () => {
+    const eyes = nebulaLayers().flatMap((row, y) =>
+      row.flatMap((layer, x) => (layer === 'eye' ? [{ x, y }] : [])),
     )
 
-    expect(inside).toEqual(new Set(['hollow', 'glow']))
-    // And there is actually an opening to speak of.
-    expect(nebulaLayers().flat().filter((l) => l === 'glow').length).toBeGreaterThan(60)
+    expect(eyes.length).toBeGreaterThan(4)
+    const columns = eyes.map((e) => e.x)
+    const left = columns.filter((x) => x < NEBULA_WIDTH / 2)
+    const right = columns.filter((x) => x > NEBULA_WIDTH / 2)
+    expect(left.length).toBeGreaterThan(0)
+    expect(right.length).toBeGreaterThan(0)
+    // A gap between them, rather than one wide band straddling the centre line.
+    expect(Math.min(...right) - Math.max(...left)).toBeGreaterThan(1)
+  })
+
+  // GDD 11-9: humanoid enough to read as somebody standing there. Arms are what
+  // the first version had none of, and a cone with a dome on top is a rocket.
+  it('has shoulders wider than its head, and two sleeves at different heights', () => {
+    const layers = nebulaLayers()
+    const spanAt = (y: number) => {
+      const on = layers[y].flatMap((l, x) => (l === 'outside' ? [] : [x]))
+      return on.length === 0 ? 0 : Math.max(...on) - Math.min(...on) + 1
+    }
+    const headWidth = Math.max(...Array.from({ length: 24 }, (_, y) => spanAt(y + 4)))
+    const shoulderWidth = Math.max(...Array.from({ length: 12 }, (_, y) => spanAt(y + 30)))
+
+    expect(shoulderWidth).toBeGreaterThan(headWidth)
+
+    const sleeveRows = layers.flatMap((row, y) => (row.includes('sleeve') ? [y] : []))
+    expect(sleeveRows.length).toBeGreaterThan(10)
+    // The two lobes start on different rows — matching ones would put the mirror
+    // symmetry back, which is the other half of the nozzle reading.
+    const sleeveTop = (side: (x: number) => boolean) =>
+      layers.findIndex((row) => row.some((l, x) => l === 'sleeve' && side(x)))
+    expect(sleeveTop((x) => x < NEBULA_WIDTH / 2)).not.toBe(
+      sleeveTop((x) => x > NEBULA_WIDTH / 2),
+    )
+  })
+
+  // GDD 11-9, and the trap that has now caught this sprite twice: below the
+  // shoulders she must not be her own mirror, or the robe reads as a nozzle.
+  it('is not mirror-symmetric below the shoulders', () => {
+    const layers = nebulaLayers()
+    let same = 0
+    let compared = 0
+    for (let y = 40; y < NEBULA_HEIGHT; y++) {
+      for (let x = 0; x < NEBULA_WIDTH; x++) {
+        compared++
+        if (layers[y][x] === layers[y][NEBULA_WIDTH - 1 - x]) same++
+      }
+    }
+
+    expect(same / compared).toBeLessThan(0.9)
+  })
+
+  // GDD 11-9, the fourth thing that must not come back. One bright pink all the
+  // way round her broke the brightness rule outright — the outline out-shone the
+  // eyes, so the look went round her edge instead of landing on her face — and
+  // it closed a silhouette that is supposed to scatter, which is what made her
+  // read as a sticker on the background.
+  it('never lets the outline out-shine the eyes, in any mood', () => {
+    const layers = nebulaLayers()
+    const lumaOf = (sprite: PixelMap, name: NebulaLayer) =>
+      layers.flatMap((row, y) => row.flatMap((l, x) => (l === name ? [luma(sprite[y][x]!)] : [])))
+
+    for (const mood of ['idle', 'keen', 'dealt'] as const) {
+      const rim = lumaOf(nebulaSprite(mood), 'rim')
+      const eyes = lumaOf(nebulaSprite(mood), 'eye')
+
+      expect(Math.max(...rim), mood).toBeLessThan(Math.min(...eyes))
+      // And it is a falloff, not one tone held below a limit: the far end of the
+      // rim *is* the veil, which is how the hem ends up with no outline at all.
+      expect(Math.min(...rim), mood).toBe(luma(NEBULA_INK.veil))
+      expect(Math.max(...rim) - Math.min(...rim), mood).toBeGreaterThan(20)
+    }
+  })
+
+  // GDD 11-9: she does not end on a line. A hem contour, however carefully
+  // computed, is still an edge — and the one she had notched up the middle,
+  // which read as the gap between two legs.
+  it('runs out by density below the waist rather than stopping on an edge', () => {
+    const layers = nebulaLayers()
+    const filled = (y: number) => layers[y].filter((l) => l !== 'outside').length
+
+    for (let y = NEBULA_FADE_TOP + 1; y < NEBULA_HEIGHT; y++) {
+      expect(filled(y), `row ${y} against row ${y - 1}`).toBeLessThanOrEqual(filled(y - 1))
+    }
+    // And it really runs out: a full row of cloth at the waist, nothing at all on
+    // the last row, so the fall is a fade and not a flat line of one pixel.
+    expect(filled(NEBULA_FADE_TOP)).toBeGreaterThan(20)
+    expect(filled(NEBULA_HEIGHT - 1)).toBe(0)
   })
 
   // GDD 11-9: her purple must not merge with the Mimosa chips on the board.
@@ -418,6 +517,46 @@ describe('constellation cards (GDD 11-5)', () => {
         expect(x).toBeLessThan(CARD_WIDTH - 6)
         expect(y).toBeLessThan(CARD_HEIGHT - 8)
       }
+    }
+  })
+})
+
+// P4-A. The shelf prints a label beside a composed chip and a shopper reads the
+// two as one thing, so they must not be able to come apart. The suits are taken
+// back *out of the label string* and checked against the pixels actually drawn —
+// testing `specialChip(pair[0], pair[1])` against `pair` would only restate the
+// call.
+//
+// Written after a report that `IMA&ACR` and `IMA&MIM` looked alike on the shelf.
+// They do not share a rendering — Acrux's field is so near the background that
+// what carries its half is the bright rim, which reads lavender next to Mimosa's
+// purple. The shelf now names each half in its own suit's ink for that reason,
+// and this pins the part that would have been a real bug.
+describe('the shop shelf draws what its label says (GDD 3-2, 9-3)', () => {
+  const stockedOver = (seeds: number) =>
+    Array.from({ length: seeds }, (_, seed) =>
+      rollStock(createStartingLoadout('aries'), mulberry32(seed)),
+    )
+
+  it('renders every stocked special as the two suits its label names', () => {
+    for (const stock of stockedOver(40)) {
+      for (const pair of stock.specials) {
+        const label = `${pair[0]}&${pair[1]}`
+        const [left, right] = label.split('&') as SuitId[]
+        const chip = specialChip(pair[0], pair[1])
+        const middle = chip[CHIP_SIZE / 2]
+
+        expect(middle[6], `${label} left half`).toBe(CHIP_COLOURS[left].base)
+        expect(middle[CHIP_SIZE - 7], `${label} right half`).toBe(CHIP_COLOURS[right].base)
+      }
+    }
+  })
+
+  it('never puts two chips on the shelf that render identically', () => {
+    for (const stock of stockedOver(40)) {
+      const drawn = stock.specials.map(([l, r]) => JSON.stringify(specialChip(l, r)))
+
+      expect(new Set(drawn).size).toBe(drawn.length)
     }
   })
 })

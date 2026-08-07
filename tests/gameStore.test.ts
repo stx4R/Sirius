@@ -4,7 +4,15 @@
 
 import { describe, expect, it } from 'vitest'
 import { occupiedPositions, position } from '../src/core/board'
-import { BOARD_SIZE, MAX_PLACEMENTS_PER_TURN, TURNS_PER_ROUND } from '../src/core/config'
+import {
+  BOARD_SIZE,
+  MAX_PLACEMENTS_PER_TURN,
+  OWNED_CONSTELLATION_LIMIT,
+  SHOP_PRICES,
+  SHOP_SLOTS,
+  TURNS_PER_ROUND,
+} from '../src/core/config'
+import { ALL_CONSTELLATIONS } from '../src/core/shop'
 import type { ConstellationId, Position } from '../src/core/types'
 import { useGame } from '../src/store/gameStore'
 import { stepsOf } from '../src/ui/Settlement'
@@ -143,7 +151,7 @@ describe('turn and round', () => {
     expect(second.roundScoreBefore + second.awarded).toBe(store().game.roundScore)
   })
 
-  it('plays a full round of five turns and checks the target', () => {
+  it('plays a full round of five turns and stops in the shop', () => {
     store().newGame(7)
 
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
@@ -154,9 +162,19 @@ describe('turn and round', () => {
     }
 
     // Five turns of four chips fill twenty of the twenty-five cells (GDD 4-2),
-    // which clears round one and opens round two with a fresh board and hand.
+    // which clears round one. From P4-A that lands in иєвυℓα's shop and waits
+    // there — dismissing the settlement no longer walks straight on into round 2.
+    const shop = store().game
+    expect(shop.status).toBe('playing')
+    expect(shop.phase).toBe('shop')
+    expect(shop.round).toBe(2)
+    expect(shop.stock).not.toBeNull()
+    expect(shop.hand).toHaveLength(0)
+
+    store().leaveShop()
+
     const { game } = store()
-    expect(game.status).toBe('playing')
+    expect(game.phase).toBe('placing')
     expect(game.round).toBe(2)
     expect(game.turn).toBe(1)
     expect(game.roundScore).toBe(0)
@@ -164,7 +182,7 @@ describe('turn and round', () => {
     expect(occupiedPositions(game.board)).toHaveLength(0)
   })
 
-  it('hands over the drifter on the way past the shop (GDD 13-4)', () => {
+  it('hands over the drifter on arrival at the shop (GDD 13-4)', () => {
     store().newGame(7)
     expect(store().game.drifterOwned).toBe(false)
 
@@ -174,8 +192,8 @@ describe('turn and round', () => {
       store().dismissSettlement()
     }
 
-    // P3-B draws no shop screen, but the visit still happens, so the rule that
-    // lives there is not silently skipped.
+    // The gift is `openShop`'s, so it happens as the screen opens rather than
+    // when the player leaves — it is in the deck for anything bought after it.
     expect(store().game.drifterOwned).toBe(true)
     expect(store().game.ownedDeck.filter((chip) => chip.kind === 'drifter')).toHaveLength(1)
   })
@@ -190,6 +208,108 @@ describe('turn and round', () => {
 
     expect(store().game.status).toBe('gameOver')
     expect(store().game.roundScore).toBeLessThan(store().game.targetScore)
+  })
+})
+
+// P4-A: the shop is a screen the run stops at. These check that the screen's
+// three verbs go through core and come back with core's answer — the buttons
+// decide nothing (CLAUDE.md §5).
+describe('the shop (GDD 9-3)', () => {
+  /** Clears round 1 the way a player would, which is what opens the shop. */
+  function reachShop(stardust: number): void {
+    store().newGame(7)
+    for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
+      placeChips(MAX_PLACEMENTS_PER_TURN)
+      store().commitTurn()
+      store().dismissSettlement()
+    }
+    expect(store().game.phase).toBe('shop')
+    store().devSet((game) => ({ ...game, stardust }))
+  }
+
+  it('charges for a special and takes it off the shelf', () => {
+    reachShop(40)
+    const pair = store().game.stock!.specials[0]
+
+    store().buyItem({ kind: 'special', pair })
+
+    const { game } = store()
+    expect(game.stardust).toBe(40 - SHOP_PRICES.specialChip)
+    expect(game.ownedDeck.filter((chip) => chip.kind === 'special')).toHaveLength(1)
+    // A slot sells once. Leaving it on the shelf would let a full purse buy the
+    // same chip four times over, which is not what P2-B measured (core/shop.ts).
+    expect(game.stock!.specials.some((p) => p[0] === pair[0] && p[1] === pair[1])).toBe(false)
+    expect(game.stock!.specials).toHaveLength(SHOP_SLOTS.specialChips - 1)
+  })
+
+  it('leaves the shelf alone when the purse cannot reach', () => {
+    reachShop(SHOP_PRICES.specialChip - 1)
+    const pair = store().game.stock!.specials[0]
+
+    store().buyItem({ kind: 'special', pair })
+
+    expect(store().game.stardust).toBe(SHOP_PRICES.specialChip - 1)
+    expect(store().game.stock!.specials).toHaveLength(SHOP_SLOTS.specialChips)
+  })
+
+  it('swaps a constellation out at the ownership limit (GDD 6)', () => {
+    reachShop(40)
+    const owned = ALL_CONSTELLATIONS.slice(0, OWNED_CONSTELLATION_LIMIT)
+    store().devSet((game) => ({ ...game, stardust: 40, ownedConstellations: [...owned] }))
+
+    const incoming = store().game.stock!.constellations.find((id) => !owned.includes(id))
+    expect(incoming).toBeDefined()
+    store().buyItem({ kind: 'constellation', id: incoming!, replaces: owned[0] })
+
+    const { game } = store()
+    expect(game.ownedConstellations).toHaveLength(OWNED_CONSTELLATION_LIMIT)
+    expect(game.ownedConstellations).toContain(incoming)
+    expect(game.ownedConstellations).not.toContain(owned[0])
+  })
+
+  it('adds and removes basic chips at the listed prices (GDD 9-2)', () => {
+    reachShop(40)
+    const held = () => store().game.ownedDeck.length
+
+    const before = held()
+    store().buyItem({ kind: 'addBasic', suit: 'GAC' })
+    expect(held()).toBe(before + 1)
+    expect(store().game.stardust).toBe(40 - SHOP_PRICES.addBasicChip)
+
+    store().buyItem({ kind: 'removeBasic', suit: 'GAC' })
+    expect(held()).toBe(before)
+    expect(store().game.stardust).toBe(40 - SHOP_PRICES.addBasicChip - SHOP_PRICES.removeBasicChip)
+  })
+
+  it('rerolls the shelf and raises the price each time (GDD 9-2)', () => {
+    reachShop(40)
+
+    store().rerollStock()
+    expect(store().game.rerollsUsed).toBe(1)
+    expect(store().game.stardust).toBe(40 - SHOP_PRICES.rerollBase)
+
+    store().rerollStock()
+    expect(store().game.rerollsUsed).toBe(2)
+    expect(store().game.stardust).toBe(
+      40 - SHOP_PRICES.rerollBase - (SHOP_PRICES.rerollBase + SHOP_PRICES.rerollIncrement),
+    )
+  })
+
+  it('carries what was bought into the next round and resets the rerolls', () => {
+    reachShop(40)
+    const pair = store().game.stock!.specials[0]
+    store().buyItem({ kind: 'special', pair })
+    store().rerollStock()
+
+    store().leaveShop()
+
+    const { game } = store()
+    expect(game.round).toBe(2)
+    expect(game.rerollsUsed).toBe(0)
+    expect(game.stock).toBeNull()
+    // `startRound` rebuilds the draw pile from the owned deck, so the purchase is
+    // in play immediately rather than from the round after (GDD 4-2).
+    expect(game.deck.concat(game.hand).filter((chip) => chip.kind === 'special')).toHaveLength(1)
   })
 })
 

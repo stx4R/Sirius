@@ -22,6 +22,9 @@ const APP = 'http://localhost:5173/'
 const OUT = process.argv[2] ?? 'shots'
 const WINDOW = { width: 1366, height: 768 }
 
+/** Replays of the round-2 leg before giving up — see `playToSecondShop`. */
+const ATTEMPTS = 5
+
 const CHROME = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
@@ -121,6 +124,66 @@ async function playRound(ws) {
   return evaluate(ws, `document.body.innerText.includes('иєвυℓα의 상점')`)
 }
 
+/**
+ * A fresh page load through to the shop after round 2, taking the three shots on
+ * the way. False when the run ended before it got there.
+ *
+ * Round 1 is the only round every run clears — its floor of 600 is above the 490
+ * target no matter how the chips fall (GDD 10-2), so a miss there is a bug and
+ * throws. Round 2 has no such floor, and since BOOTH-1 the title screen seeds a
+ * run off the clock, so whether naive placement clears it is luck. That is the
+ * game behaving correctly — a booth participant should not replay one fixed run —
+ * which makes retrying this script's job rather than pinning the seed's.
+ */
+async function playToSecondShop(ws) {
+  await evaluate(ws, `location.href = ${JSON.stringify(APP)}`)
+  await sleep(2500)
+  await evaluate(ws, HELPERS)
+  await shot(ws, 'title')
+
+  // The app opens on the title now, so there is no game to photograph until it
+  // has been answered. The mode defaults to booth and is left alone — its first
+  // two rounds are full's (GDD 12-4), which is what the shop shots play through.
+  // The starting constellation has no default by design (GDD 13-5), so it is the
+  // one thing that must be clicked.
+  await evaluate(ws, `document.querySelector('[data-choice="starting"]')?.click()`)
+  await sleep(300)
+  await evaluate(ws, `window.__t('시작')?.click()`)
+  await sleep(1500)
+
+  // Without this the next twenty steps click at a title screen and every PNG
+  // after it is the same picture — the failure this file exists to make loud.
+  if (!(await evaluate(ws, `!!window.__t('턴 종료')`))) {
+    throw new Error('the title screen did not start a run')
+  }
+  await shot(ws, 'game')
+
+  // Four constellations, so the replacement prompt is reachable at all (GDD 6).
+  await evaluate(ws, `window.__t('DEV')?.click()`)
+  await sleep(500)
+  await evaluate(ws, `(async () => {
+    let ticked = 0;
+    for (const box of document.querySelectorAll('input[type=checkbox]')) {
+      if (ticked >= 3 || box.checked) continue;
+      box.click();
+      await window.__wait(120);
+      ticked++;
+    }
+  })()`)
+  await sleep(400)
+  await evaluate(ws, `window.__t('✕')?.click()`)
+  await sleep(400)
+
+  if (!(await playRound(ws))) throw new Error('round 1 did not end in the shop')
+  await shot(ws, 'shop')
+
+  // A constellation costs 10 and round 1 pays 6–11, so a second round is what
+  // makes the purchase — and therefore the prompt — affordable.
+  await evaluate(ws, `window.__t('라운드 2 시작')?.click()`)
+  await sleep(1500)
+  return playRound(ws)
+}
+
 async function main() {
   await mkdir(OUT, { recursive: true })
 
@@ -151,35 +214,12 @@ async function main() {
   await rpc(ws, 'Page.enable')
   await rpc(ws, 'Runtime.enable')
 
-  await evaluate(ws, `location.href = ${JSON.stringify(APP)}`)
-  await sleep(2500)
-  await evaluate(ws, HELPERS)
-  await shot(ws, 'game')
-
-  // Four constellations, so the replacement prompt is reachable at all (GDD 6).
-  await evaluate(ws, `window.__t('DEV')?.click()`)
-  await sleep(500)
-  await evaluate(ws, `(async () => {
-    let ticked = 0;
-    for (const box of document.querySelectorAll('input[type=checkbox]')) {
-      if (ticked >= 3 || box.checked) continue;
-      box.click();
-      await window.__wait(120);
-      ticked++;
-    }
-  })()`)
-  await sleep(400)
-  await evaluate(ws, `window.__t('✕')?.click()`)
-  await sleep(400)
-
-  if (!(await playRound(ws))) problems.push('round 1 did not end in the shop')
-  await shot(ws, 'shop')
-
-  // A constellation costs 10 and round 1 pays 6–11, so a second round is what
-  // makes the purchase — and therefore the prompt — affordable.
-  await evaluate(ws, `window.__t('라운드 2 시작')?.click()`)
-  await sleep(1500)
-  if (!(await playRound(ws))) problems.push('round 2 did not end in the shop')
+  let reached = false
+  for (let tries = 1; tries <= ATTEMPTS && !reached; tries++) {
+    reached = await playToSecondShop(ws)
+    if (!reached) console.log(`  round 2 missed its target — replaying (${tries}/${ATTEMPTS})`)
+  }
+  if (!reached) problems.push(`round 2 did not end in the shop in ${ATTEMPTS} runs`)
 
   await evaluate(ws, `window.__t('✦ 10')?.click()`)
   await sleep(800)

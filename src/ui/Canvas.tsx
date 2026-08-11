@@ -122,6 +122,37 @@ export const SHOP_LAYOUT = {
 export const NEBULA_SCALE = 3
 
 /**
+ * The title screen, on the same plane and by the same rules. A third table for
+ * the same reason the shop has a second: it shares no element with either of the
+ * other two screens, so mixing them would mean reading past two layouts to find
+ * this one.
+ *
+ * One column down the middle, in the order the player has to decide things:
+ * the game's name, then the mode, then the starting constellation, then the
+ * button that commits both. Nothing is offered to the side of anything else —
+ * a booth participant reads this unaided (GDD 12-2), and a single column has
+ * only one place the eye can go next.
+ *
+ * The two choice rows are the same width and sit at the same x, so the second
+ * question looks like a continuation of the first rather than a new screen.
+ * `entry` is one option's footprint and `w` holds two of them plus the gap.
+ */
+export const TITLE_LAYOUT = {
+  title: { x: 360, y: 48, w: 400, h: 64 },
+  mode: { x: 228, y: 148, w: 664, h: 76, entry: 320, gap: 24, label: { x: 228, y: 126 } },
+  /**
+   * Taller than the mode row because GDD 11-5 will not let a constellation card
+   * appear without its name, condition and multiplier — and this screen adds a
+   * plain-language line on top of those, since it is where a player who has
+   * never seen the game decides between an axis they have no way to judge yet.
+   */
+  starting: { x: 228, y: 268, w: 664, h: 184, entry: 320, gap: 24, label: { x: 228, y: 246 } },
+  start: { x: 440, y: 476, w: 240, h: 56 },
+  /** The line under the button saying why it will not press yet. */
+  hint: { y: 548 },
+} as const
+
+/**
  * Integer scale, so a 32×32 chip lands on whole pixels and the dot grid stays a
  * dot grid (CLAUDE.md §7, GDD 11-4). 1366×768 gives a raw 1.22 and 2560×1440 a
  * raw 2.28, which floor to the 1× and 2× the layout was drawn for.

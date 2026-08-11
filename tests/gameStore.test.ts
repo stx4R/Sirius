@@ -7,9 +7,11 @@ import { occupiedPositions, position } from '../src/core/board'
 import {
   BOARD_SIZE,
   MAX_PLACEMENTS_PER_TURN,
+  MODE_PRESETS,
   OWNED_CONSTELLATION_LIMIT,
   SHOP_PRICES,
   SHOP_SLOTS,
+  STARTING_CONSTELLATION_CHOICES,
   TURNS_PER_ROUND,
 } from '../src/core/config'
 import { ALL_CONSTELLATIONS } from '../src/core/shop'
@@ -338,5 +340,95 @@ describe('constellations change the score', () => {
     }
 
     expect(scoreWith(['aries'])).toBeGreaterThan(scoreWith([]))
+  })
+})
+
+// BOOTH-1: the title screen is what supplies the mode and the starting
+// constellation. Both used to be constants in this file (`'full'` and `'aries'`),
+// so what these check is that the player's two answers actually reach core.
+describe('the title screen starts the run (GDD 12-3, 13-5)', () => {
+  it('starts the run the mode says, and no other', () => {
+    for (const mode of ['booth', 'full'] as const) {
+      store().startRun({ mode, starting: STARTING_CONSTELLATION_CHOICES[0] })
+
+      const { game } = store()
+      expect(game.mode).toBe(mode)
+      expect(game.targets).toEqual(MODE_PRESETS[mode].TARGET_SCORES)
+      expect(game.targets).toHaveLength(MODE_PRESETS[mode].TOTAL_ROUNDS)
+      expect(game.targetScore).toBe(MODE_PRESETS[mode].TARGET_SCORES[0])
+    }
+
+    // The two modes are the reason the choice exists: three rounds or eight.
+    expect(MODE_PRESETS.booth.TOTAL_ROUNDS).toBe(3)
+    expect(MODE_PRESETS.full.TOTAL_ROUNDS).toBe(8)
+  })
+
+  it('opens holding the constellation that was picked, whichever it was', () => {
+    for (const starting of STARTING_CONSTELLATION_CHOICES) {
+      store().startRun({ mode: 'booth', starting })
+
+      // GDD 13-5: it fills one of the four slots, so R1 already has a line to
+      // build toward. Exactly one — the rest are bought.
+      expect(store().game.ownedConstellations).toEqual([starting])
+    }
+  })
+
+  it('is up until a run is started, and comes back when one is abandoned', () => {
+    store().toTitle()
+    expect(store().started).toBe(false)
+
+    store().startRun({ mode: 'booth', starting: STARTING_CONSTELLATION_CHOICES[1] })
+    expect(store().started).toBe(true)
+
+    // GDD 12-2 ④: one click resets the machine for the next participant.
+    store().toTitle()
+    expect(store().started).toBe(false)
+  })
+
+  // A restart from the dev panel replays the run that was chosen, rather than
+  // falling back to whatever the store was seeded with.
+  it('replays the chosen setup on a restart', () => {
+    const starting = STARTING_CONSTELLATION_CHOICES[1]
+    store().startRun({ mode: 'booth', starting })
+
+    store().newGame(11)
+
+    expect(store().game.mode).toBe('booth')
+    expect(store().game.ownedConstellations).toEqual([starting])
+  })
+
+  /** Puts the run on its last turn of `round`, already at the target. */
+  function atFinalTurnOf(round: number): void {
+    store().devSet((game) => ({
+      ...game,
+      round,
+      turn: TURNS_PER_ROUND,
+      targetScore: game.targets[round - 1],
+      roundScore: game.targets[round - 1],
+    }))
+  }
+
+  // The whole point of the mode choice: booth stops after its third round where
+  // full carries on to a fourth. Core owns the rule (`endRound`); this checks the
+  // title's pick is what core is deciding it against.
+  it('ends a booth run after its last round, where a full run goes on', () => {
+    const booth = MODE_PRESETS.booth.TOTAL_ROUNDS
+
+    store().startRun({ mode: 'booth', starting: STARTING_CONSTELLATION_CHOICES[0] })
+    atFinalTurnOf(booth)
+    store().commitTurn()
+    store().dismissSettlement()
+
+    expect(store().game.status).toBe('cleared')
+
+    store().startRun({ mode: 'full', starting: STARTING_CONSTELLATION_CHOICES[0] })
+    atFinalTurnOf(booth)
+    store().commitTurn()
+    store().dismissSettlement()
+
+    // Same round, same score, longer mode — so it is the shop, not the end.
+    expect(store().game.status).toBe('playing')
+    expect(store().game.phase).toBe('shop')
+    expect(store().game.round).toBe(booth + 1)
   })
 })

@@ -46,13 +46,17 @@ function Banner({ title, note, action }: { title: string; note: string; action: 
       <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
         {note}
       </p>
+      {/* GDD 12-2 ④: one click resets the machine for the next participant. It
+          returns to the title rather than restarting in place, because the mode
+          and the starting constellation are theirs to choose, not the last
+          player's to hand down. */}
       <button
         type="button"
         onClick={action}
         className="rounded py-2 text-xs font-bold"
         style={{ background: PALETTE.nebulaTeal, color: PALETTE.void }}
       >
-        다시 시작
+        타이틀로
       </button>
     </div>
   )
@@ -64,7 +68,7 @@ export function Game() {
   const selected = useGame((state) => state.selected)
   const settlement = useGame((state) => state.settlement)
   const seed = useGame((state) => state.seed)
-  const { select, placeAt, commitTurn, dismissSettlement, newGame } = useGame.getState()
+  const { select, placeAt, commitTurn, dismissSettlement, newGame, toTitle } = useGame.getState()
   const devSet = useGame((state) => state.devSet)
 
   const reduced = usePrefersReducedMotion()
@@ -296,7 +300,7 @@ export function Game() {
                 : `라운드 ${game.round}에서 목표 ${game.targetScore.toLocaleString('ko-KR')}점에 ` +
                   `${game.roundScore.toLocaleString('ko-KR')}점으로 미달했습니다.`
             }
-            action={() => newGame()}
+            action={toTitle}
           />
         </At>
       )}

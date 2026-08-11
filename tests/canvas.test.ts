@@ -5,10 +5,15 @@ import {
   LAYOUT,
   NEBULA_SCALE,
   SHOP_LAYOUT,
+  TITLE_LAYOUT,
   canvasScale,
 } from '../src/ui/Canvas'
 import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH } from '../src/assets/pixels'
-import { OWNED_CONSTELLATION_LIMIT } from '../src/core/config'
+import {
+  MODE_PRESETS,
+  OWNED_CONSTELLATION_LIMIT,
+  STARTING_CONSTELLATION_CHOICES,
+} from '../src/core/config'
 
 describe('canvas scale (GDD 11-10)', () => {
   // CLAUDE.md §7 allows integer scaling only: a 32×32 chip drawn at 1.22× lands
@@ -244,5 +249,122 @@ describe('shop layout (GDD 9-3, 11-10)', () => {
     ]
 
     expect(Object.keys(SHOP_LAYOUT).sort()).toEqual([...rows].sort())
+  })
+})
+
+// BOOTH-1: the title is a third screen on the same plane, so it answers to the
+// same rules (GDD 11-10). Nothing here is a modal, so every box is in the
+// pairwise check — unlike the shop, which exempts `replace`.
+describe('title layout (GDD 11-10, 12-2)', () => {
+  const boxes = {
+    title: {
+      x: TITLE_LAYOUT.title.x,
+      y: TITLE_LAYOUT.title.y,
+      w: TITLE_LAYOUT.title.w,
+      h: TITLE_LAYOUT.title.h,
+    },
+    mode: { x: TITLE_LAYOUT.mode.x, y: TITLE_LAYOUT.mode.y, w: TITLE_LAYOUT.mode.w, h: TITLE_LAYOUT.mode.h },
+    starting: {
+      x: TITLE_LAYOUT.starting.x,
+      y: TITLE_LAYOUT.starting.y,
+      w: TITLE_LAYOUT.starting.w,
+      h: TITLE_LAYOUT.starting.h,
+    },
+    start: {
+      x: TITLE_LAYOUT.start.x,
+      y: TITLE_LAYOUT.start.y,
+      w: TITLE_LAYOUT.start.w,
+      h: TITLE_LAYOUT.start.h,
+    },
+  }
+
+  it('keeps every placed box on the plane', () => {
+    for (const [name, box] of Object.entries(boxes)) {
+      expect(box.x, `${name} left`).toBeGreaterThanOrEqual(0)
+      expect(box.y, `${name} top`).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.w, `${name} right`).toBeLessThanOrEqual(CANVAS_WIDTH)
+      expect(box.y + box.h, `${name} bottom`).toBeLessThanOrEqual(CANVAS_HEIGHT)
+    }
+  })
+
+  it('overlaps nothing', () => {
+    const entries = Object.entries(boxes)
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const [nameA, a] = entries[i]
+        const [nameB, b] = entries[j]
+        const apart =
+          a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y
+
+        expect(apart, `${nameA} overlaps ${nameB}`).toBe(true)
+      }
+    }
+  })
+
+  // GDD 12-2: a booth participant reads this unaided, so the order is the order
+  // the decisions are made in — name, then mode, then constellation, then start.
+  it('stacks the screen in the order the choices are made', () => {
+    const tops = [
+      TITLE_LAYOUT.title.y,
+      TITLE_LAYOUT.mode.y,
+      TITLE_LAYOUT.starting.y,
+      TITLE_LAYOUT.start.y,
+    ]
+
+    for (let i = 1; i < tops.length; i++) expect(tops[i]).toBeGreaterThan(tops[i - 1])
+  })
+
+  it('fits both options of each choice row inside it', () => {
+    const rows = [
+      { row: TITLE_LAYOUT.mode, count: Object.keys(MODE_PRESETS).length },
+      { row: TITLE_LAYOUT.starting, count: STARTING_CONSTELLATION_CHOICES.length },
+    ]
+
+    for (const { row, count } of rows) {
+      expect(count).toBe(2)
+      expect(row.entry * count + row.gap * (count - 1)).toBeLessThanOrEqual(row.w)
+    }
+  })
+
+  it('keeps each choice label clear of the row under it', () => {
+    for (const row of [TITLE_LAYOUT.mode, TITLE_LAYOUT.starting]) {
+      expect(row.label.y).toBeLessThan(row.y)
+      expect(row.label.x).toBe(row.x)
+    }
+  })
+
+  // Both choice rows are the same width at the same x, so the second question
+  // reads as a continuation of the first rather than as a new screen.
+  it('lines the two choice rows up with each other', () => {
+    expect(TITLE_LAYOUT.mode.x).toBe(TITLE_LAYOUT.starting.x)
+    expect(TITLE_LAYOUT.mode.w).toBe(TITLE_LAYOUT.starting.w)
+  })
+
+  it('centres the title, the choice rows and the start button on the plane', () => {
+    for (const box of [TITLE_LAYOUT.title, TITLE_LAYOUT.mode, TITLE_LAYOUT.starting, TITLE_LAYOUT.start]) {
+      expect(box.x + box.w / 2).toBe(CANVAS_WIDTH / 2)
+    }
+  })
+
+  // The hint says why the button will not press yet, so it has to be under it
+  // and still on the plane.
+  it('puts the hint below the start button and inside the plane', () => {
+    expect(TITLE_LAYOUT.hint.y).toBeGreaterThanOrEqual(
+      TITLE_LAYOUT.start.y + TITLE_LAYOUT.start.h,
+    )
+    expect(TITLE_LAYOUT.hint.y).toBeLessThan(CANVAS_HEIGHT)
+  })
+
+  // CLAUDE.md §7 and GDD 11-10: the plane is drawn in whole pixels, so a
+  // coordinate that is not an integer lands a sprite between them.
+  it('places everything on whole pixels', () => {
+    const numbers = Object.values(TITLE_LAYOUT).flatMap((entry) =>
+      Object.values(entry).flatMap((value) =>
+        typeof value === 'number' ? [value] : Object.values(value),
+      ),
+    )
+
+    expect(numbers.length).toBeGreaterThan(0)
+    for (const value of numbers) expect(Number.isInteger(value)).toBe(true)
   })
 })

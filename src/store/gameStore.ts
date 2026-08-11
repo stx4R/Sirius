@@ -13,7 +13,11 @@
 
 import { create } from 'zustand'
 import { isEmpty } from '../core/board'
-import { MULTIPLIER_STACK_MODE } from '../core/config'
+import {
+  DEFAULT_MODE,
+  MULTIPLIER_STACK_MODE,
+  STARTING_CONSTELLATION_CHOICES,
+} from '../core/config'
 import type { MultiplierStackMode } from '../core/config'
 import {
   buy,
@@ -32,10 +36,30 @@ import { scoreBoard } from '../core/scoring'
 import type { ScoreResult } from '../core/scoring'
 import { createStartingLoadout } from '../core/shop'
 import type { Purchase } from '../core/shop'
-import type { Board, Chip, ConstellationId, Position } from '../core/types'
+import type { Board, Chip, ConstellationId, GameMode, Position } from '../core/types'
 
-/** GDD 13-5: the player picks one to start with. P3-B has no title screen yet. */
-const OPENING_CONSTELLATION: ConstellationId = 'aries'
+/**
+ * What the title screen decides before a run can be built: how long it runs
+ * (GDD 12-3) and which constellation it opens holding (GDD 13-5). Both used to
+ * be constants here because P3-B had no screen to ask on.
+ */
+export interface RunSetup {
+  readonly mode: GameMode
+  readonly starting: ConstellationId
+}
+
+/**
+ * The setup the store is seeded with before anyone has chosen anything.
+ *
+ * A run has to exist for `game` to be non-null, but this one is never played:
+ * `started` is false until the title screen calls `startRun`, and the title is
+ * what is on screen until then. Both values come from config rather than being
+ * picked here, so this placeholder cannot drift from what the game defaults to.
+ */
+const PLACEHOLDER_SETUP: RunSetup = {
+  mode: DEFAULT_MODE,
+  starting: STARTING_CONSTELLATION_CHOICES[0],
+}
 
 /**
  * Settlement rolls the drifter's reading (GDD 3-3), so a breakdown computed for
@@ -77,7 +101,15 @@ interface GameStore {
    * replayed seed would stop producing the same run.
    */
   seed: number
+  /** The title screen's answers, kept so a restart replays the same kind of run. */
+  setup: RunSetup
+  /** False while the title screen is up. `game` holds a placeholder run until then. */
+  started: boolean
 
+  /** GDD 12-2 ④: the title screen commits both choices and the run begins. */
+  startRun: (setup: RunSetup, seed?: number) => void
+  /** Back to the title, so the next participant chooses for themselves. */
+  toTitle: () => void
   newGame: (seed?: number) => void
   select: (chip: Chip) => void
   placeAt: (pos: Position) => void
@@ -92,21 +124,41 @@ interface GameStore {
   devSet: (patch: (game: Game) => Game) => void
 }
 
-const openingGame = (seed: number): Game =>
+const openingGame = (setup: RunSetup, seed: number): Game =>
   drawHand(
-    startRound(fromLoadout(createStartingLoadout(OPENING_CONSTELLATION), 'full', mulberry32(seed))),
+    startRound(fromLoadout(createStartingLoadout(setup.starting), setup.mode, mulberry32(seed))),
   )
 
+const placeholder = openingGame(PLACEHOLDER_SETUP, 1)
+
 export const useGame = create<GameStore>((set, get) => ({
-  game: openingGame(1),
-  turnStart: openingGame(1),
+  game: placeholder,
+  turnStart: placeholder,
   staged: [],
   selected: null,
   settlement: null,
   seed: 1,
+  setup: PLACEHOLDER_SETUP,
+  started: false,
+
+  startRun: (setup, seed = Date.now() % 100000) => {
+    const game = openingGame(setup, seed)
+    set({
+      game,
+      turnStart: game,
+      staged: [],
+      selected: null,
+      settlement: null,
+      seed,
+      setup,
+      started: true,
+    })
+  },
+
+  toTitle: () => set({ started: false }),
 
   newGame: (seed = Date.now() % 100000) => {
-    const game = openingGame(seed)
+    const game = openingGame(get().setup, seed)
     set({ game, turnStart: game, staged: [], selected: null, settlement: null, seed })
   },
 

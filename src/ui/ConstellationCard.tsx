@@ -94,7 +94,7 @@ export function ConstellationCard({
       <figcaption
         className={
           layout === 'row'
-            ? 'text-left text-[10px] leading-tight'
+            ? 'text-left text-[11px] leading-tight'
             : 'text-center text-[9px] leading-tight'
         }
       >

@@ -40,7 +40,7 @@ function Banner({ title, note, action }: { title: string; note: string; action: 
       className="flex w-80 flex-col gap-3 rounded p-5 text-center"
       style={{ background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
-      <h2 className="text-lg font-bold" style={{ color: PALETTE.starWhite }}>
+      <h2 className="text-[22px] font-bold" style={{ color: PALETTE.starWhite }}>
         {title}
       </h2>
       <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
@@ -53,7 +53,7 @@ function Banner({ title, note, action }: { title: string; note: string; action: 
       <button
         type="button"
         onClick={action}
-        className="rounded py-2 text-xs font-bold"
+        className="rounded py-2 text-[11px] font-bold"
         style={{ background: PALETTE.nebulaTeal, color: PALETTE.void }}
       >
         타이틀로
@@ -182,7 +182,7 @@ export function Game() {
       </At>
 
       <At x={cards.label.x} y={cards.label.y}>
-        <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+        <span className="text-[11px] tracking-wide" style={{ color: PALETTE.starGlow }}>
           보유 별자리 {game.ownedConstellations.length} / {OWNED_CONSTELLATION_LIMIT}
         </span>
       </At>
@@ -210,7 +210,7 @@ export function Game() {
           type="button"
           onClick={commitTurn}
           disabled={settlement !== null || over || shuffling}
-          className="h-full w-full rounded text-xs font-bold"
+          className="h-full w-full rounded text-[11px] font-bold"
           style={{
             background: settlement !== null || over ? PALETTE.panelEdge : PALETTE.nebulaAmber,
             color: settlement !== null || over ? PALETTE.starGlow : PALETTE.void,

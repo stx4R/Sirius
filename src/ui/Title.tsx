@@ -67,7 +67,7 @@ function optionStyle(chosen: boolean) {
 
 function Label({ text }: { readonly text: string }) {
   return (
-    <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+    <span className="text-[11px] tracking-wide" style={{ color: PALETTE.starGlow }}>
       {text}
     </span>
   )
@@ -86,7 +86,7 @@ export function Title() {
     <Canvas>
       <At x={TITLE_LAYOUT.title.x} y={TITLE_LAYOUT.title.y} w={TITLE_LAYOUT.title.w}>
         <h1
-          className="text-center text-5xl font-bold leading-none tracking-[0.2em]"
+          className="text-center text-[44px] font-bold leading-none tracking-[0.2em]"
           style={{ color: PALETTE.starWhite }}
         >
           Sirius
@@ -123,7 +123,7 @@ export function Title() {
                 >
                   {text.name} · {preset.TOTAL_ROUNDS}라운드
                 </span>
-                <span className="text-[10px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+                <span className="text-[11px] tabular-nums" style={{ color: PALETTE.starGlow }}>
                   최종 목표 {finalTarget.toLocaleString('ko-KR')}점 · 약 {text.minutes}분
                 </span>
               </button>
@@ -154,7 +154,7 @@ export function Title() {
                 {/* GDD 11-5: the card never appears without its name, condition
                     and multiplier, and ConstellationCard is what guarantees that. */}
                 <ConstellationCard id={id} scale={2} layout="row" />
-                <span className="text-[10px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
+                <span className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
                   {AXIS_BLURB[CONSTELLATION_RULES[id].axis]}
                 </span>
               </button>
@@ -168,7 +168,7 @@ export function Title() {
           type="button"
           onClick={() => starting !== null && startRun({ mode, starting })}
           disabled={starting === null}
-          className="h-full w-full rounded text-base font-bold"
+          className="h-full w-full rounded text-[22px] font-bold"
           style={{
             background: starting === null ? PALETTE.panelEdge : PALETTE.nebulaTeal,
             color: starting === null ? PALETTE.starGlow : PALETTE.void,

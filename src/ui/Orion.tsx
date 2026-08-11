@@ -103,10 +103,10 @@ export function OrionSprite({ width, height }: { readonly width: number; readonl
         outline: `1px solid ${PALETTE.panelEdge}`,
       }}
     >
-      <span className="text-[10px] font-bold tracking-wide" style={{ color: PALETTE.void }}>
+      <span className="text-[11px] font-bold tracking-wide" style={{ color: PALETTE.void }}>
         ORION
       </span>
-      <span className="text-[8px]" style={{ color: PALETTE.void }}>
+      <span className="text-[9px]" style={{ color: PALETTE.void }}>
         60×78 · P4
       </span>
     </div>

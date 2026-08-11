@@ -67,7 +67,7 @@ export function SpriteGallery() {
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
         <header className="flex flex-col gap-1">
-          <h1 className="text-lg font-bold">STA-mble — 스프라이트 갤러리</h1>
+          <h1 className="text-[22px] font-bold">STA-mble — 스프라이트 갤러리</h1>
           <p className="text-[11px]" style={{ color: PALETTE.starGlow }}>
             GDD 11절 · 칩 32×32 → 64px · 별자리 카드 36×52 → 72×104px · 이미지 파일 없음
           </p>

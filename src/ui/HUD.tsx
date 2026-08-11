@@ -22,11 +22,11 @@ const STATUS_TEXT: Readonly<Record<Status, string>> = {
 export function Stardust({ value }: { readonly value: number }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+      <span className="text-[11px] tracking-wide" style={{ color: PALETTE.starGlow }}>
         스타더스트
       </span>
       <span
-        className="text-2xl font-bold leading-none tabular-nums"
+        className="text-[22px] font-bold leading-none tabular-nums"
         style={{ color: PALETTE.nebulaAmber }}
       >
         {value}

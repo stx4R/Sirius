@@ -40,7 +40,7 @@ const addChip = (game: Game, chip: Chip): Game => ({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+      <span className="text-[11px] tracking-wide" style={{ color: PALETTE.starGlow }}>
         {label}
       </span>
       {children}
@@ -178,7 +178,7 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
       </Row>
 
       <Row label="현재 보드 정산 미리보기">
-        <span className="text-base font-bold tabular-nums" style={{ color: PALETTE.nebulaTeal }}>
+        <span className="text-[22px] font-bold tabular-nums" style={{ color: PALETTE.nebulaTeal }}>
           {preview.total.toLocaleString('ko-KR')}점
         </span>
         <span style={{ color: PALETTE.starLink }}>발동 라인 {preview.lines.length}개</span>

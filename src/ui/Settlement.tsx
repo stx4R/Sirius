@@ -105,7 +105,7 @@ function SuitColumn({
     >
       <PixelSprite pixels={suitGlyph(suit)} scale={2} alt="" />
 
-      <span className="text-xl font-bold leading-none tabular-nums">
+      <span className="text-[22px] font-bold leading-none tabular-nums">
         {revealed && step !== undefined ? (
           <CountUp value={step.total} ms={ms} colour={ink} />
         ) : (
@@ -113,7 +113,7 @@ function SuitColumn({
         )}
       </span>
 
-      <span className="flex h-3 flex-wrap justify-center gap-1 text-[10px] leading-3">
+      <span className="flex h-3 flex-wrap justify-center gap-1 text-[11px] leading-3">
         {revealed &&
           multipliers.map((value, i) => (
             <motion.span
@@ -210,7 +210,7 @@ export function SettlementPanel({
               key={option.label}
               type="button"
               onClick={() => onSpeed(i)}
-              className="rounded px-1.5 py-0.5 text-[10px]"
+              className="rounded px-1.5 py-0.5 text-[11px]"
               style={{
                 background: i === speed ? PALETTE.panelEdge : 'transparent',
                 color: i === speed ? PALETTE.starWhite : PALETTE.starGlow,
@@ -223,7 +223,7 @@ export function SettlementPanel({
             type="button"
             onClick={active ? () => onIndex(steps.length) : onDone}
             disabled={data === null}
-            className="ml-1 rounded px-2 py-0.5 text-[10px] font-bold"
+            className="ml-1 rounded px-2 py-0.5 text-[11px] font-bold"
             style={{
               background: data === null ? PALETTE.panelEdge : PALETTE.nebulaTeal,
               color: data === null ? PALETTE.starLink : PALETTE.void,
@@ -249,7 +249,7 @@ export function SettlementPanel({
         ))}
       </div>
 
-      <div className="flex h-3 items-center justify-center text-[10px]">
+      <div className="flex h-3 items-center justify-center text-[11px]">
         {firing.length > 0 && (
           <motion.span
             key={firing.join()}
@@ -295,7 +295,7 @@ export function SettlementEquation({
         </span>
       ))}
       <span style={{ color: PALETTE.starLink }}>=</span>
-      <span className="text-base font-bold" style={{ color: PALETTE.starWhite }}>
+      <span className="text-[22px] font-bold" style={{ color: PALETTE.starWhite }}>
         {(data === null ? 0 : scored).toLocaleString('ko-KR')}
       </span>
     </div>
@@ -317,13 +317,13 @@ export function RoundTotal({
 
   return (
     <div className="flex w-64 flex-col items-center gap-1">
-      <span className="text-[10px] tracking-wide" style={{ color: PALETTE.starGlow }}>
+      <span className="text-[11px] tracking-wide" style={{ color: PALETTE.starGlow }}>
         이번 라운드 누적
       </span>
       <CountUp
         value={value}
         ms={ms}
-        className="text-5xl font-bold leading-none tabular-nums"
+        className="text-[44px] font-bold leading-none tabular-nums"
         colour={reached ? PALETTE.nebulaTeal : PALETTE.nebulaAmber}
       />
       <div className="mt-1 h-1.5 w-full rounded" style={{ background: PALETTE.panelEdge }}>
@@ -338,7 +338,7 @@ export function RoundTotal({
           style={{ background: reached ? PALETTE.nebulaTeal : PALETTE.nebulaAmber }}
         />
       </div>
-      <span className="text-[10px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+      <span className="text-[11px] tabular-nums" style={{ color: PALETTE.starGlow }}>
         목표 {target.toLocaleString('ko-KR')}
         {reached && ' · 달성'}
       </span>
@@ -349,7 +349,7 @@ export function RoundTotal({
 /** GDD 3-3: the drifter's roll can make the shown breakdown differ from the award. */
 export function DrifterNote({ data }: { readonly data: SettlementData }) {
   return (
-    <p className="text-[10px] leading-snug" style={{ color: PALETTE.nebulaAmber }}>
+    <p className="text-[11px] leading-snug" style={{ color: PALETTE.nebulaAmber }}>
       떠돌이 조각은 정산 순간 인접 3방향을 굴려 정합니다(GDD 3-3). 위 분해는 한 가지 결과이고,
       실제 획득은 {data.awarded.toLocaleString('ko-KR')}점입니다.
     </p>

@@ -1,5 +1,60 @@
 @import 'tailwindcss';
 
+/*
+ * Galmuri (github.com/quiple/galmuri, v2.40.3) — the dot font GDD 11-7 asks for.
+ *
+ * `block` rather than `swap`: a pixel font swapped in after a system fallback
+ * re-measures every string on a canvas whose boxes are fixed to the pixel
+ * (GDD 11-10), so the screen would visibly jump. Blocking holds the text back
+ * until the real face is there. The files are served from the same machine as
+ * the game, so at a booth there is nothing to wait for.
+ *
+ * Only the faces the screens actually render are here. Galmuri7, the Mono
+ * family and Condensed are not used and are not shipped.
+ */
+@font-face {
+  font-family: 'Galmuri9';
+  src: url('/fonts/Galmuri9.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('/fonts/Galmuri11.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/* The only bold face Galmuri ships. Everything that renders bold is sized onto
+   an 11 multiple so it lands here — see the size map below. */
+@font-face {
+  font-family: 'Galmuri11';
+  src: url('/fonts/Galmuri11-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Galmuri14';
+  src: url('/fonts/Galmuri14.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
+ * `font-mono` is what Canvas puts on the plane, so registering it here is what
+ * moves every screen onto Galmuri at once. Galmuri11 is the default face because
+ * it covers the most-used sizes (11, 22, 44) and is the only one with a bold.
+ */
+@theme {
+  --font-mono: 'Galmuri11', ui-monospace, monospace;
+}
+
 img {
   image-rendering: pixelated;
 }
@@ -16,4 +71,57 @@ img {
  */
 body {
   word-break: keep-all;
+
+  /*
+   * A dot font is a grid of on/off pixels. Antialiasing puts grey between them
+   * and the letters stop being dots, which is the same rule `image-rendering:
+   * pixelated` enforces for the sprites (CLAUDE.md §7).
+   */
+  -webkit-font-smoothing: none;
+
+  /*
+   * No faked bold or italic. Galmuri9 and Galmuri14 have no bold face, and a
+   * browser asked for one smears the glyph sideways — the dot grid goes with it.
+   * With synthesis off, bold at those sizes simply renders at normal weight.
+   */
+  font-synthesis: none;
+}
+
+/*
+ * ★ Size → face. Galmuri is bitmap-derived: each face is drawn on its own pixel
+ * grid and is only crisp at whole multiples of it — Galmuri9 at 9/18/27,
+ * Galmuri11 at 11/22/33/44, Galmuri14 at 14/28/42.
+ *
+ * CSS cannot pick a face by size, so the mapping is done here, keyed off the
+ * size classes the components already carry. That keeps the whole font decision
+ * in this file: no component names a family, and a size change is still a
+ * one-word edit at the call site.
+ *
+ * ★ Every size gets a rule, including the Galmuri11 ones that match the
+ * `--font-mono` default. `font-family` inherits, so a container carrying a size
+ * class hands its face down to children of a *different* size — a 22px heading
+ * inside a 14px panel came out in Galmuri14, which has no bold and so rendered
+ * the heading at normal weight. Pinning the family on every size class stops the
+ * cascade at the element that owns the size. Elements with no size class inherit
+ * both the size and the face, which is what they should do.
+ */
+.text-\[9px\] {
+  font-family: 'Galmuri9', monospace;
+}
+
+/* 18px = Galmuri9 at 2×. */
+.text-lg {
+  font-family: 'Galmuri9', monospace;
+}
+
+/* 14px */
+.text-sm {
+  font-family: 'Galmuri14', monospace;
+}
+
+/* 11 / 22 / 44 — the only face with a bold, so everything bold is sized here. */
+.text-\[11px\],
+.text-\[22px\],
+.text-\[44px\] {
+  font-family: 'Galmuri11', monospace;
 }

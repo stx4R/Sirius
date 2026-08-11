@@ -62,6 +62,31 @@ const PLACEHOLDER_SETUP: RunSetup = {
 }
 
 /**
+ * `?seed=12345` pins every run this page starts, so a screenshot run or a bug
+ * report can be replayed draw for draw. Anything else — no query, not a number,
+ * negative — falls through to the clock, which is what a player has to get: a
+ * booth machine replaying one fixed run would deal the same hands all day.
+ *
+ * Read once, here, rather than per run. The query cannot change without a reload,
+ * and this is the only place the URL is allowed to reach the game — core takes an
+ * injected `Rng` and knows nothing about a browser (CLAUDE.md §5, §8).
+ */
+function pinnedSeed(): number | null {
+  if (typeof window === 'undefined') return null
+
+  const raw = new URLSearchParams(window.location.search).get('seed')
+  if (raw === null || raw.trim() === '') return null
+
+  const value = Number(raw)
+  return Number.isInteger(value) && value >= 0 ? value : null
+}
+
+const PINNED_SEED = pinnedSeed()
+
+/** The pinned seed when there is one, otherwise a fresh run off the clock. */
+const defaultSeed = (): number => PINNED_SEED ?? Date.now() % 100000
+
+/**
  * Settlement rolls the drifter's reading (GDD 3-3), so a breakdown computed for
  * display would consume the generator and diverge from the score core awards.
  * The breakdown therefore reads one fixed outcome, and the store compares its
@@ -141,7 +166,7 @@ export const useGame = create<GameStore>((set, get) => ({
   setup: PLACEHOLDER_SETUP,
   started: false,
 
-  startRun: (setup, seed = Date.now() % 100000) => {
+  startRun: (setup, seed = defaultSeed()) => {
     const game = openingGame(setup, seed)
     set({
       game,
@@ -157,7 +182,7 @@ export const useGame = create<GameStore>((set, get) => ({
 
   toTitle: () => set({ started: false }),
 
-  newGame: (seed = Date.now() % 100000) => {
+  newGame: (seed = defaultSeed()) => {
     const game = openingGame(get().setup, seed)
     set({ game, turnStart: game, staged: [], selected: null, settlement: null, seed })
   },

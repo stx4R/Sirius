@@ -66,7 +66,7 @@ function GroupLabel({ text, note }: { readonly text: string; readonly note?: str
         {text}
       </span>
       {note !== undefined && (
-        <span className="text-[10px]" style={{ color: PALETTE.starGlow }}>
+        <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
           {note}
         </span>
       )}
@@ -125,7 +125,7 @@ function SpecialEntry({
           nearly the background colour, so what carries that half of the chip is
           its bright rim, and a plain grey label left the eye no way to tell an
           `IMA&ACR` from an `IMA&MIM` at a glance. */}
-      <span className="text-[10px] font-bold tracking-wide">
+      <span className="text-[11px] font-bold tracking-wide">
         <span style={{ color: SUIT_INK[pair[0]] }}>{pair[0]}</span>
         <span style={{ color: PALETTE.starLink }}>&</span>
         <span style={{ color: SUIT_INK[pair[1]] }}>{pair[1]}</span>
@@ -231,10 +231,10 @@ function CompanionEntry({
       </p>
 
       <div className="flex w-full items-center justify-between">
-        <span className="text-[10px] tabular-nums" style={{ color: PALETTE.starLink }}>
+        <span className="text-[11px] tabular-nums" style={{ color: PALETTE.starLink }}>
           ✦ {companion.price}
         </span>
-        <span className="text-[10px] font-bold" style={{ color: PALETTE.starLink }}>
+        <span className="text-[11px] font-bold" style={{ color: PALETTE.starLink }}>
           잠김 — 아직 팔지 않는다
         </span>
       </div>
@@ -279,7 +279,7 @@ function DeckPanel({
         <span className="text-[11px] font-bold" style={{ color: PALETTE.starWhite }}>
           덱 구성
         </span>
-        <span className="text-[10px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+        <span className="text-[11px] tabular-nums" style={{ color: PALETTE.starGlow }}>
           전체 {deck.length}장 · 추가 ✦{SHOP_PRICES.addBasicChip} / 제거 ✦
           {SHOP_PRICES.removeBasicChip}
         </span>
@@ -302,7 +302,7 @@ function DeckPanel({
             </span>
 
             <span
-              className="w-7 text-right text-[13px] font-bold tabular-nums"
+              className="w-7 text-right text-sm font-bold tabular-nums"
               style={{ color: PALETTE.starWhite }}
             >
               {counts.bySuit[suit]}
@@ -374,7 +374,12 @@ function InventoryPanel({
       className="flex flex-col gap-1 rounded p-2"
       style={{ width, height, background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
-      <span className="text-[11px] font-bold" style={{ color: PALETTE.starWhite }}>
+      {/* Both lines are held to a tight leading because Galmuri's line box is
+          ~1.55em: at the default the panel's contents come to 90px inside the
+          86px GDD 11-10 gives it, and the constellation line below loses its
+          descenders to the `truncate`. Tightening the text is the fix rather
+          than growing the panel, which is a documented coordinate. */}
+      <span className="text-[11px] font-bold leading-tight" style={{ color: PALETTE.starWhite }}>
         BLACK-HOLE
       </span>
 
@@ -384,7 +389,7 @@ function InventoryPanel({
             <PixelSprite pixels={specialChip(pair[0], pair[1])} scale={1} alt={key} />
             {count > 1 && (
               <span
-                className="absolute -bottom-1 -right-1 rounded px-0.5 text-[8px] font-bold tabular-nums"
+                className="absolute -bottom-1 -right-1 rounded px-0.5 text-[9px] font-bold tabular-nums"
                 style={{ background: PALETTE.void, color: PALETTE.starWhite }}
               >
                 {count}
@@ -394,13 +399,13 @@ function InventoryPanel({
         ))}
         {drifterOwned && <PixelSprite pixels={drifterChip()} scale={1} alt="떠돌이" />}
         {held.size === 0 && !drifterOwned && (
-          <span className="text-[10px]" style={{ color: PALETTE.starLink }}>
+          <span className="text-[11px]" style={{ color: PALETTE.starLink }}>
             아직 특수 조각이 없습니다
           </span>
         )}
       </div>
 
-      <span className="truncate text-[10px]" style={{ color: PALETTE.starGlow }}>
+      <span className="truncate text-[11px] leading-tight" style={{ color: PALETTE.starGlow }}>
         별자리 {constellations.length}/{OWNED_CONSTELLATION_LIMIT} ·{' '}
         {constellations.map((id) => CONSTELLATION_NAMES[id]).join(' · ')}
       </span>
@@ -435,7 +440,7 @@ function ReplacePrompt({
         outline: `1px solid ${PALETTE.nebulaAmber}`,
       }}
     >
-      <span className="text-xs font-bold" style={{ color: PALETTE.starWhite }}>
+      <span className="text-[11px] font-bold" style={{ color: PALETTE.starWhite }}>
         별자리는 {OWNED_CONSTELLATION_LIMIT}개까지입니다 — 「
         {CONSTELLATION_NAMES[incoming]}」와 바꿀 카드를 고르세요
       </span>
@@ -444,7 +449,7 @@ function ReplacePrompt({
         {owned.map((id) => (
           <button key={id} type="button" onClick={() => onPick(id)} className="rounded p-1">
             <ConstellationCard id={id} scale={2} layout="stack" width={SHOP_LAYOUT.replace.card - 8} />
-            <span className="mt-1 block text-[10px] font-bold" style={{ color: PALETTE.ginanEdge }}>
+            <span className="mt-1 block text-[11px] font-bold" style={{ color: PALETTE.ginanEdge }}>
               버리기
             </span>
           </button>
@@ -459,7 +464,7 @@ function ReplacePrompt({
 
         <div className="rounded p-1" style={{ outline: `1px solid ${PALETTE.nebulaAmber}` }}>
           <ConstellationCard id={incoming} scale={2} layout="stack" width={SHOP_LAYOUT.replace.card - 8} />
-          <span className="mt-1 block text-[10px] font-bold" style={{ color: PALETTE.nebulaAmber }}>
+          <span className="mt-1 block text-[11px] font-bold" style={{ color: PALETTE.nebulaAmber }}>
             새 카드
           </span>
         </div>
@@ -632,7 +637,7 @@ export function Shop() {
         <button
           type="button"
           onClick={doReroll}
-          className="h-full w-full rounded text-xs font-bold"
+          className="h-full w-full rounded text-[11px] font-bold"
           style={{
             background: game.stardust >= rerollCost ? PALETTE.nebulaTeal : PALETTE.panelEdge,
             color: game.stardust >= rerollCost ? PALETTE.void : PALETTE.starGlow,
@@ -652,7 +657,7 @@ export function Shop() {
           price means. GDD 12-2 asks the screen to teach unaided; a caption
           nobody can read is a caption that is not there. */}
       <At x={layout.rerollNote.x} y={layout.rerollNote.y}>
-        <span className="whitespace-nowrap text-[10px]" style={{ color: PALETTE.starGlow }}>
+        <span className="whitespace-nowrap text-[11px]" style={{ color: PALETTE.starGlow }}>
           {game.rerollsUsed}회 사용 · 쓸 때마다 ✦{SHOP_PRICES.rerollIncrement}씩 오릅니다
         </span>
       </At>
@@ -697,7 +702,7 @@ export function Shop() {
         <button
           type="button"
           onClick={leaveShop}
-          className="h-full w-full rounded text-xs font-bold"
+          className="h-full w-full rounded text-[11px] font-bold"
           style={{ background: PALETTE.nebulaAmber, color: PALETTE.void }}
         >
           라운드 {game.round} 시작

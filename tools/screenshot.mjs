@@ -22,8 +22,17 @@ const APP = 'http://localhost:5173/'
 const OUT = process.argv[2] ?? 'shots'
 const WINDOW = { width: 1366, height: 768 }
 
-/** Replays of the round-2 leg before giving up — see `playToSecondShop`. */
-const ATTEMPTS = 5
+/**
+ * The run these shots are taken from, pinned through `?seed=` so the same click
+ * path produces the same PNGs every time.
+ *
+ * It has to be a seed whose round 2 clears: the tool places every chip in the
+ * first free cell, and only round 1 has a floor above its target (GDD 10-2), so
+ * a seed that plays badly ends the run before the shop is ever reached. 1 is the
+ * first that gets there with stardust to spare for the constellation the
+ * replacement prompt needs.
+ */
+const SEED = 1
 
 const CHROME = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -126,17 +135,14 @@ async function playRound(ws) {
 
 /**
  * A fresh page load through to the shop after round 2, taking the three shots on
- * the way. False when the run ended before it got there.
+ * the way.
  *
- * Round 1 is the only round every run clears — its floor of 600 is above the 490
- * target no matter how the chips fall (GDD 10-2), so a miss there is a bug and
- * throws. Round 2 has no such floor, and since BOOTH-1 the title screen seeds a
- * run off the clock, so whether naive placement clears it is luck. That is the
- * game behaving correctly — a booth participant should not replay one fixed run —
- * which makes retrying this script's job rather than pinning the seed's.
+ * Every failure here is a real one now that the seed is pinned: the same seed
+ * plays the same run, so a round that stops clearing means something changed in
+ * the rules or the screen, not that the dice went the other way.
  */
 async function playToSecondShop(ws) {
-  await evaluate(ws, `location.href = ${JSON.stringify(APP)}`)
+  await evaluate(ws, `location.href = ${JSON.stringify(`${APP}?seed=${SEED}`)}`)
   await sleep(2500)
   await evaluate(ws, HELPERS)
   await shot(ws, 'title')
@@ -174,14 +180,14 @@ async function playToSecondShop(ws) {
   await evaluate(ws, `window.__t('✕')?.click()`)
   await sleep(400)
 
-  if (!(await playRound(ws))) throw new Error('round 1 did not end in the shop')
+  if (!(await playRound(ws))) problems.push('round 1 did not end in the shop')
   await shot(ws, 'shop')
 
   // A constellation costs 10 and round 1 pays 6–11, so a second round is what
   // makes the purchase — and therefore the prompt — affordable.
   await evaluate(ws, `window.__t('라운드 2 시작')?.click()`)
   await sleep(1500)
-  return playRound(ws)
+  if (!(await playRound(ws))) problems.push('round 2 did not end in the shop')
 }
 
 async function main() {
@@ -214,12 +220,7 @@ async function main() {
   await rpc(ws, 'Page.enable')
   await rpc(ws, 'Runtime.enable')
 
-  let reached = false
-  for (let tries = 1; tries <= ATTEMPTS && !reached; tries++) {
-    reached = await playToSecondShop(ws)
-    if (!reached) console.log(`  round 2 missed its target — replaying (${tries}/${ATTEMPTS})`)
-  }
-  if (!reached) problems.push(`round 2 did not end in the shop in ${ATTEMPTS} runs`)
+  await playToSecondShop(ws)
 
   await evaluate(ws, `window.__t('✦ 10')?.click()`)
   await sleep(800)

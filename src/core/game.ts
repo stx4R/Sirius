@@ -325,6 +325,19 @@ export interface GameOptions {
   /** Overrides the mode's target curve. See `Game.targets`. */
   readonly targets?: readonly number[]
   readonly rng: Rng
+  /**
+   * Called once per turn with what that settlement added to the round score.
+   *
+   * Observation only: it draws no randomness and its return value is discarded,
+   * so a seed plays out identically whether or not an observer is attached —
+   * `tests/baseline-curve.test.ts` is what holds that true.
+   *
+   * It exists because `GameResult` reports round totals, and a refactor of
+   * `settle()` can move two turns in opposite directions without moving their
+   * round. Recording turns outside core would mean a second turn loop, which is
+   * what this file exists to prevent (CLAUDE.md §5).
+   */
+  readonly onTurnSettled?: (round: number, turn: number, score: number) => void
 }
 
 export interface GameResult {
@@ -357,7 +370,12 @@ export function playRound(game: Game, options: GameOptions): Game {
     )
     // DRIFT ORACLE runs just before settlement, once a drifter is on the board (GDD 8-3).
     if (boardHasDrifter(next.board)) next = awardOracle(next, options.answerOracle(next.rng))
+    // Read before the transition: `endTurn` advances the turn counter.
+    const round = next.round
+    const turn = next.turn
+    const before = next.roundScore
     next = endTurn(next)
+    options.onTurnSettled?.(round, turn, next.roundScore - before)
   }
 
   return endRound(next)

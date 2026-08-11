@@ -11,7 +11,7 @@
 ## 0. ★ 재개하면 여기부터 — 다음은 P4-B다
 
 P4-A는 끝났다. **상점 화면이 생겼고 라운드 사이에 실제로 멈춰 선다.**
-`npx tsc --noEmit` 클린, `npx vitest run` **195개 통과**, `npm run build` 성공.
+`npx tsc --noEmit` 클린, `npx vitest run` **219개 통과**, `npm run build` 성공.
 
 **화면은 눈으로 확인했다.** `npm run shot`이 헤드리스 Chrome을 띄워 실제로 플레이하고
 게임·상점·교체 프롬프트·иєвυℓα 확대를 PNG로 뽑는다 (아래 §3).

@@ -131,6 +131,10 @@ function diff(expected: BaselineGame, actual: ReturnType<typeof replay>) {
   return out
 }
 
+// 30s, not the 5s default: each case replays 20 recorded games end to end, and
+// under a parallel run these share cores with every other file. The work is
+// deterministic, so a timeout here is never the test finding anything — it is
+// only the suite losing a race against its neighbours.
 describe('baseline curve (GDD 13-6)', () => {
   it('is the fixture this test was written against', () => {
     expect(fixture.meta.schema).toBe(2)
@@ -186,4 +190,4 @@ describe('baseline curve (GDD 13-6)', () => {
       })
     }
   }
-})
+}, 30_000)

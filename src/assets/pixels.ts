@@ -235,6 +235,33 @@ export function chipLayerAt(row: number, col: number): ChipLayer {
 /** Top-left of the 16×16 symbol box inside the chip. */
 export const GLYPH_OFFSET = (CHIP_SIZE - GLYPH_SIZE) / 2
 
+// -------------------------------------------------------- иєвυℓα, as a word
+//
+// Her name is spelled with и є в υ ℓ α — Cyrillic, Greek and a script ell, none
+// of which Galmuri has a glyph for. Typed, the browser falls back per character
+// and the shop title comes out as smooth antialiased curves sitting next to dot
+// Hangul: the one string on screen that is not made of pixels.
+//
+// GDD 11-9 fixes the spelling, so the letters are what has to change medium, not
+// the name. Six 5×7 glyphs on a 1px gap — 35×7 in total, which at 2× is exactly
+// the 14px line the title is set in, so it sits on the same baseline as the text
+// beside it without a fractional scale (CLAUDE.md §7).
+//
+// x-height letters start at row 2; only ℓ uses the two ascender rows.
+// The name is a stylised NEBULA, so the glyphs are drawn to read as one at a
+// glance and as their own letters on a second look: є keeps its open right side
+// rather than squaring off into an E, and ℓ keeps the ascender loop that is the
+// only thing separating it from a plain l.
+export const NEBULA_NAME: Mask = mask([
+  '..........................##.......',
+  '.........................#..#......',
+  '#...#...###.####..#...#..#..#..###.',
+  '#..##..#....#...#.#...#..#..#.#...#',
+  '#.#.#..###..####..#...#...##..#...#',
+  '##..#..#....#...#.#...#...#...#..##',
+  '#...#...###.####...###....###..##.#',
+])
+
 // ------------------------------------------------------------------ иєвυℓα
 // GDD 11-9. Built from geometry rather than a hand-drawn map, like the chip —
 // 60×78 is 4,680 cells and the shape is a silhouette, not a portrait.

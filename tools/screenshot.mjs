@@ -130,7 +130,9 @@ async function playRound(ws) {
     await sleep(500)
   }
   await sleep(1200)
-  return evaluate(ws, `document.body.innerText.includes('иєвυℓα의 상점')`)
+  // Not the shop's own title: иєвυℓα is drawn as a sprite now (GDD 11-9), so her
+  // name is no longer in `innerText`. BLACK-HOLE is text, and shop-only.
+  return evaluate(ws, `document.body.innerText.includes('BLACK-HOLE')`)
 }
 
 /**

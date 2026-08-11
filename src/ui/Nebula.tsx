@@ -13,7 +13,7 @@
 import { motion } from 'framer-motion'
 import { useCallback, useMemo, useState } from 'react'
 import { mulberry32 } from '../core/rng'
-import { nebulaSprite } from '../assets/compose'
+import { nebulaName, nebulaSprite } from '../assets/compose'
 import { NEBULA_INK, PALETTE, mix } from '../assets/palette'
 import type { NebulaMood } from '../assets/palette'
 import { PixelSprite } from './PixelSprite'
@@ -127,4 +127,29 @@ export function NebulaSprite({
 }) {
   const pixels = useMemo(() => nebulaSprite(mood), [mood])
   return <PixelSprite pixels={pixels} scale={scale} alt="иєвυℓα" />
+}
+
+/**
+ * Her name, drawn rather than typed (GDD 11-9). Galmuri has no glyph for any of
+ * и є в υ ℓ α, so the browser falls back per character and the name renders in a
+ * smooth system font beside the dot Hangul it is written into.
+ *
+ * It is an inline sprite standing in for a run of text, so it takes the colour of
+ * the line it sits in and is nudged onto that line's baseline — the map has no
+ * descender, and without the nudge it rides high against the Hangul beside it.
+ * `alt` keeps the real spelling in the accessibility tree and in a copy-paste.
+ */
+export function NebulaName({
+  colour,
+  scale = 2,
+}: {
+  readonly colour: string
+  readonly scale?: number
+}) {
+  const pixels = useMemo(() => nebulaName(colour), [colour])
+  return (
+    <span className="inline-block align-baseline" style={{ transform: 'translateY(1px)' }}>
+      <PixelSprite pixels={pixels} scale={scale} alt="иєвυℓα" />
+    </span>
+  )
 }

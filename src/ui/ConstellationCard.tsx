@@ -49,6 +49,25 @@ export function multiplierOf(id: ConstellationId): string {
   return `×${Math.min(...values).toFixed(1)}~${Math.max(...values).toFixed(1)}`
 }
 
+/**
+ * GDD 5-1 wants the card to react when its line fires, and CLAUDE.md §7 will not
+ * let a fractional transform do it. This used to animate to `scale: 1.08`, which
+ * held every dot of the star chart and every glyph of the caption between pixels
+ * for as long as the beat lasted — the one place in the game that broke the
+ * integer-scale rule, and it broke it while the player was looking straight at it.
+ *
+ * A two-pixel hop replaces it. The keyframes are timed almost on top of each
+ * other so the value is only ever 0 or -2 and never 1.37: this version of
+ * framer-motion exports no `steps` easing, and duplicated times are how a step
+ * function is written without one. Two logical pixels stay two whole device
+ * pixels at every integer canvas scale (GDD 11-10).
+ *
+ * The hop is the impact; the glow is what sustains it, and a box-shadow costs
+ * nothing because it is painted outside the sprite rather than resampling it.
+ */
+const FIRING_HOP = [0, -2, -2, 0]
+const FIRING_TIMES = [0, 0.001, 0.7, 0.701]
+
 interface Props {
   readonly id: ConstellationId
   readonly scale?: number
@@ -85,10 +104,17 @@ export function ConstellationCard({
       }
       style={layout === 'stack' ? { width } : undefined}
       animate={{
-        scale: firing ? 1.08 : 1,
+        y: firing ? FIRING_HOP : 0,
         boxShadow: firing ? `0 0 14px ${frame}` : '0 0 0 rgba(0,0,0,0)',
       }}
-      transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 18 }}
+      transition={
+        reduced
+          ? { duration: 0 }
+          : {
+              y: { duration: 0.3, times: FIRING_TIMES, ease: 'linear' },
+              boxShadow: { duration: 0.2 },
+            }
+      }
     >
       <PixelSprite pixels={constellationCard(id)} scale={scale} alt={name} />
       <figcaption

@@ -22,18 +22,24 @@ import {
   OWNED_CONSTELLATION_LIMIT,
   SHOP_PRICES,
 } from '../core/config'
-import { countDeck, drawChances } from '../core/deck'
+import { countDeck, drawChances, observedChances } from '../core/deck'
 import { priceOf, rerollPrice } from '../core/shop'
 import type { Purchase, SuitPair } from '../core/shop'
 import { SUIT_ORDER } from '../core/types'
-import type { Chip, CompanionId, CompanionTier, ConstellationId, SuitId } from '../core/types'
+import type {
+  Chip,
+  CompanionId,
+  CompanionTier,
+  ConstellationId,
+  DrawRecord,
+} from '../core/types'
 import { basicChip, drifterChip, specialChip } from '../assets/compose'
 import { PALETTE, SUIT_INK, TIER_COLOURS, mix } from '../assets/palette'
 import { useGame } from '../store/gameStore'
 import { At, CANVAS_HEIGHT, CANVAS_WIDTH, Canvas, NEBULA_SCALE, SHOP_LAYOUT } from './Canvas'
 import { ConstellationCard } from './ConstellationCard'
 import { Stardust } from './HUD'
-import { NebulaBubble, NebulaSprite, useNebula } from './Nebula'
+import { NebulaBubble, NebulaName, NebulaSprite, useNebula } from './Nebula'
 import { PixelSprite } from './PixelSprite'
 import { usePrefersReducedMotion } from './motion'
 
@@ -44,15 +50,6 @@ const TIER_NAMES: Readonly<Record<CompanionTier, string>> = {
   epic: '원시별',
   mythic: '주계열성',
   legendary: '초거성',
-}
-
-/** GDD 3-1. The chip's colour and symbol already name the suit; this spells it. */
-const SUIT_NAMES: Readonly<Record<SuitId, string>> = {
-  GAC: 'Gacrux',
-  IMA: 'Imai',
-  GIN: 'Ginan',
-  MIM: 'Mimosa',
-  ACR: 'Acrux',
 }
 
 /** GDD 3-2's own shorthand for a special chip. */
@@ -277,6 +274,7 @@ function barWidth(count: number, deckSize: number): number {
  */
 function DeckPanel({
   deck,
+  history,
   drifterOwned,
   stardust,
   width,
@@ -284,6 +282,7 @@ function DeckPanel({
   onBuy,
 }: {
   readonly deck: readonly Chip[]
+  readonly history: readonly DrawRecord[]
   readonly drifterOwned: boolean
   readonly stardust: number
   readonly width: number
@@ -292,20 +291,34 @@ function DeckPanel({
 }) {
   const counts = countDeck(deck)
   const chances = drawChances(deck, HAND_SIZE)
+  const observed = observedChances(history)
 
   return (
     <div
       className="flex flex-col rounded p-2"
       style={{ width, height, background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
-      <div className="flex items-baseline justify-between">
+      {/* The two percentage columns are labelled on the title line rather than in
+          a row of their own — the panel is full, and the widths below are
+          repeated here so the labels land over the figures they name. */}
+      <div className="flex items-baseline gap-1">
         <span className="text-[11px] font-bold leading-tight" style={{ color: PALETTE.starWhite }}>
           STAR-CHART
         </span>
-        <span className="text-[9px] leading-tight tabular-nums" style={{ color: PALETTE.starGlow }}>
-          전체 {deck.length}장 · 추가 ✦{SHOP_PRICES.addBasicChip} / 제거 ✦
-          {SHOP_PRICES.removeBasicChip}
+        <span
+          className="flex-1 text-right text-[9px] leading-tight tabular-nums"
+          style={{ color: PALETTE.starGlow }}
+        >
+          전체 {deck.length}장
         </span>
+        <span className="w-10 text-right text-[9px] leading-tight" style={{ color: PALETTE.starLink }}>
+          계산
+        </span>
+        <span className="w-10 text-right text-[9px] leading-tight" style={{ color: PALETTE.starWhite }}>
+          실제
+        </span>
+        <span className="w-10" />
+        <span style={{ width: 84 }} />
       </div>
 
       {SUIT_ORDER.map((suit) => {
@@ -320,9 +333,6 @@ function DeckPanel({
 
             <span className="w-9 text-[11px] font-bold" style={{ color: SUIT_INK[suit] }}>
               {suit}
-            </span>
-            <span className="w-11 text-[9px]" style={{ color: PALETTE.starLink }}>
-              {SUIT_NAMES[suit]}
             </span>
 
             <span
@@ -348,6 +358,11 @@ function DeckPanel({
               />
             </span>
 
+            {/* The slack sits here, so every column to the right keeps a fixed
+                width and the labels above line up with it. */}
+            <span className="flex-1" />
+
+            {/* 수학적 확률 — what the remaining counts say. In the suit's ink. */}
             <span
               className="w-10 text-right text-[9px] tabular-nums"
               style={{ color: SUIT_INK[suit] }}
@@ -355,11 +370,21 @@ function DeckPanel({
               {Math.round(chances[suit] * 100)}%
             </span>
 
-            <span className="w-10 text-[9px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+            {/* 통계적 확률 — what the hands dealt so far actually did. In white, so
+                the pair reads as one comparison and not as two of the same thing.
+                A run with no hands behind it has nothing to report yet. */}
+            <span
+              className="w-10 text-right text-[9px] tabular-nums"
+              style={{ color: PALETTE.starWhite }}
+            >
+              {observed.hands === 0 ? '—' : `${Math.round(observed.bySuit[suit] * 100)}%`}
+            </span>
+
+            <span className="w-10 text-right text-[9px] tabular-nums" style={{ color: PALETTE.starGlow }}>
               기본 {basics}
             </span>
 
-            <div className="ml-auto flex gap-1">
+            <div className="flex gap-1">
               <PriceButton
                 price={SHOP_PRICES.addBasicChip}
                 affordable={stardust >= priceOf(add)}
@@ -378,21 +403,19 @@ function DeckPanel({
       })}
 
       {/*
-        Says what the percentage column is a percentage *of*, and then what it is
-        not. GDD 1-4 ② puts 비복원추출 in Ⅲ-5 모집단과 표본, so the sentence is written
-        in sampling terms and never calls itself conditional probability. The
-        second half is not decoration: a percentage on screen reads as a promise,
-        and the one thing a booth participant has to leave with is that this is
-        what the remaining counts imply, not what the next hand will do.
+        Says what each column is, and that the two disagreeing is the normal case
+        rather than a fault. GDD 1-4 ② puts 비복원추출 in Ⅲ-5 모집단과 표본, so this is
+        written as sampling and never calls itself conditional probability; ① keeps
+        큰수의법칙 out of it, since nothing here claims the two must converge.
       */}
       <span className="mt-auto text-[9px] leading-tight" style={{ color: PALETTE.starGlow }}>
-        %는 다음 {HAND_SIZE}장에 1장 이상 나올 확률입니다. 남은 장수로 계산한 값이라 실제로 뽑히는
-        결과는 매번 다릅니다.
+        계산 = 다음 {HAND_SIZE}장에 1장 이상 나올 확률 · 실제 = 손패 {observed.hands}판 중 나온 비율 ·
+        둘이 다른 것이 정상입니다
         {/* The five rows sum to fifty and the header says fifty-one, because the
             drifter has no suit until it is scored and so belongs to none of them
             (GDD 3-3). The rule is sound and the arithmetic looks broken, which
             for a booth participant is the same thing as broken. */}
-        {drifterOwned && ' 떠돌이 1장은 문양이 없어 위 5행에 들어가지 않습니다.'}
+        {drifterOwned && ' · 떠돌이는 문양이 없어 5행에서 빠집니다'}
       </span>
     </div>
   )
@@ -600,7 +623,7 @@ export function Shop() {
 
       <At x={CANVAS_WIDTH / 2} y={layout.title.y} centre>
         <span className="whitespace-nowrap text-sm font-bold" style={{ color: PALETTE.starWhite }}>
-          иєвυℓα의 상점
+          <NebulaName colour={PALETTE.starWhite} />의 상점
         </span>
       </At>
 
@@ -735,6 +758,7 @@ export function Shop() {
       <At x={layout.deck.x} y={layout.deck.y}>
         <DeckPanel
           deck={game.ownedDeck}
+          history={game.drawHistory}
           drifterOwned={game.drifterOwned}
           stardust={game.stardust}
           width={layout.deck.w}

@@ -5,7 +5,7 @@ import { INITIAL_DECK } from './config'
 import { shuffle } from './rng'
 import type { Rng } from './rng'
 import { SUIT_ORDER } from './types'
-import type { Chip, SuitId } from './types'
+import type { Chip, DrawRecord, SuitId } from './types'
 
 /** 5 suits × 10 = 50 basic chips (GDD 4-2, C-7). Built in scoring order, so it is reproducible. */
 export function createInitialDeck(): Chip[] {
@@ -129,4 +129,46 @@ export function drawChances(
     chances[suit] = chanceOfDrawing(deck.length, bySuit[suit], handSize)
   }
   return chances
+}
+
+export interface ObservedChances {
+  /** Hands dealt so far. Zero means there is nothing observed to compare against. */
+  readonly hands: number
+  /** Share of those hands that held at least one chip scoring as the suit. */
+  readonly bySuit: Readonly<Record<SuitId, number>>
+}
+
+/**
+ * GDD 8-1: the same question `drawChances` answers, counted instead of computed
+ * — of the hands actually dealt, how many held at least one of each suit.
+ *
+ * This is the 통계적 확률 to `drawChances`'s 수학적 확률, and showing the two side by
+ * side is the point of the panel: one is what the remaining counts say should
+ * happen, the other is what did. They disagree, and a booth participant who sees
+ * 85% next to 60% over five hands has met sampling variation without being
+ * lectured about it.
+ *
+ * The event is defined identically to the calculated side — "at least one chip
+ * that scores as this suit" — so `countDeck` does the counting for both, and a
+ * special lifts both of its suits in each. Anything else would put two different
+ * questions in adjacent columns.
+ *
+ * Deliberately *not* a claim about convergence. The deck is drawn down within a
+ * round and rebuilt between rounds (GDD 4-2), so the calculated figure moves
+ * while these hands accumulate; the honest reading is 표본추출 (Ⅲ-5), per the
+ * wording rule in GDD 1-4 ②, and not 큰수의법칙, which GDD 1-4 ① places in Ⅲ-3.
+ */
+export function observedChances(history: readonly DrawRecord[]): ObservedChances {
+  const held = { GAC: 0, IMA: 0, GIN: 0, MIM: 0, ACR: 0 }
+
+  for (const record of history) {
+    const { bySuit } = countDeck(record.drawn)
+    for (const suit of SUIT_ORDER) if (bySuit[suit] > 0) held[suit]++
+  }
+
+  const bySuit = {} as Record<SuitId, number>
+  for (const suit of SUIT_ORDER) {
+    bySuit[suit] = history.length === 0 ? 0 : held[suit] / history.length
+  }
+  return { hands: history.length, bySuit }
 }

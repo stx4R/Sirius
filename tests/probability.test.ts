@@ -8,8 +8,14 @@
 
 import { describe, expect, it } from 'vitest'
 import { HAND_SIZE, INITIAL_DECK } from '../src/core/config'
-import { chanceOfDrawing, createInitialDeck, drawChances } from '../src/core/deck'
+import {
+  chanceOfDrawing,
+  createInitialDeck,
+  drawChances,
+  observedChances,
+} from '../src/core/deck'
 import { SUIT_ORDER } from '../src/core/types'
+import type { Chip, DrawRecord, SuitId } from '../src/core/types'
 
 /**
  * Exact C(n, k) in BigInt, for checking the floating-point implementation
@@ -183,6 +189,76 @@ describe('drawChances over a real deck (GDD 8-1)', () => {
       const chance = drawChances(tiny, 8)[suit]
       // Only the suits actually present can be certain; the rest are impossible.
       expect(chance === 0 || chance === 1).toBe(true)
+    }
+  })
+})
+
+// The 통계적 확률 half of GDD 8-1: what the hands actually dealt did, as opposed to
+// what the counts say they should.
+describe('observedChances (GDD 8-1)', () => {
+  const basic = (suit: SuitId, i: number): Chip => ({ id: `${suit}-${i}`, kind: 'basic', suit })
+  const hand = (chips: readonly Chip[], turn = 1): DrawRecord => ({ round: 1, turn, drawn: chips })
+
+  it('has nothing to say before a hand has been dealt', () => {
+    const observed = observedChances([])
+
+    expect(observed.hands).toBe(0)
+    for (const suit of SUIT_ORDER) expect(observed.bySuit[suit]).toBe(0)
+  })
+
+  it('counts a hand once however many of the suit it held', () => {
+    // Three Ginan in one hand is still one hand that held Ginan.
+    const observed = observedChances([hand([basic('GIN', 0), basic('GIN', 1), basic('GIN', 2)])])
+
+    expect(observed.hands).toBe(1)
+    expect(observed.bySuit.GIN).toBe(1)
+    expect(observed.bySuit.GAC).toBe(0)
+  })
+
+  it('is the share of hands that held the suit', () => {
+    const observed = observedChances([
+      hand([basic('GAC', 0)], 1),
+      hand([basic('IMA', 0)], 2),
+      hand([basic('GAC', 1)], 3),
+      hand([basic('MIM', 0)], 4),
+    ])
+
+    expect(observed.hands).toBe(4)
+    expect(observed.bySuit.GAC).toBeCloseTo(0.5, 12)
+    expect(observed.bySuit.IMA).toBeCloseTo(0.25, 12)
+    expect(observed.bySuit.ACR).toBe(0)
+  })
+
+  // The calculated side counts a special toward both suits, so this must too —
+  // otherwise the two columns would be answering different questions.
+  it('counts a special toward both of the suits it scores as', () => {
+    const observed = observedChances([
+      hand([{ id: 'sp-0', kind: 'special', left: 'GAC', right: 'IMA' }]),
+    ])
+
+    expect(observed.bySuit.GAC).toBe(1)
+    expect(observed.bySuit.IMA).toBe(1)
+    expect(observed.bySuit.GIN).toBe(0)
+  })
+
+  // The drifter has no suit until it is scored (GDD 3-3), so it is evidence for
+  // nothing.
+  it('credits the drifter to no suit', () => {
+    const observed = observedChances([hand([{ id: 'dr-0', kind: 'drifter' }])])
+
+    expect(observed.hands).toBe(1)
+    for (const suit of SUIT_ORDER) expect(observed.bySuit[suit]).toBe(0)
+  })
+
+  it('never leaves 0..1', () => {
+    const history = Array.from({ length: 17 }, (_, i) =>
+      hand([basic(SUIT_ORDER[i % SUIT_ORDER.length], i)], i + 1),
+    )
+    const observed = observedChances(history)
+
+    for (const suit of SUIT_ORDER) {
+      expect(observed.bySuit[suit]).toBeGreaterThanOrEqual(0)
+      expect(observed.bySuit[suit]).toBeLessThanOrEqual(1)
     }
   })
 })

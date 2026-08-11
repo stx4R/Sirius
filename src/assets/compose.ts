@@ -28,6 +28,7 @@ import {
   GLYPH_SIZE,
   LOCK_GLYPH,
   NEBULA_LIGHT,
+  NEBULA_NAME,
   SUIT_GLYPHS,
   nebulaLayers,
   chipLayerAt,
@@ -219,6 +220,18 @@ function nebulaRim(glow: string, layers: readonly (readonly NebulaLayer[])[]) {
  * deal read as the glow brightening, and the rim, which is graded off that same
  * light, brightens with it.
  */
+/**
+ * Her name set in pixels (GDD 11-9), so it stops falling back to a system font
+ * beside the dot Hangul — see `NEBULA_NAME` for why the letters cannot simply be
+ * typed.
+ *
+ * The colour is passed in rather than chosen here: the wordmark stands in for a
+ * run of text, so it has to take the colour of whatever line it is sitting in.
+ */
+export function nebulaName(colour: string): PixelMap {
+  return NEBULA_NAME.map((row) => row.map((on) => (on ? colour : null)))
+}
+
 export function nebulaSprite(mood: NebulaMood = 'idle'): PixelMap {
   const glow = NEBULA_GLOW[mood]
   const layers = nebulaLayers()

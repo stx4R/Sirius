@@ -160,6 +160,48 @@ describe('canvas layout (GDD 11-10)', () => {
       expect(Number.isInteger(value)).toBe(true)
     }
   })
+
+  // BOOTH-3b: ORION'S WAGER (GDD 8-2) is a modal, so it is deliberately absent
+  // from `boxes` above — it covers the board it is asked over, which GDD 11-10
+  // exempts from the pairwise check. The two things asked of a modal instead:
+  // it lands on the plane, and its content lands inside it.
+  it('centres the wager on the plane and keeps it inside', () => {
+    const panel = LAYOUT.wager
+
+    expect(panel.x + panel.w / 2).toBe(CANVAS_WIDTH / 2)
+    expect(panel.y + panel.h / 2).toBe(CANVAS_HEIGHT / 2)
+    expect(panel.x).toBeGreaterThanOrEqual(0)
+    expect(panel.y).toBeGreaterThanOrEqual(0)
+    expect(panel.x + panel.w).toBeLessThanOrEqual(CANVAS_WIDTH)
+    expect(panel.y + panel.h).toBeLessThanOrEqual(CANVAS_HEIGHT)
+  })
+
+  // The explanation is the tallest state the box has (GDD 8-2 shows it in place
+  // of the buttons), and it is measured rather than guessed: 2~3 sentences of
+  // ~180 characters at 11px in a 680px column is six lines with room to spare.
+  it('holds the question, the verdict and the explanation at once', () => {
+    const panel = LAYOUT.wager
+    const PADDING = 20 * 2
+    const GAPS = 16 * 3
+    const HEADER = 14
+    const QUESTION = 23 * 2
+    const VERDICT = 26
+    const EXPLANATION = 18 * 6
+    const BUTTON = 40
+
+    expect(HEADER + QUESTION + VERDICT + EXPLANATION + BUTTON + GAPS + PADDING).toBeLessThanOrEqual(
+      panel.h,
+    )
+    // Wide enough that the explanation wraps to those six lines and not more:
+    // an 11px Galmuri glyph per Korean character is ~60 to the line.
+    expect(panel.w - PADDING).toBeGreaterThanOrEqual(11 * 60)
+  })
+
+  it('places the wager on whole pixels', () => {
+    for (const value of Object.values(LAYOUT.wager)) {
+      expect(Number.isInteger(value)).toBe(true)
+    }
+  })
 })
 
 // P4-A: the shop is drawn on the same plane and answers to the same rules

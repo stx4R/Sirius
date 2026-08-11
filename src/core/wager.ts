@@ -89,18 +89,22 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
       ? `지금 덱 ${size}장 가운데 ${chip(a)}과 ${chip(b)}은 각각 ${count[a]}장으로 같다.`
       : `지금 덱 ${size}장 가운데 ${chip(a)}은 ${count[a]}장, ${chip(b)}은 ${count[b]}장이다.`
 
+  // "크거나 같을까" rather than "클까" (BOOTH-3b). A tie used to answer NO, which
+  // is correct and still splits students who understand the deck equally well:
+  // "크다"의 반대를 "작다"로 읽는 것은 흔한 오개념이고, 문항이 그것을 교정하지 못한 채
+  // 언어로 학생을 가르는 상태였다. 등호를 문장에 넣으면 물어보는 것이 분명해진다.
   for (const [a, b] of ORDERED_PAIRS) {
     const gap = Math.abs(chance[a] - chance[b])
     const tied = count[a] === count[b]
-    const answer = chance[a] > chance[b]
-    const rebuttal = answer
-      ? `NO를 고르면 남은 장수가 많은 쪽이 뽑히기도 쉽다는 관계를 뒤집어 본 것이다.`
+    const answer = chance[a] >= chance[b]
+    const rebuttal = !answer
+      ? `YES를 고르면 남은 장수가 적은 ${chip(a)}이 더 잘 나온다고 본 것이다.`
       : tied
-        ? `YES를 고르면 '같다'와 '더 크다'를 같은 것으로 본 것이다.`
-        : `YES를 고르면 남은 장수가 적은 ${chip(a)}이 더 잘 나온다고 본 것이다.`
+        ? `NO를 고르면 두 값이 같은 경우를 '크거나 같다'에서 빼놓은 것이다.`
+        : `NO를 고르면 남은 장수가 많은 쪽이 뽑히기도 쉽다는 관계를 뒤집어 본 것이다.`
 
     out.push({
-      text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성이 ${chip(b)}보다 클까?`,
+      text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성이 ${chip(b)}보다 크거나 같을까?`,
       answer,
       explanation: `${standing(a, b)} ${handSize}장 안에 1장 이상 들어갈 가능성은 ${chip(a)} ${percent(chance[a])}, ${chip(b)} ${percent(chance[b])}다. ${rebuttal}`,
       gap,
@@ -111,14 +115,29 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
   for (const [a, b] of SUIT_PAIRS) {
     const gap = Math.abs(chance[a] - chance[b])
     const tied = count[a] === count[b]
-    const answer = chance[a] === chance[b]
+    const same = chance[a] === chance[b]
+    const standings = `${standing(a, b)} ${handSize}장 안에 1장 이상 들어갈 가능성은 ${chip(a)} ${percent(chance[a])}, ${chip(b)} ${percent(chance[b])}다.`
 
     out.push({
-      text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성과 ${chip(b)}이 1장 이상 나올 가능성이 같을까?`,
-      answer,
-      explanation: answer
-        ? `${standing(a, b)} 남은 장수가 같으면 ${handSize}장 안에 1장 이상 들어갈 가능성도 같아, 양쪽 모두 ${percent(chance[a])}다. NO를 고르면 남은 장수가 같은데도 가능성이 다르다고 본 것이다.`
-        : `${standing(a, b)} 가능성은 ${percent(chance[a])}와 ${percent(chance[b])}로 서로 다르다. YES를 고르면 남은 장수가 다른데도 가능성이 같다고 본 것이다.`,
+      text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성과 ${chip(b)}이 1장 이상 나올 가능성이 정확히 같을까?`,
+      answer: same,
+      explanation: same
+        ? `${standings} NO를 고르면 남은 장수가 같은데도 가능성이 다르다고 본 것이다.`
+        : `${standings} YES를 고르면 남은 장수가 다른데도 가능성이 같다고 본 것이다.`,
+      gap,
+      clear: tied || gap >= WAGER_MIN_GAP,
+    })
+
+    // The one proposition a deck the round has not touched yet can answer NO.
+    // With "크거나 같을까" and "정확히 같을까" both true where every suit is level,
+    // a player would only have to notice that the first wager of a round is
+    // never NO — the same hole `WAGER_COMPLEMENT_THRESHOLDS` was widened to close.
+    out.push({
+      text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성과 ${chip(b)}이 1장 이상 나올 가능성이 서로 다를까?`,
+      answer: !same,
+      explanation: same
+        ? `${standings} YES를 고르면 남은 장수가 같은데도 가능성이 다르다고 본 것이다.`
+        : `${standings} NO를 고르면 남은 장수가 다른데도 가능성이 같다고 본 것이다.`,
       gap,
       clear: tied || gap >= WAGER_MIN_GAP,
     })

@@ -7,6 +7,7 @@
 
 import { createEmptyBoard, isEmpty, placeChip } from './board'
 import {
+  FORCED_WAGER_COUNT,
   HAND_SIZE,
   MAX_PLACEMENTS_PER_TURN,
   MODE_PRESETS,
@@ -21,6 +22,7 @@ import type { Rng } from './rng'
 import { randomDrifterChooser, scoreBoard } from './scoring'
 import { applyPurchase, canAfford, grantDrifter, rerollPrice, rollStock, soldOut } from './shop'
 import type { Loadout, Purchase, ShopStock } from './shop'
+import { generateWager } from './wager'
 import type {
   Board,
   Chip,
@@ -28,6 +30,8 @@ import type {
   GameMode,
   GameState,
   Position,
+  WagerChoice,
+  WagerQuestion,
 } from './types'
 
 export interface Placement {
@@ -52,6 +56,12 @@ export interface Game extends GameState {
   /** Reset at the start of every round (GDD 9-2). */
   readonly rerollsUsed: number
   readonly stock: ShopStock | null
+  /**
+   * The wager waiting to be answered before the hand is drawn (GDD 8-2), or null
+   * when there is none outstanding. `askWager` puts one here and `resolveWager`
+   * takes it away; the hand is not dealt in between.
+   */
+  readonly pendingWager: WagerQuestion | null
   /**
    * The target curve in force, one entry per round. Defaults to the mode preset;
    * P2 injects candidate curves so a new one can be measured without editing
@@ -136,6 +146,7 @@ export function fromLoadout(
     nextChipId: loadout.nextChipId,
     rerollsUsed: 0,
     stock: null,
+    pendingWager: null,
     round: 1,
     turn: 1,
     roundScore: 0,
@@ -278,11 +289,59 @@ export function reroll(game: Game): Game {
 }
 
 /**
- * GDD 9-1. The question bank arrives at P5 (GDD 13 #8), so only the reward is
- * applied here; `wagerHistory` starts filling once real questions exist.
+ * GDD 9-1. The reward on its own, with no question attached — this is the path
+ * the Monte Carlo simulator drives, where a wager is a coin weighted to the
+ * accuracy being measured (GDD 12-5) and no sentence is ever generated.
  */
 export function awardWager(game: Game, correct: boolean): Game {
   return correct ? { ...game, stardust: game.stardust + STARDUST_REWARDS.wagerCorrect } : game
+}
+
+/**
+ * GDD 8-2: the wager is put *before* the hand is drawn, which is the whole point
+ * — it is a prediction about the draw that follows.
+ *
+ * Generating the question spends two draws of `rng`, so this deliberately is not
+ * called from `playRound` below: the simulator answers with `options.answerWager`
+ * and never sees a sentence, which keeps every recorded baseline replaying draw
+ * for draw (`tests/baseline-curve.test.ts`). A run that is actually being played
+ * asks through here instead, and its extra draws move nothing but its own deal.
+ */
+export function askWager(game: Game): Game {
+  if (game.pendingWager !== null) return game
+  return { ...game, pendingWager: generateWager(game.deck, game.round, game.rng) }
+}
+
+/** GDD 8-2: the first FORCED_WAGER_COUNT wagers of a game are the tutorial and cannot be waived. */
+export function wagerIsForced(game: Game): boolean {
+  return game.wagerHistory.length < FORCED_WAGER_COUNT
+}
+
+/**
+ * GDD 8-2 and 9-1: score the answer, pay for a hit, and keep the record the
+ * CONSTELLATION LOG reads (GDD 8-4).
+ *
+ * Abstaining inside the forced window is refused rather than recorded — the game
+ * is handed back unchanged, the way `buy` refuses a purchase that cannot be
+ * made. The button is disabled on screen, but which choices are legal is a rule
+ * and rules do not live in the UI (CLAUDE.md §5).
+ */
+export function resolveWager(game: Game, choice: WagerChoice): Game {
+  const question = game.pendingWager
+  if (question === null) return game
+  if (choice === 'abstain' && wagerIsForced(game)) return game
+
+  const correct = choice !== 'abstain' && (choice === 'yes') === question.answer
+  const rewarded = awardWager(game, correct)
+
+  return {
+    ...rewarded,
+    pendingWager: null,
+    wagerHistory: [
+      ...game.wagerHistory,
+      { round: game.round, turn: game.turn, question, choice, correct },
+    ],
+  }
 }
 
 /** GDD 9-1. The score half of DRIFT ORACLE needs per-chip attribution (GDD 13 #13). */

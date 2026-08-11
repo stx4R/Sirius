@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { occupiedPositions, position } from '../src/core/board'
 import {
+  FORCED_WAGER_COUNT,
   HAND_SIZE,
   MAX_PLACEMENTS_PER_TURN,
   MODE_PRESETS,
   SHOP_PRICES,
+  STARDUST_REWARDS,
   TURNS_PER_ROUND,
+  WAGER_TIER_BY_ROUND,
 } from '../src/core/config'
 import {
+  askWager,
+  awardWager,
   buy,
   drawHand,
   endRound,
@@ -16,8 +21,10 @@ import {
   placeChips,
   playGame,
   reroll,
+  resolveWager,
   startGame,
   startRound,
+  wagerIsForced,
 } from '../src/core/game'
 import type { Game, Placement, PlacementPolicy, ShopPolicy } from '../src/core/game'
 import { mulberry32 } from '../src/core/rng'
@@ -388,5 +395,88 @@ describe('GDD 13-5 starting constellation', () => {
     const withStarting = round1Score(['aries'], columnPolicy)
 
     expect(withStarting).toBeGreaterThan(600)
+  })
+})
+
+// BOOTH-3b: the wager is a transition of its own now — the question is put
+// before the hand is dealt and the answer is scored, paid and recorded here
+// rather than by whatever screen asked it (GDD 8-2, 8-4).
+describe('ORION\'S WAGER (GDD 8-2)', () => {
+  const asked = (seed = 42): Game => askWager(startRound(newGame(seed)))
+
+  it('has a question waiting before the hand exists', () => {
+    const game = asked()
+
+    expect(game.pendingWager).not.toBeNull()
+    expect(game.pendingWager!.tier).toBe(WAGER_TIER_BY_ROUND[0])
+    expect(game.hand).toHaveLength(0)
+  })
+
+  it('does not replace a question already on the table', () => {
+    const game = asked()
+
+    expect(askWager(game)).toBe(game)
+  })
+
+  it('pays for a hit and nothing for a miss (GDD 9-1)', () => {
+    const game = asked()
+    const right = game.pendingWager!.answer ? 'yes' : 'no'
+    const wrong = game.pendingWager!.answer ? 'no' : 'yes'
+
+    expect(resolveWager(game, right).stardust).toBe(game.stardust + STARDUST_REWARDS.wagerCorrect)
+    expect(resolveWager(game, wrong).stardust).toBe(game.stardust)
+  })
+
+  it('records what was asked, chosen and scored (GDD 8-4)', () => {
+    const game = asked()
+    const question = game.pendingWager!
+    const answered = resolveWager(game, question.answer ? 'yes' : 'no')
+
+    expect(answered.wagerHistory).toHaveLength(1)
+    expect(answered.wagerHistory[0]).toEqual({
+      round: game.round,
+      turn: game.turn,
+      question,
+      choice: question.answer ? 'yes' : 'no',
+      correct: true,
+    })
+    // The question leaves the table, so the hand can be dealt.
+    expect(answered.pendingWager).toBeNull()
+    expect(drawHand(answered).hand).toHaveLength(HAND_SIZE)
+  })
+
+  it('refuses to waive the first three of a game and allows the fourth', () => {
+    let game = asked()
+
+    for (let i = 0; i < FORCED_WAGER_COUNT; i++) {
+      expect(wagerIsForced(game)).toBe(true)
+      // Core hands the game straight back rather than recording an abstention.
+      expect(resolveWager(game, 'abstain')).toBe(game)
+      game = askWager(resolveWager(game, 'yes'))
+    }
+
+    expect(wagerIsForced(game)).toBe(false)
+    const waived = resolveWager(game, 'abstain')
+    expect(waived.wagerHistory).toHaveLength(FORCED_WAGER_COUNT + 1)
+    expect(waived.stardust).toBe(game.stardust)
+    expect(waived.wagerHistory[FORCED_WAGER_COUNT].correct).toBe(false)
+  })
+
+  it('asks a different question as the deck wears down', () => {
+    const first = asked()
+    const later = askWager({ ...first, pendingWager: null, deck: first.deck.slice(12) })
+
+    expect(later.pendingWager).not.toEqual(first.pendingWager)
+  })
+
+  // The simulator answers with a policy and never generates a sentence, so a
+  // recorded baseline still replays draw for draw (tests/baseline-curve.test.ts).
+  it('leaves the headless driver spending no extra randomness', () => {
+    const game = newGame(7)
+    const before = awardWager(game, true)
+
+    expect(before.pendingWager).toBeNull()
+    expect(before.wagerHistory).toHaveLength(0)
+    expect(before.stardust).toBe(game.stardust + STARDUST_REWARDS.wagerCorrect)
   })
 })

@@ -31,6 +31,12 @@ function choose(n: number, k: number): bigint {
   return out
 }
 
+/**
+ * The deck the game opens with (GDD 4-2, C-7) — read rather than written as 50,
+ * so GDD 8-1's worked example stays an example about the real deck.
+ */
+const INITIAL_DECK_SIZE = createInitialDeck().length
+
 /** 1 - C(n-k, h) / C(n, h), evaluated exactly and only then divided. */
 function reference(n: number, k: number, h: number): number {
   const total = choose(n, h)
@@ -70,11 +76,14 @@ describe('chanceOfDrawing (GDD 8-1)', () => {
 
   // GDD 8-1 prints this worked example. The expression is the definition, so
   // this pins the implementation to it.
+  //
+  // BOOTH-3b moved it from a 40-card deck to the 50 the game actually opens with
+  // (GDD 4-2 C-7): the panel was being explained with a deck size that never
+  // occurs. Same "7 Ginan left", real deck.
   it('agrees with exact combinatorics on the GDD 8-1 example', () => {
-    expect(chanceOfDrawing(40, 7, 8)).toBeCloseTo(reference(40, 7, 8), 12)
-    // ...and the value that expression actually has, which is not the 78.4%
-    // the GDD table used to claim beside it.
-    expect(chanceOfDrawing(40, 7, 8)).toBeCloseTo(0.8195, 4)
+    expect(chanceOfDrawing(INITIAL_DECK_SIZE, 7, 8)).toBeCloseTo(reference(INITIAL_DECK_SIZE, 7, 8), 12)
+    // ...and the value that expression actually has, printed beside it in 8-1.
+    expect(chanceOfDrawing(INITIAL_DECK_SIZE, 7, 8)).toBeCloseTo(0.7299, 4)
   })
 
   it('agrees with exact combinatorics across a sweep', () => {

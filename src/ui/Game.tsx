@@ -11,10 +11,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MODE_PRESETS, OWNED_CONSTELLATION_LIMIT, TURNS_PER_ROUND } from '../core/config'
+import { wagerIsForced } from '../core/game'
 import { PALETTE } from '../assets/palette'
 import { useGame } from '../store/gameStore'
 import { Board } from './Board'
-import { At, CANVAS_WIDTH, Canvas, LAYOUT } from './Canvas'
+import { At, CANVAS_HEIGHT, CANVAS_WIDTH, Canvas, LAYOUT } from './Canvas'
 import { ConstellationCard } from './ConstellationCard'
 import { DEV_TOOLS, DevPanel } from './DevPanel'
 import { RoundTurn, Stardust, StatusLine } from './HUD'
@@ -22,6 +23,7 @@ import type { Status } from './HUD'
 import { Hand, HandCount } from './Hand'
 import { OrionBubble, OrionSprite, useOrion } from './Orion'
 import { StarChart } from './StarChart'
+import { WagerPanel } from './Wager'
 import { usePrefersReducedMotion } from './motion'
 import {
   DrifterNote,
@@ -68,8 +70,18 @@ export function Game() {
   const staged = useGame((state) => state.staged)
   const selected = useGame((state) => state.selected)
   const settlement = useGame((state) => state.settlement)
+  const wagerResult = useGame((state) => state.wagerResult)
   const seed = useGame((state) => state.seed)
-  const { select, placeAt, commitTurn, dismissSettlement, newGame, toTitle } = useGame.getState()
+  const {
+    select,
+    placeAt,
+    commitTurn,
+    dismissSettlement,
+    answerWager,
+    dismissWager,
+    newGame,
+    toTitle,
+  } = useGame.getState()
   const devSet = useGame((state) => state.devSet)
 
   const reduced = usePrefersReducedMotion()
@@ -87,15 +99,21 @@ export function Game() {
   const cleared = game.status === 'cleared'
   const settling = settlement !== null && step < steps.length
 
+  // The wager stands between a turn and its hand (GDD 8-2), so nothing behind it
+  // is happening yet.
+  const wagering = game.pendingWager !== null || wagerResult !== null
+
   // A new hand means the deck was just reshuffled (GDD 4-2). Core does that in
-  // one call, so the beat that makes it legible is added here.
+  // one call, so the beat that makes it legible is added here. It waits for the
+  // wager: the deal is `dismissWager`'s, and a beat started while the panel was
+  // still up would be over before the hand it announces arrived.
   const handStamp = `${game.round}-${game.turn}`
   useEffect(() => {
-    if (settlement !== null || over) return
+    if (settlement !== null || over || wagering) return
     setShuffling(true)
     const timer = setTimeout(() => setShuffling(false), reduced ? 0 : SHUFFLE_MS)
     return () => clearTimeout(timer)
-  }, [handStamp, settlement, over, reduced])
+  }, [handStamp, settlement, over, wagering, reduced])
 
   useEffect(() => setStep(0), [settlement])
 
@@ -309,6 +327,29 @@ export function Game() {
       <At x={LAYOUT.orion.x} y={LAYOUT.orion.y}>
         <OrionSprite width={LAYOUT.orion.w} height={LAYOUT.orion.h} />
       </At>
+
+      {/* GDD 8-2: the prediction is made before the draw, so it is a modal —
+          the hand it asks about does not exist until it has been answered, and
+          the explanation is read in the same box the question was in. */}
+      {wagering && (
+        <>
+          <At x={0} y={0} w={CANVAS_WIDTH} h={CANVAS_HEIGHT} z={50}>
+            <div className="h-full w-full" style={{ background: `${PALETTE.void}D8` }} />
+          </At>
+          <At x={LAYOUT.wager.x} y={LAYOUT.wager.y} w={LAYOUT.wager.w} h={LAYOUT.wager.h} z={51}>
+            <WagerPanel
+              question={game.pendingWager}
+              result={wagerResult}
+              forced={wagerIsForced(game)}
+              reduced={reduced}
+              width={LAYOUT.wager.w}
+              height={LAYOUT.wager.h}
+              onAnswer={answerWager}
+              onDismiss={dismissWager}
+            />
+          </At>
+        </>
+      )}
 
       {over && (
         <At x={CANVAS_WIDTH / 2} y={220} centre z={30}>

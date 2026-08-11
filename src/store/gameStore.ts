@@ -20,6 +20,7 @@ import {
 } from '../core/config'
 import type { MultiplierStackMode } from '../core/config'
 import {
+  askWager,
   buy,
   drawHand,
   endRound,
@@ -28,6 +29,7 @@ import {
   openShop,
   placeChips,
   reroll,
+  resolveWager,
   startRound,
 } from '../core/game'
 import type { Game, Placement } from '../core/game'
@@ -36,7 +38,15 @@ import { scoreBoard } from '../core/scoring'
 import type { ScoreResult } from '../core/scoring'
 import { createStartingLoadout } from '../core/shop'
 import type { Purchase } from '../core/shop'
-import type { Board, Chip, ConstellationId, GameMode, Position } from '../core/types'
+import type {
+  Board,
+  Chip,
+  ConstellationId,
+  GameMode,
+  Position,
+  WagerChoice,
+  WagerRecord,
+} from '../core/types'
 
 /**
  * What the title screen decides before a run can be built: how long it runs
@@ -120,6 +130,13 @@ interface GameStore {
   selected: Chip | null
   settlement: Settlement | null
   /**
+   * The wager just answered, held so the explanation can be read (GDD 8-2 asks
+   * for it immediately). Core has already scored and recorded it — this is the
+   * same record, kept back only because the screen has to show it before the
+   * turn moves on.
+   */
+  wagerResult: WagerRecord | null
+  /**
    * The seed this run was built from. ORION's lines are drawn from a generator
    * of their own, seeded off this one (CLAUDE.md §8) — taking them from
    * `game.rng` would spend draws the deck and the drifter are counting on, and a
@@ -140,6 +157,10 @@ interface GameStore {
   placeAt: (pos: Position) => void
   commitTurn: () => void
   dismissSettlement: () => void
+  /** GDD 8-2. Core scores it, records it, and only then is the hand dealt. */
+  answerWager: (choice: WagerChoice) => void
+  /** Closes the explanation. The turn is already under way behind it. */
+  dismissWager: () => void
   /** GDD 9-2. Core decides whether the purse reaches and what leaves the shelf. */
   buyItem: (purchase: Purchase) => void
   rerollStock: () => void
@@ -149,8 +170,12 @@ interface GameStore {
   devSet: (patch: (game: Game) => Game) => void
 }
 
+/**
+ * A run opens on its first wager rather than on a hand: GDD 8-2 puts the
+ * question before the draw, so there is nothing to deal until it is answered.
+ */
 const openingGame = (setup: RunSetup, seed: number): Game =>
-  drawHand(
+  askWager(
     startRound(fromLoadout(createStartingLoadout(setup.starting), setup.mode, mulberry32(seed))),
   )
 
@@ -162,6 +187,7 @@ export const useGame = create<GameStore>((set, get) => ({
   staged: [],
   selected: null,
   settlement: null,
+  wagerResult: null,
   seed: 1,
   setup: PLACEHOLDER_SETUP,
   started: false,
@@ -174,6 +200,7 @@ export const useGame = create<GameStore>((set, get) => ({
       staged: [],
       selected: null,
       settlement: null,
+      wagerResult: null,
       seed,
       setup,
       started: true,
@@ -184,7 +211,15 @@ export const useGame = create<GameStore>((set, get) => ({
 
   newGame: (seed = defaultSeed()) => {
     const game = openingGame(get().setup, seed)
-    set({ game, turnStart: game, staged: [], selected: null, settlement: null, seed })
+    set({
+      game,
+      turnStart: game,
+      staged: [],
+      selected: null,
+      settlement: null,
+      wagerResult: null,
+      seed,
+    })
   },
 
   select: (chip) => set({ selected: get().selected?.id === chip.id ? null : chip }),
@@ -238,9 +273,34 @@ export const useGame = create<GameStore>((set, get) => ({
     // rolls the stock and hands over the drifter (GDD 13-4), and the next round
     // does not start until `leaveShop`.
     if (next.phase === 'shop') next = openShop(next)
-    else if (next.phase === 'draw') next = drawHand(next)
+    else if (next.phase === 'draw') next = askWager(next)
 
     set({ game: next, turnStart: next, staged: [], selected: null, settlement: null })
+  },
+
+  answerWager: (choice) => {
+    const { game } = get()
+    if (game.pendingWager === null) return
+
+    const scored = resolveWager(game, choice)
+    // Core hands the game straight back when the choice is not open — abstaining
+    // inside the tutorial window (GDD 8-2). Nothing was recorded, so nothing here
+    // moves either.
+    if (scored === game) return
+
+    set({ game: scored, wagerResult: scored.wagerHistory[scored.wagerHistory.length - 1] })
+  },
+
+  // The hand is dealt here rather than on the answer, so the prediction is fully
+  // settled — read explanation and all — before the draw it was about happens.
+  // It also keeps the shuffle beat visible: dealt behind the panel, it would run
+  // out while the explanation was still being read (see `Game.tsx`).
+  dismissWager: () => {
+    const { game, wagerResult } = get()
+    if (wagerResult === null) return
+
+    const drawn = drawHand(game)
+    set({ game: drawn, turnStart: drawn, staged: [], selected: null, wagerResult: null })
   },
 
   buyItem: (purchase) => {
@@ -255,8 +315,8 @@ export const useGame = create<GameStore>((set, get) => ({
 
   leaveShop: () => {
     if (get().game.phase !== 'shop') return
-    const game = drawHand(startRound(get().game))
-    set({ game, turnStart: game, staged: [], selected: null, settlement: null })
+    const game = askWager(startRound(get().game))
+    set({ game, turnStart: game, staged: [], selected: null, settlement: null, wagerResult: null })
   },
 
   devSet: (patch) => {

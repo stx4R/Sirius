@@ -70,6 +70,18 @@ export const LAYOUT = {
    * share only `drawChances`.
    */
   starChart: { x: 588, y: 244, w: 108, h: 380, row: 70, bar: 60 },
+
+  /**
+   * ORION'S WAGER (GDD 8-2), centred over the play screen. A modal, so it is
+   * outside the pairwise overlap check for the same reason the shop's
+   * replacement prompt is (GDD 11-10) — it covers the board it is asked over,
+   * and there is nothing to do behind it until it is answered.
+   *
+   * 360 tall because the explanation is the tallest thing on it: two lines of
+   * question at 14px over a verdict and up to six lines of explanation at 11px,
+   * with the button under them. `tests/canvas.test.ts` holds the sum.
+   */
+  wager: { x: 200, y: 135, w: 720, h: 360 },
 } as const
 
 /**

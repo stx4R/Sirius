@@ -131,8 +131,9 @@ function read(question: WagerQuestion, deck: readonly Chip[], handSize = HAND_SI
   const side = compare(chanceA, chanceB)
   const gap = Math.abs(toNumber(chanceA) - toNumber(chanceB))
 
-  if (text.includes('가능성이 같을까')) return { answer: side === 0, gap, tied: side === 0 }
-  if (text.includes('보다 클까')) return { answer: side > 0, gap, tied: side === 0 }
+  if (text.includes('정확히 같을까')) return { answer: side === 0, gap, tied: side === 0 }
+  if (text.includes('서로 다를까')) return { answer: side !== 0, gap, tied: side === 0 }
+  if (text.includes('크거나 같을까')) return { answer: side >= 0, gap, tied: side === 0 }
 
   throw new Error(`unreadable question: ${text}`)
 }

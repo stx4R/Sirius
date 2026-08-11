@@ -28,11 +28,15 @@ const WINDOW = { width: 1366, height: 768 }
  *
  * It has to be a seed whose round 2 clears: the tool places every chip in the
  * first free cell, and only round 1 has a floor above its target (GDD 10-2), so
- * a seed that plays badly ends the run before the shop is ever reached. 1 is the
- * first that gets there with stardust to spare for the constellation the
- * replacement prompt needs.
+ * a seed that plays badly ends the run before the shop is ever reached.
+ *
+ * It was 1 until BOOTH-3b, when ORION'S WAGER started generating a question from
+ * the same generator the deck is shuffled with (GDD 8-2) — two draws a turn, so
+ * every seed deals a different run than it used to and seed 1's round 2 stopped
+ * clearing. 2 is the first that gets there now, with stardust to spare for the
+ * constellation the replacement prompt needs.
  */
-const SEED = 1
+const SEED = 2
 
 const CHROME = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -117,9 +121,53 @@ window.__playTurn = async () => {
 'ready'
 `
 
+/**
+ * ORION'S WAGER (GDD 8-2) stands between every turn and its hand, so the tool has
+ * to answer it the way a player does. It always says YES: the answers come out
+ * about half true (core/wager.ts), so both an explanation of a hit and of a miss
+ * turn up within a round or two — and both are shots this file has to produce.
+ *
+ * The panel is measured while it is up. Its explanation is 2~3 sentences core
+ * wrote from the deck, and one clipped by the box is a wrong answer with no
+ * visible reason — which no screenshot would show, because a clipped box looks
+ * like a short explanation.
+ */
+async function answerWager(ws) {
+  if (!(await evaluate(ws, `!!window.__t('기권')`))) return
+
+  const fit = await evaluate(
+    ws,
+    `(() => {
+       const el = document.querySelector('[data-panel="wager"]');
+       return el === null ? null : { scroll: el.scrollHeight, client: el.clientHeight };
+     })()`,
+  )
+  if (fit === null) problems.push('the wager panel has no box to measure')
+  else if (fit.scroll > fit.client) {
+    problems.push(`the wager panel clips its own content: ${fit.scroll} > ${fit.client}`)
+  }
+
+  if (!written.has('wager')) await shot(ws, 'wager')
+
+  await evaluate(ws, `window.__t('YES')?.click()`)
+  await sleep(400)
+
+  // The verdict beside a miss reads "정답은 …", so a hit is the absence of 오답.
+  const missed = await evaluate(ws, `document.body.innerText.includes('오답')`)
+  const name = missed ? 'wager-wrong' : 'wager-correct'
+  if (!written.has(name)) await shot(ws, name)
+
+  // Closing the explanation is what deals the hand (gameStore `dismissWager`),
+  // and the shuffle beat holds the board disabled while it runs — so this waits
+  // out SHUFFLE_MS rather than clicking into a board that cannot take a chip.
+  await evaluate(ws, `window.__t('계속')?.click()`)
+  await sleep(900)
+}
+
 async function playRound(ws) {
   for (let turn = 0; turn < 5; turn++) {
     await sleep(700)
+    await answerWager(ws)
     await evaluate(ws, `window.__playTurn()`)
     await sleep(350)
     await evaluate(ws, `window.__t('턴 종료')?.click()`)
@@ -164,6 +212,10 @@ async function playToSecondShop(ws) {
   if (!(await evaluate(ws, `!!window.__t('턴 종료')`))) {
     throw new Error('the title screen did not start a run')
   }
+
+  // A run opens on its first wager, not on a hand (GDD 8-2), so the play screen
+  // is only photographable once that one has been answered and read.
+  await answerWager(ws)
   await shot(ws, 'game')
 
   // Four constellations, so the replacement prompt is reachable at all (GDD 6).
@@ -260,6 +312,13 @@ async function main() {
 
   ws.close()
   chrome.kill()
+
+  // Both wager verdicts have to have come up. Ten or so questions at roughly
+  // even odds should produce each of them; never seeing one means the answers
+  // are not landing where core says they do.
+  for (const name of ['wager', 'wager-correct', 'wager-wrong']) {
+    if (!written.has(name)) problems.push(`${name}.png was never reached`)
+  }
 
   // Two PNGs the same length to the byte are the same PNG under two names, which
   // is what a run against an error page produces.

@@ -21,6 +21,24 @@ import { stepsOf } from '../src/ui/Settlement'
 
 const store = () => useGame.getState()
 
+/**
+ * BOOTH-3b: GDD 8-2 puts a wager in front of every draw, so a hand only exists
+ * once one has been answered. YES rather than 기권 because the first three of a
+ * game are the tutorial and core refuses to waive them (`resolveWager`).
+ */
+function answerWager(): void {
+  if (store().game.pendingWager === null) return
+  store().answerWager('yes')
+  // Reading the explanation is what deals the hand — see `dismissWager`.
+  store().dismissWager()
+}
+
+/** A run and the opening wager that deals its first hand. */
+function newGame(seed: number): void {
+  store().newGame(seed)
+  answerWager()
+}
+
 /** First empty cell in reading order. */
 function firstFree(): Position | null {
   const { board } = store().game
@@ -34,6 +52,8 @@ function firstFree(): Position | null {
 
 /** Places `count` chips from the hand, as a player clicking would. */
 function placeChips(count: number): number {
+  // A turn opens on its wager (GDD 8-2), and the hand is behind it.
+  answerWager()
   let placed = 0
   for (let i = 0; i < count; i++) {
     const { game } = store()
@@ -50,7 +70,7 @@ function placeChips(count: number): number {
 
 describe('placement', () => {
   it('picks a chip up and puts it back down', () => {
-    store().newGame(7)
+    newGame(7)
     const chip = store().game.hand[0]
 
     store().select(chip)
@@ -61,7 +81,7 @@ describe('placement', () => {
   })
 
   it('puts the chip on the board and takes it out of the hand', () => {
-    store().newGame(7)
+    newGame(7)
     const handSize = store().game.hand.length
 
     expect(placeChips(1)).toBe(1)
@@ -70,7 +90,7 @@ describe('placement', () => {
   })
 
   it('lets core refuse the fifth placement of a turn (GDD 4-2)', () => {
-    store().newGame(7)
+    newGame(7)
 
     // The store stages placements and replays the whole list through core, so
     // the per-turn limit is core's to enforce and cannot be walked around by
@@ -80,7 +100,7 @@ describe('placement', () => {
   })
 
   it('refuses a cell that is already taken', () => {
-    store().newGame(7)
+    newGame(7)
     placeChips(1)
     const taken = position(0, 0)
 
@@ -93,7 +113,7 @@ describe('placement', () => {
 
 describe('turn and round', () => {
   it('settles the turn and hands out the score core computed', () => {
-    store().newGame(7)
+    newGame(7)
     placeChips(MAX_PLACEMENTS_PER_TURN)
     store().commitTurn()
 
@@ -104,7 +124,7 @@ describe('turn and round', () => {
   })
 
   it('breaks the settlement into steps that add up to what was awarded', () => {
-    store().newGame(7)
+    newGame(7)
     placeChips(MAX_PLACEMENTS_PER_TURN)
     store().commitTurn()
     const settlement = store().settlement!
@@ -121,7 +141,7 @@ describe('turn and round', () => {
   // is on screen `game.turn` already names the *next* turn. The snapshot is what
   // the header reads from; core's transitions are untouched.
   it('remembers which turn is being settled, not the one core moved on to', () => {
-    store().newGame(7)
+    newGame(7)
 
     for (let turn = 1; turn <= 3; turn++) {
       expect(store().game.turn).toBe(turn)
@@ -137,7 +157,7 @@ describe('turn and round', () => {
   })
 
   it('snapshots the round score the settled turn started from', () => {
-    store().newGame(7)
+    newGame(7)
     placeChips(MAX_PLACEMENTS_PER_TURN)
     store().commitTurn()
     expect(store().settlement!.roundScoreBefore).toBe(0)
@@ -154,7 +174,7 @@ describe('turn and round', () => {
   })
 
   it('plays a full round of five turns and stops in the shop', () => {
-    store().newGame(7)
+    newGame(7)
 
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
       expect(store().game.turn).toBe(turn + 1)
@@ -175,6 +195,11 @@ describe('turn and round', () => {
 
     store().leaveShop()
 
+    // Leaving the shop starts the round on its wager, not on a hand (GDD 8-2).
+    expect(store().game.pendingWager).not.toBeNull()
+    expect(store().game.hand).toHaveLength(0)
+    answerWager()
+
     const { game } = store()
     expect(game.phase).toBe('placing')
     expect(game.round).toBe(2)
@@ -185,7 +210,7 @@ describe('turn and round', () => {
   })
 
   it('hands over the drifter on arrival at the shop (GDD 13-4)', () => {
-    store().newGame(7)
+    newGame(7)
     expect(store().game.drifterOwned).toBe(false)
 
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
@@ -201,7 +226,7 @@ describe('turn and round', () => {
   })
 
   it('ends the game when a round misses its target', () => {
-    store().newGame(7)
+    newGame(7)
     // Nothing placed for five turns scores nothing, which cannot reach round 1.
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
       store().commitTurn()
@@ -219,7 +244,7 @@ describe('turn and round', () => {
 describe('the shop (GDD 9-3)', () => {
   /** Clears round 1 the way a player would, which is what opens the shop. */
   function reachShop(stardust: number): void {
-    store().newGame(7)
+    newGame(7)
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
       placeChips(MAX_PLACEMENTS_PER_TURN)
       store().commitTurn()
@@ -319,7 +344,7 @@ describe('constellations change the score', () => {
   it('scores more with a constellation held than without', () => {
     // The dev panel exists so this is visible by hand; here it is measured.
     const scoreWith = (owned: readonly ConstellationId[]) => {
-      store().newGame(7)
+      newGame(7)
       store().devSet((game) => ({ ...game, ownedConstellations: [...owned] }))
 
       // A column of one suit, so aries' vertical run of three can form.
@@ -391,7 +416,7 @@ describe('the title screen starts the run (GDD 12-3, 13-5)', () => {
     const starting = STARTING_CONSTELLATION_CHOICES[1]
     store().startRun({ mode: 'booth', starting })
 
-    store().newGame(11)
+    newGame(11)
 
     expect(store().game.mode).toBe('booth')
     expect(store().game.ownedConstellations).toEqual([starting])

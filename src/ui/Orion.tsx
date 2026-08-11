@@ -13,6 +13,7 @@ import { mulberry32 } from '../core/rng'
 import { PALETTE } from '../assets/palette'
 import { lineFor } from './dialogue'
 import type { Beat } from './dialogue'
+import { withNebulaName } from './Nebula'
 
 /**
  * Offsets ORION's generator from the one core plays the run with, so his lines
@@ -66,7 +67,10 @@ export function OrionBubble({
           color: PALETTE.starGlow,
         }}
       >
-        {line}
+        {/* ORION names иєвυℓα in one of his round-clear lines, and Galmuri has no
+            glyph for any letter of it — so the name is swapped for its sprite
+            here rather than rendering in a fallback font (GDD 11-9). */}
+        {withNebulaName(line, PALETTE.starGlow)}
       </motion.p>
 
       {/* The tail, aimed at ORION on the right. */}

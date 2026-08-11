@@ -55,6 +55,21 @@ export const LAYOUT = {
   orion: { x: 980, y: 474, w: 120, h: 156 },
 
   hand: { x: 20, y: 496, w: 400, h: 104, label: { x: 20, y: 606 } },
+
+  /**
+   * STAR-CHART (GDD 8-1), in the only gap the plane has left.
+   *
+   * Measured, not guessed: with four constellations held — the GDD 6 limit, and
+   * so the screen at its most crowded — the largest empty rectangle is 116×390 at
+   * (584, 240). This sits inside it with 4px of air on every side that has a
+   * neighbour: the 2×2 card grid ends at x=584, the settlement panel ends at
+   * y=240, and the big round total starts at x≈700.
+   *
+   * That is why it is a column and not the shop's 440×214 panel — 108px will not
+   * hold the shop's row, so the two screens draw the same numbers differently and
+   * share only `drawChances`.
+   */
+  starChart: { x: 588, y: 244, w: 108, h: 380, row: 70, bar: 60 },
 } as const
 
 /**

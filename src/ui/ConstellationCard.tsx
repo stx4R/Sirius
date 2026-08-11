@@ -8,7 +8,7 @@
 // All three strings are derived from config, so the card and the engine cannot
 // disagree about what the constellation does.
 
-import { motion } from 'framer-motion'
+import { motion, steps } from 'framer-motion'
 import {
   CONSTELLATION_MULTIPLIERS,
   CONSTELLATION_NAMES,
@@ -56,17 +56,22 @@ export function multiplierOf(id: ConstellationId): string {
  * for as long as the beat lasted — the one place in the game that broke the
  * integer-scale rule, and it broke it while the player was looking straight at it.
  *
- * A two-pixel hop replaces it. The keyframes are timed almost on top of each
- * other so the value is only ever 0 or -2 and never 1.37: this version of
- * framer-motion exports no `steps` easing, and duplicated times are how a step
- * function is written without one. Two logical pixels stay two whole device
- * pixels at every integer canvas scale (GDD 11-10).
+ * A two-pixel hop replaces it. The easing is what keeps it integral: each step
+ * holds its keyframe and jumps at the end of its segment, so y is only ever 0 or
+ * -2 and never 1.37. Two logical pixels stay two whole device pixels at every
+ * integer canvas scale (GDD 11-10).
+ *
+ * ★ One `steps(1)` for the whole array does not work, and looks like it does. A
+ * single easing is applied across the *entire* keyframe run, so it holds the
+ * first keyframe and jumps to the last — both of which are 0, and the card never
+ * moves. The easing has to be given per segment: measured frame by frame, the
+ * array below is the difference between y visiting -2 and y never leaving 0.
  *
  * The hop is the impact; the glow is what sustains it, and a box-shadow costs
  * nothing because it is painted outside the sprite rather than resampling it.
  */
-const FIRING_HOP = [0, -2, -2, 0]
-const FIRING_TIMES = [0, 0.001, 0.7, 0.701]
+const FIRING_HOP = [0, -2, 0]
+const FIRING_EASE = [steps(1), steps(1)]
 
 interface Props {
   readonly id: ConstellationId
@@ -111,7 +116,7 @@ export function ConstellationCard({
         reduced
           ? { duration: 0 }
           : {
-              y: { duration: 0.3, times: FIRING_TIMES, ease: 'linear' },
+              y: { duration: 0.3, ease: FIRING_EASE },
               boxShadow: { duration: 0.2 },
             }
       }

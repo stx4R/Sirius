@@ -21,6 +21,7 @@ import { RoundTurn, Stardust, StatusLine } from './HUD'
 import type { Status } from './HUD'
 import { Hand, HandCount } from './Hand'
 import { OrionBubble, OrionSprite, useOrion } from './Orion'
+import { StarChart } from './StarChart'
 import { usePrefersReducedMotion } from './motion'
 import {
   DrifterNote,
@@ -276,6 +277,25 @@ export function Game() {
           </At>
         </>
       )}
+
+      {/* GDD 8-1 asks for this to be up at all times, and the play screen is
+          where the pile actually shrinks. The pool is deck plus hand: unplaced
+          chips are reshuffled back (GDD 4-2), so placing is what takes a chip out
+          of the round for good. */}
+      <At
+        x={LAYOUT.starChart.x}
+        y={LAYOUT.starChart.y}
+        w={LAYOUT.starChart.w}
+        h={LAYOUT.starChart.h}
+      >
+        <StarChart
+          pool={[...game.deck, ...game.hand]}
+          width={LAYOUT.starChart.w}
+          height={LAYOUT.starChart.h}
+          row={LAYOUT.starChart.row}
+          bar={LAYOUT.starChart.bar}
+        />
+      </At>
 
       <At x={LAYOUT.bubble.x} y={LAYOUT.bubble.y}>
         <OrionBubble

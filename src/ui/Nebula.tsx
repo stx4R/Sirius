@@ -11,7 +11,8 @@
 // counting on, and the same seed would stop replaying the same run.
 
 import { motion } from 'framer-motion'
-import { useCallback, useMemo, useState } from 'react'
+import { Fragment, useCallback, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { mulberry32 } from '../core/rng'
 import { nebulaName, nebulaSprite } from '../assets/compose'
 import { NEBULA_INK, PALETTE, mix } from '../assets/palette'
@@ -139,6 +140,9 @@ export function NebulaSprite({
  * descender, and without the nudge it rides high against the Hangul beside it.
  * `alt` keeps the real spelling in the accessibility tree and in a copy-paste.
  */
+/** GDD 11-9 fixes the spelling; this is the one place the literal is written. */
+const NEBULA_NAME_TEXT = 'иєвυℓα'
+
 export function NebulaName({
   colour,
   scale = 2,
@@ -148,8 +152,35 @@ export function NebulaName({
 }) {
   const pixels = useMemo(() => nebulaName(colour), [colour])
   return (
-    <span className="inline-block align-baseline" style={{ transform: 'translateY(1px)' }}>
-      <PixelSprite pixels={pixels} scale={scale} alt="иєвυℓα" />
+    // The name is on the wrapper, not the image, so a screen reader announces
+    // "иєвυℓα" once rather than once per node. The map is the whole word.
+    <span
+      role="img"
+      aria-label={NEBULA_NAME_TEXT}
+      className="inline-block align-baseline"
+      style={{ transform: 'translateY(1px)' }}
+    >
+      <PixelSprite pixels={pixels} scale={scale} />
     </span>
   )
+}
+
+/**
+ * Renders a line of dialogue with her name drawn instead of typed.
+ *
+ * ORION says it too (`dialogue.ts`), and a speech bubble is a plain string, so
+ * the substitution happens at render rather than by turning the dialogue table
+ * into JSX — the tables stay data, which is what lets them be read and edited as
+ * text (CLAUDE.md §11).
+ */
+export function withNebulaName(line: string, colour: string): ReactNode {
+  const parts = line.split(NEBULA_NAME_TEXT)
+  if (parts.length === 1) return line
+
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 && <NebulaName colour={colour} />}
+      {part}
+    </Fragment>
+  ))
 }

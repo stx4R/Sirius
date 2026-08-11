@@ -53,6 +53,21 @@ describe('canvas layout (GDD 11-10)', () => {
     bubble: { x: LAYOUT.bubble.x, y: LAYOUT.bubble.y, w: LAYOUT.bubble.w, h: LAYOUT.bubble.h },
     orion: { x: LAYOUT.orion.x, y: LAYOUT.orion.y, w: LAYOUT.orion.w, h: LAYOUT.orion.h },
     hand: { x: LAYOUT.hand.x, y: LAYOUT.hand.y, w: LAYOUT.hand.w, h: LAYOUT.hand.h },
+    starChart: {
+      x: LAYOUT.starChart.x,
+      y: LAYOUT.starChart.y,
+      w: LAYOUT.starChart.w,
+      h: LAYOUT.starChart.h,
+    },
+    // The 2×2 card grid at the ownership limit (GDD 6) — the screen at its most
+    // crowded, which is what STAR-CHART has to fit beside. 142 is the measured
+    // entry height; see the test below that depends on the same figure.
+    constellations: {
+      x: LAYOUT.constellations.x,
+      y: LAYOUT.constellations.y,
+      w: LAYOUT.constellations.cell * 2 + LAYOUT.constellations.gap,
+      h: 142 * 2 + LAYOUT.constellations.gap,
+    },
   }
 
   it('keeps every placed box on the plane', () => {
@@ -99,6 +114,51 @@ describe('canvas layout (GDD 11-10)', () => {
 
     expect(gap).toBeGreaterThanOrEqual(0)
     expect(gap).toBeLessThanOrEqual(40)
+  })
+
+  // BOOTH-2b: STAR-CHART went into the one gap the plane had left, so from here
+  // the play screen gets the same pairwise check the shop has had.
+  it('overlaps nothing', () => {
+    const entries = Object.entries(boxes)
+    for (let i = 0; i < entries.length; i++) {
+      for (let j = i + 1; j < entries.length; j++) {
+        const [nameA, a] = entries[i]
+        const [nameB, b] = entries[j]
+        const apart =
+          a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y
+
+        expect(apart, `${nameA} overlaps ${nameB}`).toBe(true)
+      }
+    }
+  })
+
+  // GDD 8-1's panel sits in measured free space: 116×390 at (584, 240), taken
+  // with four constellations held. If it ever stops fitting inside that, it is
+  // overlapping something the box list above does not name.
+  it('keeps STAR-CHART inside the gap that was measured for it', () => {
+    const gap = { x: 584, y: 240, w: 116, h: 390 }
+    const panel = LAYOUT.starChart
+
+    expect(panel.x).toBeGreaterThanOrEqual(gap.x)
+    expect(panel.y).toBeGreaterThanOrEqual(gap.y)
+    expect(panel.x + panel.w).toBeLessThanOrEqual(gap.x + gap.w)
+    expect(panel.y + panel.h).toBeLessThanOrEqual(gap.y + gap.h)
+  })
+
+  it('gives STAR-CHART room for its five suit rows and a header', () => {
+    const panel = LAYOUT.starChart
+    const PADDING = 4 * 2
+    const HEADER = 12
+
+    expect(panel.row * 5 + HEADER + PADDING).toBeLessThanOrEqual(panel.h)
+    // The bar has to leave room for the percentage beside it.
+    expect(panel.bar).toBeLessThan(panel.w - PADDING)
+  })
+
+  it('places STAR-CHART on whole pixels', () => {
+    for (const value of Object.values(LAYOUT.starChart)) {
+      expect(Number.isInteger(value)).toBe(true)
+    }
   })
 })
 

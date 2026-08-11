@@ -472,6 +472,28 @@ export const WAGER_TIER_BY_ROUND: readonly WagerTier[] = [
   'conditional',
 ]
 
+/**
+ * How far apart a wager's two quantities have to be before it is worth asking
+ * (GDD 8-2). 0.05 is roughly a two-chip difference in a 40-50 card deck; one
+ * chip moves the chance of drawing a suit by about 0.03, and a question that
+ * close cannot be called by a student who did the arithmetic correctly.
+ *
+ * Exactly equal quantities are exempt, since equal counts are read straight off
+ * STAR-CHART and "the same" is then the whole answer.
+ */
+export const WAGER_MIN_GAP = 0.05
+
+/**
+ * What a 여사건 question may be asked against (GDD 8-2).
+ *
+ * 0.05 is in the list for balance, not for variety. On a deck the round has not
+ * touched, "not one of a suit in eight draws" is 0.143 — above 0.1 by less than
+ * WAGER_MIN_GAP, so the 0.1 question is dropped as too close to call and every
+ * remaining threshold answers NO. A player would only have to notice that the
+ * first wager of a round is never YES.
+ */
+export const WAGER_COMPLEMENT_THRESHOLDS: readonly number[] = [0.05, 0.1, 0.25, 0.5, 0.75]
+
 /** Correct DRIFT ORACLE answer adds this fraction to that turn's drifter score (GDD 8-3). */
 export const DRIFT_ORACLE_BONUS = 0.5
 

@@ -17,11 +17,12 @@ import {
   COMPANIONS,
   COMPANION_TIER_WEIGHTS,
   CONSTELLATION_NAMES,
+  HAND_SIZE,
   MODE_PRESETS,
   OWNED_CONSTELLATION_LIMIT,
   SHOP_PRICES,
 } from '../core/config'
-import { countDeck } from '../core/deck'
+import { countDeck, drawChances } from '../core/deck'
 import { priceOf, rerollPrice } from '../core/shop'
 import type { Purchase, SuitPair } from '../core/shop'
 import { SUIT_ORDER } from '../core/types'
@@ -242,16 +243,37 @@ function CompanionEntry({
   )
 }
 
+/** The bar track, in whole pixels — a dot game draws no fractional bar (CLAUDE.md §7). */
+const BAR_TRACK = 52
+
 /**
- * What the deck is made of, and the only two things that change it (GDD 9-2).
+ * STAR-CHART's bar (GDD 8-1): how much of the deck this suit is.
  *
- * Both counts are printed because they are different questions. The big number
- * is how many chips would score as that suit, which is what a constellation
- * needs; the small one is how many basics there are, which is what may be
- * removed — a special counts toward the first and not the second (GDD 3-2).
+ * Rounded to whole pixels, and floored at 1 while any of the suit is left — a
+ * suit that is down to its last chip must still show something, because "a thin
+ * bar" and "no bar" mean very different things to someone deciding what to buy.
+ */
+function barWidth(count: number, deckSize: number): number {
+  if (count <= 0 || deckSize <= 0) return 0
+  return Math.max(1, Math.round((count / deckSize) * BAR_TRACK))
+}
+
+/**
+ * STAR-CHART (GDD 8-1) — what the deck is made of, and what that means for the
+ * next hand.
  *
- * `countDeck` is core's (GDD 8-1's STAR-CHART reads the same counts at P5), so
- * this panel only lays them out.
+ * Three columns per suit, and they are three different questions:
+ *   · how many chips would score as that suit, which is what a constellation
+ *     needs — a special counts here and not as a basic (GDD 3-2)
+ *   · what share of the deck that is, as a bar, which is the one that moves as
+ *     the deck is drawn down (비복원추출 — Ⅲ-5 모집단과 표본, per GDD 1-4 ②)
+ *   · the chance the next hand holds at least one, which is the 여사건 the
+ *     WAGER questions ask about (GDD 8-2)
+ *
+ * The arithmetic is all core's — `countDeck` and `chanceOfDrawing` — so this
+ * panel only lays it out (CLAUDE.md §5). The hand size comes from config rather
+ * than the number 8, because 표본추출 원시별 takes it to 10 (GDD 7-2) and the
+ * percentage has to be about the hand the player will actually get.
  */
 function DeckPanel({
   deck,
@@ -269,17 +291,18 @@ function DeckPanel({
   readonly onBuy: (purchase: Purchase) => void
 }) {
   const counts = countDeck(deck)
+  const chances = drawChances(deck, HAND_SIZE)
 
   return (
     <div
-      className="flex flex-col rounded p-3"
+      className="flex flex-col rounded p-2"
       style={{ width, height, background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
-      <div className="mb-1 flex items-baseline justify-between">
-        <span className="text-[11px] font-bold" style={{ color: PALETTE.starWhite }}>
-          덱 구성
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] font-bold leading-tight" style={{ color: PALETTE.starWhite }}>
+          STAR-CHART
         </span>
-        <span className="text-[11px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+        <span className="text-[9px] leading-tight tabular-nums" style={{ color: PALETTE.starGlow }}>
           전체 {deck.length}장 · 추가 ✦{SHOP_PRICES.addBasicChip} / 제거 ✦
           {SHOP_PRICES.removeBasicChip}
         </span>
@@ -287,27 +310,52 @@ function DeckPanel({
 
       {SUIT_ORDER.map((suit) => {
         const basics = counts.basicsBySuit[suit]
+        const held = counts.bySuit[suit]
         const add: Purchase = { kind: 'addBasic', suit }
         const remove: Purchase = { kind: 'removeBasic', suit }
 
         return (
-          <div key={suit} className="flex items-center gap-2" style={{ height: 32 }}>
+          <div key={suit} className="flex items-center gap-1" style={{ height: 32 }}>
             <PixelSprite pixels={basicChip(suit)} scale={1} alt="" />
 
-            <span className="w-11 text-[11px] font-bold" style={{ color: SUIT_INK[suit] }}>
+            <span className="w-9 text-[11px] font-bold" style={{ color: SUIT_INK[suit] }}>
               {suit}
             </span>
-            <span className="w-14 text-[9px]" style={{ color: PALETTE.starLink }}>
+            <span className="w-11 text-[9px]" style={{ color: PALETTE.starLink }}>
               {SUIT_NAMES[suit]}
             </span>
 
             <span
-              className="w-7 text-right text-sm font-bold tabular-nums"
+              className="w-11 text-right text-[11px] font-bold tabular-nums"
               style={{ color: PALETTE.starWhite }}
             >
-              {counts.bySuit[suit]}
+              {held}
+              <span className="text-[9px] font-normal" style={{ color: PALETTE.starLink }}>
+                /{deck.length}
+              </span>
             </span>
-            <span className="w-12 text-[9px] tabular-nums" style={{ color: PALETTE.starGlow }}>
+
+            {/* GDD 8-1's bar — the share of the deck this suit is, which is the
+                figure that moves as the deck is drawn down. Whole pixels, and the
+                suit's own ink (GDD 11-7) so it reads as the chip beside it. */}
+            <span
+              className="shrink-0"
+              style={{ width: BAR_TRACK, height: 6, background: PALETTE.panelEdge }}
+            >
+              <span
+                className="block"
+                style={{ width: barWidth(held, deck.length), height: 6, background: SUIT_INK[suit] }}
+              />
+            </span>
+
+            <span
+              className="w-10 text-right text-[9px] tabular-nums"
+              style={{ color: SUIT_INK[suit] }}
+            >
+              {Math.round(chances[suit] * 100)}%
+            </span>
+
+            <span className="w-10 text-[9px] tabular-nums" style={{ color: PALETTE.starGlow }}>
               기본 {basics}
             </span>
 
@@ -315,13 +363,13 @@ function DeckPanel({
               <PriceButton
                 price={SHOP_PRICES.addBasicChip}
                 affordable={stardust >= priceOf(add)}
-                width={44}
+                width={40}
                 onBuy={() => onBuy(add)}
               />
               <PriceButton
                 price={SHOP_PRICES.removeBasicChip}
                 affordable={basics > 0 && stardust >= priceOf(remove)}
-                width={44}
+                width={40}
                 onBuy={() => basics > 0 && onBuy(remove)}
               />
             </div>
@@ -329,16 +377,23 @@ function DeckPanel({
         )
       })}
 
-      {/* The five rows sum to fifty and the header says fifty-one, because the
-          drifter has no suit until it is scored and so belongs to none of them
-          (GDD 3-3). The rule is sound and the arithmetic looks broken, which for
-          a booth participant is the same thing as broken — so the panel says it
-          where the sum is, not only by drawing the chip in BLACK-HOLE. */}
-      {drifterOwned && (
-        <span className="mt-auto text-[9px]" style={{ color: PALETTE.starGlow }}>
-          떠돌이 1장은 문양이 없어 위 5행에 들어가지 않습니다
-        </span>
-      )}
+      {/*
+        Says what the percentage column is a percentage *of*, and then what it is
+        not. GDD 1-4 ② puts 비복원추출 in Ⅲ-5 모집단과 표본, so the sentence is written
+        in sampling terms and never calls itself conditional probability. The
+        second half is not decoration: a percentage on screen reads as a promise,
+        and the one thing a booth participant has to leave with is that this is
+        what the remaining counts imply, not what the next hand will do.
+      */}
+      <span className="mt-auto text-[9px] leading-tight" style={{ color: PALETTE.starGlow }}>
+        %는 다음 {HAND_SIZE}장에 1장 이상 나올 확률입니다. 남은 장수로 계산한 값이라 실제로 뽑히는
+        결과는 매번 다릅니다.
+        {/* The five rows sum to fifty and the header says fifty-one, because the
+            drifter has no suit until it is scored and so belongs to none of them
+            (GDD 3-3). The rule is sound and the arithmetic looks broken, which
+            for a booth participant is the same thing as broken. */}
+        {drifterOwned && ' 떠돌이 1장은 문양이 없어 위 5행에 들어가지 않습니다.'}
+      </span>
     </div>
   )
 }

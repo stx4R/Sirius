@@ -136,6 +136,32 @@ export const LAYOUT = {
   help: { x: 1012, y: 12, size: 28 },
 
   /**
+   * The mid-run reset (GDD 12-2 ④, BOOTH-7). Left of the ? button, on the same
+   * baseline and the same height, so the corner reads as one row of controls
+   * rather than as a button that wandered in.
+   *
+   * ★ The 8px gap to the ? is the whole of the placement decision, and it was
+   * measured rather than picked: 944 + 60 = 1004 against the ? at 1012. Any wider
+   * a label and the two touch; `tests/canvas.test.ts` holds the sum, and the box
+   * is in the pairwise check because — like the ? — it is always on screen.
+   *
+   * The shop carries the same control at the same coordinate (`SHOP_LAYOUT.reset`),
+   * so a participant who wants out does not have to find a different corner
+   * depending on which screen they are stranded on.
+   */
+  reset: { x: 944, y: 12, w: 60, h: 28 },
+
+  /**
+   * The confirmation the reset asks for (GDD 12-2 ④). A modal, so it is outside
+   * the pairwise check like the other five.
+   *
+   * It exists because the button is one click from throwing a run away, and the
+   * booth's failure case is a participant losing twenty minutes of play to a
+   * misclick — not an operator having to press one more button.
+   */
+  resetCard: { x: 380, y: 231, w: 360, h: 168 },
+
+  /**
    * The one-page summary the ? button opens — the five coach lines at rest, for a
    * player who lost the thread rather than one taking their first turn. A modal,
    * so it is outside the pairwise check like the other four.
@@ -209,6 +235,13 @@ export const SHOP_LAYOUT = {
   companions: { x: 24, y: 410, w: 600, h: 110, entry: 294, gap: 12, label: { x: 24, y: 392 } },
   reroll: { x: 24, y: 544, w: 200, h: 48 },
   leave: { x: 248, y: 544, w: 200, h: 48 },
+  /**
+   * The mid-run reset (GDD 12-2 ④, BOOTH-7), at the same coordinate it has on the
+   * play screen. The shop has no ? button, so this is the only thing in the
+   * corner here — it is kept at 944 rather than moved into the empty 1012 slot so
+   * that the control does not appear to jump between the two screens.
+   */
+  reset: { x: 944, y: 12, w: 60, h: 28 },
   /** The line under the two buttons saying what a reroll has cost so far. */
   rerollNote: { x: 24, y: 602 },
 

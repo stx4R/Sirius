@@ -24,10 +24,39 @@ import { At, CANVAS_WIDTH, Canvas, TITLE_LAYOUT } from './Canvas'
 import { ConstellationCard } from './ConstellationCard'
 
 /**
- * Booth first: it is the default, and a booth machine is what this screen is
- * mostly read on (GDD 12-2). The order is the reading order, not config's.
+ * Which modes this build offers, and in what order (GDD 12-2 ③).
+ *
+ * Booth first everywhere: it is the default, and a booth machine is what this
+ * screen is mostly read on. The order is the reading order, not config's.
+ *
+ * ★ A production build offers booth *only* (BOOTH-7). The full version is eight
+ * rounds against a booth run's three (GDD 12-3), so a participant who picks it
+ * holds a seat for something like forty minutes — and GDD 12-1 makes throughput
+ * the score, at 1.8 participants an hour per laptop. One participant choosing the
+ * long game costs the booth roughly one vote, and nothing on this screen tells
+ * them that.
+ *
+ * Nothing is removed to achieve it. The choice is decided at build time by
+ * `import.meta.env.PROD`, which is what the booth laptops run and what a `npm run
+ * dev` session is not, so development and the screenshot tool keep both modes
+ * with no flag to remember. `?mode=full` re-opens it on a production build for a
+ * demo — the same escape hatch `?seed=` already is (gameStore.ts), and one no
+ * participant types by accident.
  */
-const MODE_ORDER = ['booth', 'full'] as const satisfies readonly GameMode[]
+export function modeOrder(prod: boolean, unlocked: boolean): readonly GameMode[] {
+  return prod && !unlocked ? ['booth'] : ['booth', 'full']
+}
+
+/**
+ * `?mode=full`. Read once at module load for the reason `pinnedSeed` is: the
+ * query cannot change without a reload.
+ */
+function fullUnlocked(): boolean {
+  if (typeof window === 'undefined') return false
+  return new URLSearchParams(window.location.search).get('mode') === 'full'
+}
+
+const MODE_ORDER = modeOrder(import.meta.env.PROD, fullUnlocked())
 
 /**
  * The name and the wall-clock estimate — the two things about a mode that are
@@ -103,11 +132,18 @@ export function Title() {
       </At>
 
       <At x={modes.label.x} y={modes.label.y}>
-        <Label text="모드를 고르세요" />
+        {/* A booth build has one mode, so there is nothing to choose and the card
+            below is telling the participant how long this will take instead. A
+            label that asked them to pick would be asking about a row with one
+            entry in it. */}
+        <Label text={MODE_ORDER.length > 1 ? '모드를 고르세요' : '진행 모드'} />
       </At>
 
+      {/* Centred rather than left-aligned, so the single card of a booth build
+          sits under the title like everything else on this screen. With both
+          modes the row fills its width exactly and this changes nothing. */}
       <At x={modes.x} y={modes.y} w={modes.w} h={modes.h}>
-        <div className="flex" style={{ gap: modes.gap }}>
+        <div className="flex justify-center" style={{ gap: modes.gap }}>
           {MODE_ORDER.map((id) => {
             const preset = MODE_PRESETS[id]
             const text = MODE_TEXT[id]

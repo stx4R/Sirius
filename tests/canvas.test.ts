@@ -10,6 +10,7 @@ import {
   canvasScale,
 } from '../src/ui/Canvas'
 import { COACH_ORDER } from '../src/ui/Coach'
+import { RESET_CONFIRM } from '../src/ui/Reset'
 import { DECK_NAME_COLUMN } from '../src/ui/Shop'
 import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH } from '../src/assets/pixels'
 import {
@@ -76,6 +77,8 @@ describe('canvas layout (GDD 11-10)', () => {
     // BOOTH-6b: the ? button is always on screen (GDD 12-2 ①), so unlike the
     // coach captions it is not an overlay and belongs in the pairwise check.
     help: { x: LAYOUT.help.x, y: LAYOUT.help.y, w: LAYOUT.help.size, h: LAYOUT.help.size },
+    // BOOTH-7: the mid-run reset (GDD 12-2 ④), in the check for the same reason.
+    reset: { x: LAYOUT.reset.x, y: LAYOUT.reset.y, w: LAYOUT.reset.w, h: LAYOUT.reset.h },
   }
 
   it('keeps every placed box on the plane', () => {
@@ -459,9 +462,58 @@ describe('canvas layout (GDD 11-10)', () => {
       ...Object.values(LAYOUT.coach.steps).flatMap((spot) => [spot.x, spot.y, spot.w]),
       ...Object.values(LAYOUT.help),
       ...Object.values(LAYOUT.helpCard),
+      ...Object.values(LAYOUT.reset),
+      ...Object.values(LAYOUT.resetCard),
     ]
 
     for (const value of numbers) expect(Number.isInteger(value)).toBe(true)
+  })
+
+  // BOOTH-7 (GDD 12-2 ④). The placement is the whole of the decision: it sits in
+  // the corner a lost participant already looks at, and a participant reaching for
+  // the ? must not land on the button that ends their run.
+  it('seats the reset beside the ? without the two touching', () => {
+    const gap = LAYOUT.help.x - (LAYOUT.reset.x + LAYOUT.reset.w)
+
+    expect(gap).toBeGreaterThanOrEqual(8)
+    // Same row, same height, so the corner reads as one strip of controls.
+    expect(LAYOUT.reset.y).toBe(LAYOUT.help.y)
+    expect(LAYOUT.reset.h).toBe(LAYOUT.help.size)
+    // And the same coordinate on the shop, so it does not move between screens.
+    expect({ x: SHOP_LAYOUT.reset.x, y: SHOP_LAYOUT.reset.y }).toEqual({
+      x: LAYOUT.reset.x,
+      y: LAYOUT.reset.y,
+    })
+  })
+
+  // The confirmation is the sixth modal, and gets the modal pair of checks.
+  it('centres the reset confirmation on the plane and holds its contents', () => {
+    const card = LAYOUT.resetCard
+    const PADDING = 20 * 2
+    const GAPS = 12 * 2
+    const TITLE = 20
+    // The note is one line at this width — see the length check below.
+    const NOTE = 18
+    const BUTTONS = 40
+
+    expect(card.x + card.w / 2).toBe(CANVAS_WIDTH / 2)
+    expect(card.y + card.h / 2).toBe(CANVAS_HEIGHT / 2)
+    expect(TITLE + NOTE + BUTTONS + GAPS + PADDING).toBeLessThanOrEqual(card.h)
+  })
+
+  // GDD 12-2 asks the screen to be read unaided, and this one is read by somebody
+  // who has already decided to leave. Two buttons and one line each: a wall of
+  // text here is a wall of text nobody reads before clicking.
+  it('keeps the reset copy to what fits on one line of its card', () => {
+    const perLine = Math.floor((LAYOUT.resetCard.w - 20 * 2) / 11)
+
+    expect(RESET_CONFIRM.note.length).toBeLessThanOrEqual(perLine)
+    expect(RESET_CONFIRM.title.length).toBeLessThanOrEqual(perLine)
+    for (const label of [RESET_CONFIRM.button, RESET_CONFIRM.cancel, RESET_CONFIRM.confirm]) {
+      expect(label.length).toBeGreaterThan(0)
+      // The corner button carries `button` at the 11px face inside 60px.
+      expect(label.length * 11).toBeLessThanOrEqual(LAYOUT.reset.w)
+    }
   })
 
   // The ? card is the fifth modal, and gets the modal pair of checks.
@@ -513,6 +565,8 @@ describe('shop layout (GDD 9-3, 11-10)', () => {
     deck: { x: shelf.deck.x, y: shelf.deck.y, w: shelf.deck.w, h: shelf.deck.h },
     inventory: { x: shelf.inventory.x, y: shelf.inventory.y, w: shelf.inventory.w, h: shelf.inventory.h },
     leave: { x: shelf.leave.x, y: shelf.leave.y, w: shelf.leave.w, h: shelf.leave.h },
+    // BOOTH-7: the mid-run reset (GDD 12-2 ④), always on screen like the shelf.
+    reset: { x: shelf.reset.x, y: shelf.reset.y, w: shelf.reset.w, h: shelf.reset.h },
   }
 
   it('keeps every placed box on the plane', () => {
@@ -655,6 +709,7 @@ describe('shop layout (GDD 9-3, 11-10)', () => {
       'bubble', // 말풍선
       'nebula', // иєвυℓα
       'replace', // 별자리 교체 프롬프트
+      'reset', // 중도 리셋 버튼
     ]
 
     expect(Object.keys(SHOP_LAYOUT).sort()).toEqual([...rows].sort())

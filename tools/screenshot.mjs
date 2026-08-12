@@ -290,27 +290,36 @@ async function answerOracle(ws) {
  * иєвυℓα's head off.
  */
 async function closeUp(ws, alt, name, missing) {
+  const taken = await closeUpOf(ws, `img[alt=${JSON.stringify(alt)}]`, name, 3)
+  if (!taken) problems.push(missing)
+}
+
+/**
+ * The same, by selector and at a chosen scale — иєвυℓα's speech bubble is a `<p>`
+ * and 3× would put it past the capture width. Returns whether the element was
+ * there, so the caller decides what a miss means.
+ */
+async function closeUpOf(ws, selector, name, scale) {
   const box = await evaluate(
     ws,
     `(() => {
-       const img = document.querySelector('img[alt=${JSON.stringify(alt)}]');
-       if (!img) return null;
-       const r = img.getBoundingClientRect();
+       const el = document.querySelector(${JSON.stringify(selector)});
+       if (!el) return null;
+       const r = el.getBoundingClientRect();
        return { x: r.x, y: r.y, width: r.width, height: r.height };
      })()`,
   )
-  if (box === null) {
-    problems.push(missing)
-    return
-  }
+  if (box === null) return false
+
   const pad = 12
   await shot(ws, name, {
     x: box.x - pad,
     y: box.y - pad,
     width: box.width + pad * 2,
     height: box.height + pad * 2,
-    scale: 3,
+    scale,
   })
+  return true
 }
 
 /**
@@ -424,6 +433,52 @@ async function buySpecials(ws) {
   await sleep(400)
 }
 
+/**
+ * The banner a run ends on (GDD 12-2 ④), whichever way it ended.
+ *
+ * The heading is checked before the shot: the two outcomes are the same box with
+ * different words in it, so a run that ended the other way would otherwise be
+ * filed under the wrong name and nobody would be able to tell from the PNG.
+ */
+async function endScreen(ws, name, heading) {
+  const text = await evaluate(ws, `document.body.innerText.replace(/\\s+/g, ' ')`)
+  if (!text.includes(heading)) {
+    problems.push(`${name}: the run did not end on "${heading}" — showing: ${text.slice(0, 200)}`)
+    return
+  }
+  // BOOTH-7 put the vote line on both banners. It is the last thing the run says
+  // and the only thing it ever asks for, so a banner without it is the failure.
+  if (!text.includes('투표')) problems.push(`${name}: the banner does not mention the vote`)
+  await shot(ws, name)
+}
+
+/**
+ * A second run, given up on: five turns ended without a chip placed scores
+ * nothing, and nothing misses round 1's target. It is the only way to photograph
+ * the game-over banner, since the pinned seed clears every round it plays.
+ */
+async function forfeitRun(ws) {
+  await evaluate(ws, `location.href = ${JSON.stringify(`${APP}?seed=${SEED}`)}`)
+  await sleep(2500)
+  await evaluate(ws, HELPERS)
+  await evaluate(ws, `document.querySelector('[data-choice="starting"]')?.click()`)
+  await sleep(300)
+  await evaluate(ws, `window.__t('시작')?.click()`)
+  await sleep(1500)
+
+  for (let turn = 0; turn < 5; turn++) {
+    await sleep(600)
+    await answerWager(ws)
+    await evaluate(ws, `window.__t('턴 종료')?.click()`)
+    await sleep(700)
+    await evaluate(ws, `(window.__t('건너뛰기') ?? window.__t('다음 턴'))?.click()`)
+    await sleep(300)
+    await evaluate(ws, `window.__t('다음 턴')?.click()`)
+    await sleep(500)
+  }
+  await sleep(1000)
+}
+
 async function playRound(ws, reportShot) {
   for (let turn = 0; turn < 5; turn++) {
     await sleep(700)
@@ -512,6 +567,27 @@ async function playToSecondShop(ws) {
   await evaluate(ws, `window.__t('닫기')?.click()`)
   await sleep(400)
 
+  // The mid-run reset (GDD 12-2 ④, BOOTH-7). Photographed on a live board rather
+  // than on an empty one, because what the confirmation is asking about is the
+  // run behind it. Backed out of afterwards — the rest of this file needs the run.
+  await evaluate(ws, `document.querySelector('[data-reset="open"]')?.click()`)
+  await sleep(500)
+  if (!(await evaluate(ws, `!!document.querySelector('[data-panel="reset"]')`))) {
+    problems.push('the reset confirmation did not open')
+  } else {
+    await shot(ws, 'reset-confirm')
+  }
+  await evaluate(ws, `window.__t('계속하기')?.click()`)
+  await sleep(400)
+  if (await evaluate(ws, `!!document.querySelector('[data-panel="reset"]')`)) {
+    problems.push('the reset confirmation would not close')
+  }
+  // Backing out must leave the run exactly where it was, which is the whole
+  // reason the confirmation exists.
+  if (!(await evaluate(ws, `!!window.__t('턴 종료')`))) {
+    problems.push('cancelling the reset left the play screen')
+  }
+
   // ORION at 3×, so the sprite BOOTH-6c drew is reviewable at the size the three
   // approval criteria are judged at — brightness order, anatomy, and the value gaps
   // between parts (GDD 11-8). This one is `calm`; the other three faces are on the
@@ -536,6 +612,21 @@ async function playToSecondShop(ws) {
 
   if (!(await playRound(ws, 'report-round1'))) problems.push('round 1 did not end in the shop')
   await shot(ws, 'shop')
+
+  // GDD 13-4: the first shop visit is the one that hands the drifter over, and
+  // BOOTH-7 gave иєвυℓα a line for it — she opens on the gift instead of on the
+  // usual greeting. Read before it is photographed, because a bubble with the
+  // wrong line in it looks exactly like a bubble with the right one.
+  const greeting = await evaluate(
+    ws,
+    `document.querySelector('[data-panel="nebula"]')?.textContent ?? ''`,
+  )
+  if (!greeting.includes('떠돌이')) {
+    problems.push(`the first shop did not open on the drifter's line — said: ${greeting}`)
+  } else {
+    await closeUpOf(ws, '[data-panel="nebula"]', 'shop-gift', 2)
+  }
+
   await buySpecials(ws)
 
   // A constellation costs 10 and round 1 pays 6–11, so a second round is what
@@ -599,6 +690,14 @@ async function main() {
   await sleep(1500)
   await playRound(ws, 'report-round3')
 
+  // The two end screens (GDD 12-4, BOOTH-7). Both carry the vote line, which is
+  // the one thing the run says about the thing the booth is actually scored on
+  // (GDD 12-1) — and the two are worded differently, so both have to be looked at.
+  await sleep(600)
+  await endScreen(ws, 'end-cleared', '전 라운드 클리어')
+  await forfeitRun(ws)
+  await endScreen(ws, 'end-gameover', '게임 오버')
+
   // GDD 11-8's four expressions, from the sprite gallery — the play screen shows one
   // at a time, so this is the only place they can be compared. Last, because loading
   // `#gallery` throws the run away.
@@ -658,6 +757,13 @@ async function main() {
     if (!written.has(`coach-${step}`)) problems.push(`coach-${step}.png was never reached`)
   }
   if (!written.has('help')) problems.push('help.png was never reached')
+
+  // BOOTH-7 (GDD 12-2 ④, 12-4, 13-4). The reset confirmation, the drifter's line
+  // on the first shop visit, and the two end banners — none of which any test can
+  // photograph, and three of which a booth participant meets exactly once.
+  for (const name of ['reset-confirm', 'shop-gift', 'end-cleared', 'end-gameover']) {
+    if (!written.has(name)) problems.push(`${name}.png was never reached`)
+  }
 
   // ORION's sprite and his four faces (GDD 11-8, BOOTH-6c). The sprite is the one
   // deliverable here that only an image can settle.

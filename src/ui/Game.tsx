@@ -25,6 +25,7 @@ import { Hand, HandCount } from './Hand'
 import { OraclePanel } from './Oracle'
 import { OrionBubble, OrionSprite, useOrion } from './Orion'
 import { ReportPanel } from './Report'
+import { ResetButton, ResetConfirm } from './Reset'
 import { StarChart } from './StarChart'
 import { WagerPanel } from './Wager'
 import { usePrefersReducedMotion } from './motion'
@@ -40,7 +41,40 @@ import {
 /** How long "칩을 섞는 중…" holds before the hand flies in. */
 const SHUFFLE_MS = 550
 
-function Banner({ title, note, action }: { title: string; note: string; action: () => void }) {
+/**
+ * The vote line on the end screen (GDD 12-4).
+ *
+ * GDD 12-1 makes throughput the score — GBL is ranked by the participants' vote,
+ * so a run that ends without ever mentioning the vote spends twenty-eight minutes
+ * of somebody's attention and then asks for nothing. This is the one place the
+ * game asks.
+ *
+ * ⚠️ **PLACEHOLDER — the wording is not final.** The vote mechanism itself is not
+ * decided yet, so what is here holds the slot and the layout; the real copy is the
+ * author's to write. No QR code, deliberately: there is nothing to point one at.
+ *
+ * The two outcomes read differently on purpose, and only in the half before the
+ * ask. GDD 12-4 says a participant who fails and leaves costs a vote, so on a loss
+ * the line has work to do that it does not have on a clear — it has to close the
+ * run without the ask reading as "you lost, now vote for us". The ask itself is
+ * the same sentence in both.
+ */
+export const VOTE_NOTE: Readonly<Record<'cleared' | 'gameOver', string>> = {
+  cleared: '재미있었다면 부스에서 투표해 주세요.',
+  gameOver: '여기까지 온 것으로 충분합니다. 부스에서 투표해 주세요.',
+}
+
+function Banner({
+  title,
+  note,
+  vote,
+  action,
+}: {
+  title: string
+  note: string
+  vote: string
+  action: () => void
+}) {
   return (
     <div
       className="flex w-80 flex-col gap-3 rounded p-5 text-center"
@@ -51,6 +85,11 @@ function Banner({ title, note, action }: { title: string; note: string; action: 
       </h2>
       <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
         {note}
+      </p>
+      {/* GDD 12-4. In amber rather than the note's grey: it is an ask, not part of
+          the result, and it is the last thing the run says. */}
+      <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.nebulaAmber }}>
+        {vote}
       </p>
       {/* GDD 12-2 ④: one click resets the machine for the next participant. It
           returns to the title rather than restarting in place, because the mode
@@ -99,6 +138,7 @@ export function Game() {
   const [speed, setSpeed] = useState(0)
   const [shuffling, setShuffling] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
 
   const steps = useMemo(() => (settlement === null ? [] : stepsOf(settlement)), [settlement])
   const lit = useMemo(() => litCells(steps[step]), [steps, step])
@@ -140,6 +180,19 @@ export function Game() {
   useEffect(() => {
     if (settlement !== null) speak('settling')
   }, [settlement, speak])
+
+  // GDD 11-8's `placed`, which had five lines and no caller until BOOTH-7.
+  //
+  // `staged` is the turn's placements, so a chip landing is the list getting
+  // longer — and only that. It is emptied rather than shortened when the turn is
+  // committed (`settleTurn`) and when the next hand is dealt, so comparing
+  // against the previous length is what separates a placement from a reset.
+  const placedCount = staged.length
+  const placedBefore = useRef(0)
+  useEffect(() => {
+    if (placedCount > placedBefore.current) speak('placed')
+    placedBefore.current = placedCount
+  }, [placedCount, speak])
 
   const settledOnce = useRef<object | null>(null)
   useEffect(() => {
@@ -468,6 +521,26 @@ export function Game() {
         />
       )}
 
+      {/* GDD 12-2 ④: the way out of a run that is being abandoned, so the machine
+          is ready for the next participant without the operator walking over. It
+          is beside the ? and asks before it acts (Reset.tsx). Hidden once the run
+          is over — the banner behind it already offers 타이틀로, and two buttons
+          for one action on one screen is a question the participant has to answer
+          rather than a way out. */}
+      {!over && (
+        <At x={LAYOUT.reset.x} y={LAYOUT.reset.y} z={40}>
+          <ResetButton onOpen={() => setResetOpen(true)} />
+        </At>
+      )}
+
+      {resetOpen && (
+        <ResetConfirm
+          reduced={reduced}
+          onCancel={() => setResetOpen(false)}
+          onConfirm={toTitle}
+        />
+      )}
+
       {over && (
         <At x={CANVAS_WIDTH / 2} y={220} centre z={30}>
           <Banner
@@ -478,6 +551,7 @@ export function Game() {
                 : `라운드 ${game.round}에서 목표 ${game.targetScore.toLocaleString('ko-KR')}점에 ` +
                   `${game.roundScore.toLocaleString('ko-KR')}점으로 미달했습니다.`
             }
+            vote={cleared ? VOTE_NOTE.cleared : VOTE_NOTE.gameOver}
             action={toTitle}
           />
         </At>

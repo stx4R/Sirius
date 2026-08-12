@@ -31,6 +31,9 @@ const SPEECH_SEED_OFFSET = 0x2eb0
  */
 const MOOD_OF: Readonly<Record<ShopBeat, NebulaMood>> = {
   enter: 'idle',
+  // Handing the drifter over is a transaction as far as she is concerned
+  // (GDD 13-4), so the hood lights the way it does on a sale.
+  gift: 'dealt',
   bought: 'dealt',
   reroll: 'keen',
   broke: 'idle',
@@ -44,13 +47,19 @@ export interface Nebula {
   readonly speak: (beat: ShopBeat) => void
 }
 
-export function useNebula(seed: number): Nebula {
+/**
+ * `opening` is the beat she greets this visit with. It is a parameter rather
+ * than always `enter` because the first visit is the one that hands the drifter
+ * over (GDD 13-4), and that has to be said as the screen opens — a greeting
+ * followed by an explanation would be two bubbles for one arrival.
+ */
+export function useNebula(seed: number, opening: ShopBeat): Nebula {
   const rng = useMemo(() => mulberry32(seed ^ SPEECH_SEED_OFFSET), [seed])
   // Drawn from the same generator every later line comes from, so a visit has one
   // reproducible stream rather than two that start on the same value.
   const [state, setState] = useState(() => ({
-    line: shopLineFor('enter', rng),
-    mood: MOOD_OF.enter,
+    line: shopLineFor(opening, rng),
+    mood: MOOD_OF[opening],
   }))
 
   const speak = useCallback(
@@ -86,6 +95,9 @@ export function NebulaBubble({
   return (
     <div className="relative" style={{ width, height }}>
       <motion.p
+        // `npm run shot` reads this to check the first visit really opened on the
+        // drifter's line rather than on the usual greeting (GDD 13-4).
+        data-panel="nebula"
         key={line}
         initial={reduced ? false : { y: 8 }}
         animate={{ y: 0 }}

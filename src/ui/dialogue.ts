@@ -86,7 +86,7 @@ export function lineFor(beat: Beat, rng: Rng): string {
 // player's and the game does not pretend otherwise. If a line ever reads as
 // pressure rather than patter, it belongs to the wrong character.
 
-export type ShopBeat = 'enter' | 'bought' | 'reroll' | 'broke' | 'locked' | 'leave'
+export type ShopBeat = 'enter' | 'gift' | 'bought' | 'reroll' | 'broke' | 'locked' | 'leave'
 
 export const NEBULA_LINES: Readonly<Record<ShopBeat, readonly string[]>> = {
   enter: [
@@ -95,6 +95,22 @@ export const NEBULA_LINES: Readonly<Record<ShopBeat, readonly string[]>> = {
     '자네가 올 줄 알았지',
     '구경은 공짜야. 손해 볼 것 없지 않나',
     '오늘은 뭘 가져갈 텐가',
+  ],
+  // GDD 13-4: the drifter is not sold, it is handed over on the first visit
+  // (`openShop`). She opens on this instead of on `enter` that once, because a
+  // chip appearing in the deck with nobody saying so is a chip the player finds
+  // out about when it is already on the board.
+  //
+  // Every line has to carry the same one fact — that the thing is judged by the
+  // suits next to it (GDD 3-3) — since the beat fires once and whichever line
+  // comes up is the only explanation there will be. She still sells it to them:
+  // giving something away for nothing is the last thing this character would
+  // admit to doing, so each line finds an angle on it.
+  gift: [
+    '떠돌이 하나 얹어 주지. 옆에 놓인 칩의 문양을 따라가는 녀석일세',
+    '떠돌이는 값을 안 받겠네. 붙여 놓는 문양대로 판정되는 조각일세',
+    '선물이야, 놀랐나. 제 문양이 없어서 옆자리를 빌려 쓰는 떠돌이라네',
+    '덱에 떠돌이를 한 장 넣어 뒀네. 인접한 칩의 문양으로 판정되지',
   ],
   bought: [
     '좋은 눈이야',

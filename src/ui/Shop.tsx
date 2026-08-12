@@ -42,6 +42,7 @@ import { ConstellationCard } from './ConstellationCard'
 import { Stardust } from './HUD'
 import { NebulaBubble, NebulaName, NebulaSprite, useNebula } from './Nebula'
 import { PixelSprite } from './PixelSprite'
+import { ResetButton, ResetConfirm } from './Reset'
 import { usePrefersReducedMotion } from './motion'
 
 /** GDD 7-1's Korean tier names. UI text, so it stays out of config (CLAUDE.md §11). */
@@ -587,13 +588,28 @@ function ReplacePrompt({
 export function Shop() {
   const game = useGame((state) => state.game)
   const seed = useGame((state) => state.seed)
-  const { buyItem, rerollStock, leaveShop } = useGame.getState()
+  const { buyItem, rerollStock, leaveShop, toTitle } = useGame.getState()
 
   const reduced = usePrefersReducedMotion()
-  const nebula = useNebula(seed)
+
+  /**
+   * GDD 13-4: the drifter is handed over on the way into the *first* shop, inside
+   * `openShop`, and a chip appearing in the deck with nobody saying so leaves the
+   * player to notice it on their own. So she opens on the gift instead of on the
+   * usual greeting, and says in one line what the thing does.
+   *
+   * Which visit that is comes from state the screen already has rather than from
+   * a flag core would have to carry: the shop is only ever entered after a round
+   * has been cleared, so round 2 *is* the first visit. `drifterOwned` is in the
+   * test as well, so if the gift ever moves the line follows it rather than
+   * staying pinned to a round number.
+   */
+  const gifted = game.drifterOwned && game.round === 2
+  const nebula = useNebula(seed, gifted ? 'gift' : 'enter')
 
   /** The card waiting for something to be dropped for it. Presentation only. */
   const [replacing, setReplacing] = useState<ConstellationId | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
 
   const stock = game.stock
   const layout = SHOP_LAYOUT
@@ -809,6 +825,21 @@ export function Shop() {
           라운드 {game.round} 시작
         </button>
       </At>
+
+      {/* GDD 12-2 ④: the same way out the play screen has, at the same coordinate
+          — a run is abandoned as readily between rounds as during one, and the
+          operator's problem is the same either way (Reset.tsx). */}
+      <At x={layout.reset.x} y={layout.reset.y} z={40}>
+        <ResetButton onOpen={() => setResetOpen(true)} />
+      </At>
+
+      {resetOpen && (
+        <ResetConfirm
+          reduced={reduced}
+          onCancel={() => setResetOpen(false)}
+          onConfirm={toTitle}
+        />
+      )}
 
       {replacing !== null && (
         <>

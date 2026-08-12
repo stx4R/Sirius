@@ -45,12 +45,32 @@ describe("ORION's lines", () => {
 
 describe("иєвυℓα's lines", () => {
   it('answers every beat the shop can reach, with something to vary between', () => {
-    const beats: ShopBeat[] = ['enter', 'bought', 'reroll', 'broke', 'locked', 'leave']
+    const beats: ShopBeat[] = ['enter', 'gift', 'bought', 'reroll', 'broke', 'locked', 'leave']
 
     expect(SHOP_BEATS.sort()).toEqual([...beats].sort())
     for (const beat of beats) {
       expect(NEBULA_LINES[beat].length).toBeGreaterThan(1)
       expect(new Set(NEBULA_LINES[beat]).size).toBe(NEBULA_LINES[beat].length)
+    }
+  })
+
+  // BOOTH-7. The drifter is handed over rather than sold (GDD 13-4), and this
+  // beat fires exactly once in a run — so whichever line comes up is the only
+  // explanation of the chip the player will ever get. Every one of them has to
+  // say what it does, which by GDD 3-3 is: it is judged by the suits beside it.
+  it('says what the drifter does in every line that gives it away', () => {
+    for (const line of NEBULA_LINES.gift) {
+      // Named as well as explained: a line that describes the chip without saying
+      // which of the six on screen it is describes nothing. It is also what
+      // `npm run shot` reads to prove the beat fired at all, since no other line
+      // in her bank says the word.
+      expect(line, line).toContain('떠돌이')
+      expect(line, line).toContain('문양')
+      // Her bubble is 256×104 (GDD 11-10) at the 14px face, which is ~16 glyphs a
+      // line and four lines of room. 40 characters is three of them with slack;
+      // a longer line is one the box clips, and a clipped explanation of the only
+      // chip nobody bought reads as no explanation at all.
+      expect(line.length, line).toBeLessThanOrEqual(40)
     }
   })
 

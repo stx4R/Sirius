@@ -16,9 +16,11 @@ import {
   TURNS_PER_ROUND,
 } from './config'
 import type { MultiplierStackMode } from './config'
-import { createInitialDeck, drawFromDeck, returnToDeck } from './deck'
+import { countDeck, createInitialDeck, drawFromDeck, returnToDeck } from './deck'
 import { generateOracle } from './oracle'
 import type { OracleQuestion } from './oracle'
+import { buildReport } from './report'
+import type { RoundPopulation, RoundReport } from './report'
 import { shuffle } from './rng'
 import type { Rng } from './rng'
 import { randomDrifterChooser, scoreBoard } from './scoring'
@@ -76,6 +78,15 @@ export interface Game extends GameState {
    * out to score and that is not known until the board is settled (GDD 8-3).
    */
   readonly oracleCorrect: boolean
+  /**
+   * The deck each round was dealt from, one entry per round started (GDD 8-4).
+   *
+   * Counts, not chips. The report compares every round's draws against the deck
+   * *that* round held, and the shop edits the deck in between — measuring an
+   * early round against a later deck is off by about two thirds of the sampling
+   * spread the report exists to teach.
+   */
+  readonly populations: readonly RoundPopulation[]
   /**
    * The target curve in force, one entry per round. Defaults to the mode preset;
    * P2 injects candidate curves so a new one can be measured without editing
@@ -163,6 +174,7 @@ export function fromLoadout(
     pendingWager: null,
     pendingOracle: null,
     oracleCorrect: false,
+    populations: [],
     round: 1,
     turn: 1,
     roundScore: 0,
@@ -185,6 +197,18 @@ export function startRound(game: Game): Game {
     targetScore: game.targets[game.round - 1],
     rerollsUsed: 0,
     stock: null,
+    // GDD 8-4: the population this round's draws are a sample of, recorded here
+    // because this is the moment it is fixed — the shop cannot reach it again
+    // until the round is over. Counting a deck spends no randomness and touches
+    // no score, so the shuffle above still deals what it always dealt.
+    populations: [
+      ...game.populations,
+      {
+        round: game.round,
+        size: game.ownedDeck.length,
+        bySuit: countDeck(game.ownedDeck).bySuit,
+      },
+    ],
     phase: 'draw',
   }
 }
@@ -265,6 +289,27 @@ export function endRound(game: Game): Game {
     return { ...game, stardust, status: 'cleared', phase: 'over' }
   }
   return { ...game, stardust, round: game.round + 1, phase: 'shop' }
+}
+
+/**
+ * GDD 8-4: the report on the round that just ended.
+ *
+ * Takes the game as it stood **before `endRound`**, which is where the round
+ * number, its score and its target still are — `endRound` moves the counter on,
+ * the same trap the settlement screen works around for the turn (GDD 4-1).
+ *
+ * It must also be built before `openShop`: that hands over the drifter (GDD
+ * 13-4) and so edits the very deck this round's draws were a sample of.
+ */
+export function roundReport(game: Game): RoundReport {
+  return buildReport({
+    round: game.round,
+    score: game.roundScore,
+    target: game.targetScore,
+    populations: game.populations,
+    draws: game.drawHistory,
+    wagers: game.wagerHistory,
+  })
 }
 
 /** GDD 13-4: the first visit to иєвυℓα is where the drifter is handed over. */

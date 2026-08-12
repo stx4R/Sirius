@@ -41,6 +41,16 @@ function newGame(seed: number): void {
   answerWager()
 }
 
+/**
+ * Closes the settlement, and the round report behind it when the round just
+ * ended — GDD 8-4 puts CONSTELLATION LOG between the round and the shop, so from
+ * BOOTH-5 dismissing the settlement no longer walks straight into иєвυℓα.
+ */
+function dismiss(): void {
+  store().dismissSettlement()
+  if (store().report !== null) store().dismissReport()
+}
+
 /** First empty cell in reading order. */
 function firstFree(): Position | null {
   const { board } = store().game
@@ -154,7 +164,7 @@ describe('turn and round', () => {
       expect(settlement.turn).toBe(turn)
       expect(store().game.turn).toBe(turn + 1)
 
-      store().dismissSettlement()
+      dismiss()
     }
   })
 
@@ -164,7 +174,7 @@ describe('turn and round', () => {
     store().commitTurn()
     expect(store().settlement!.roundScoreBefore).toBe(0)
 
-    store().dismissSettlement()
+    dismiss()
     const carried = store().game.roundScore
 
     placeChips(MAX_PLACEMENTS_PER_TURN)
@@ -182,7 +192,7 @@ describe('turn and round', () => {
       expect(store().game.turn).toBe(turn + 1)
       placeChips(MAX_PLACEMENTS_PER_TURN)
       store().commitTurn()
-      store().dismissSettlement()
+      dismiss()
     }
 
     // Five turns of four chips fill twenty of the twenty-five cells (GDD 4-2),
@@ -218,7 +228,7 @@ describe('turn and round', () => {
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
       placeChips(MAX_PLACEMENTS_PER_TURN)
       store().commitTurn()
-      store().dismissSettlement()
+      dismiss()
     }
 
     // The gift is `openShop`'s, so it happens as the screen opens rather than
@@ -232,7 +242,7 @@ describe('turn and round', () => {
     // Nothing placed for five turns scores nothing, which cannot reach round 1.
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
       store().commitTurn()
-      store().dismissSettlement()
+      dismiss()
     }
 
     expect(store().game.status).toBe('gameOver')
@@ -250,7 +260,7 @@ describe('the shop (GDD 9-3)', () => {
     for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
       placeChips(MAX_PLACEMENTS_PER_TURN)
       store().commitTurn()
-      store().dismissSettlement()
+      dismiss()
     }
     expect(store().game.phase).toBe('shop')
     store().devSet((game) => ({ ...game, stardust }))
@@ -444,14 +454,14 @@ describe('the title screen starts the run (GDD 12-3, 13-5)', () => {
     store().startRun({ mode: 'booth', starting: STARTING_CONSTELLATION_CHOICES[0] })
     atFinalTurnOf(booth)
     store().commitTurn()
-    store().dismissSettlement()
+    dismiss()
 
     expect(store().game.status).toBe('cleared')
 
     store().startRun({ mode: 'full', starting: STARTING_CONSTELLATION_CHOICES[0] })
     atFinalTurnOf(booth)
     store().commitTurn()
-    store().dismissSettlement()
+    dismiss()
 
     // Same round, same score, longer mode — so it is the shop, not the end.
     expect(store().game.status).toBe('playing')
@@ -545,5 +555,95 @@ describe('DRIFT ORACLE (GDD 8-3)', () => {
 
     expect(store().game.pendingOracle).toBeNull()
     expect(store().settlement).not.toBeNull()
+  })
+})
+
+// BOOTH-5: GDD 4-1 puts CONSTELLATION LOG between the round and the shop, so
+// the store has one more thing that holds иєвυℓα back — and it has to be built
+// before `openShop`, which hands over the drifter and edits the deck the report
+// is about (GDD 13-4).
+describe('CONSTELLATION LOG (GDD 8-4)', () => {
+  /** Plays a whole round without letting the walk past the settlement. */
+  function playRound(): void {
+    for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
+      placeChips(MAX_PLACEMENTS_PER_TURN)
+      store().commitTurn()
+      if (turn < TURNS_PER_ROUND - 1) dismiss()
+    }
+    store().dismissSettlement()
+  }
+
+  it('stands between the round and the shop', () => {
+    newGame(7)
+    playRound()
+
+    expect(store().report).not.toBeNull()
+    // Core has ended the round, but the shelf has not been rolled yet.
+    expect(store().game.phase).toBe('shop')
+    expect(store().game.stock).toBeNull()
+
+    store().dismissReport()
+
+    expect(store().report).toBeNull()
+    expect(store().game.stock).not.toBeNull()
+  })
+
+  // `openShop` hands the drifter over (GDD 13-4). If the report were built after
+  // it, round 1 would be measured against a deck round 1 never held.
+  it('is measured against the deck the round was actually dealt from', () => {
+    newGame(7)
+    playRound()
+
+    const { report } = store()
+    expect(report!.population.round).toBe(1)
+    expect(report!.population.size).toBe(store().game.ownedDeck.length)
+
+    store().dismissReport()
+
+    // The gift landed on the way into the shop, so the deck has moved on and the
+    // figure the report was built from has not.
+    expect(store().game.ownedDeck.length).toBeGreaterThan(report!.population.size)
+  })
+
+  it('names the round that was played, not the one core moved to', () => {
+    newGame(7)
+    playRound()
+
+    // `endRound` moved the counter to round 2 before the report was built.
+    expect(store().game.round).toBe(2)
+    expect(store().report!.round).toBe(1)
+    // And the score it reports is round 1's, which `startRound` has not cleared
+    // yet — the shop stands between the report and the next round.
+    expect(store().report!.score).toBeGreaterThanOrEqual(store().report!.target)
+  })
+
+  it('counts the round it reports on and the run so far separately', () => {
+    newGame(7)
+    playRound()
+    const first = store().report!
+    store().dismissReport()
+
+    expect(first.thisRound.cards).toBe(first.cumulative.cards)
+    expect(first.series).toHaveLength(1)
+
+    store().leaveShop()
+    playRound()
+    const second = store().report!
+
+    expect(second.round).toBe(2)
+    expect(second.cumulative.cards).toBeGreaterThan(second.thisRound.cards)
+    expect(second.series.map((point) => point.round)).toEqual([1, 2])
+  })
+
+  // GDD 8-4 shows the report on a clear. A run that ended goes to the banner.
+  it('is not shown when the round missed its target', () => {
+    newGame(7)
+    for (let turn = 0; turn < TURNS_PER_ROUND; turn++) {
+      store().commitTurn()
+      store().dismissSettlement()
+    }
+
+    expect(store().game.status).toBe('gameOver')
+    expect(store().report).toBeNull()
   })
 })

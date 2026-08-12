@@ -96,6 +96,20 @@ export const LAYOUT = {
    * holds the sum.
    */
   oracle: { x: 200, y: 95, w: 720, h: 440, row: 22 },
+
+  /**
+   * CONSTELLATION LOG (GDD 8-4), the third modal on this screen and much the
+   * largest — it is a whole screen's worth of reading, shown once a round rather
+   * than once a turn.
+   *
+   * Two columns, because one will not fit: the five suit bars and the
+   * convergence series alone run past 350px, and the round summary, the wager
+   * line and the three teaching sentences have to sit beside them rather than
+   * under them. `series` is the row height of the convergence list, which is one
+   * row per round played — eight in a full run (GDD 12-3), the figure `h` is
+   * sized against.
+   */
+  report: { x: 80, y: 75, w: 960, h: 480, row: 28, series: 22 },
 } as const
 
 /** GDD 3-3: four neighbours is ₄C₃ = 4 readings, and nothing produces more. */

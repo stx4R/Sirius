@@ -238,7 +238,73 @@ async function answerOracle(ws) {
   await sleep(600)
 }
 
-async function playRound(ws) {
+/**
+ * CONSTELLATION LOG (GDD 8-4) closes a round, and иєвυℓα waits behind it. Two of
+ * them are photographed — the first round, where the convergence list is a
+ * single point and there is nothing to compare against yet, and the last, where
+ * three rounds of it are stacked up. They are the two states of the same screen
+ * that had to be reviewed side by side.
+ */
+async function closeReport(ws, name) {
+  const present = await evaluate(ws, `!!document.querySelector('[data-panel="report"]')`)
+  if (!present) {
+    // What is on screen instead, because "it did not open" alone cannot tell a
+    // missed target from a broken dismissal.
+    const showing = await evaluate(ws, `document.body.innerText.replace(/\\s+/g, ' ').slice(0, 200)`)
+    problems.push(`the round-end report did not open${name ? ` (${name})` : ''} — showing: ${showing}`)
+    return false
+  }
+
+  const fit = await evaluate(
+    ws,
+    `(() => {
+       const el = document.querySelector('[data-panel="report"]');
+       return { scroll: el.scrollHeight, client: el.clientHeight };
+     })()`,
+  )
+  if (fit.scroll > fit.client) {
+    problems.push(`the report panel clips its own content: ${fit.scroll} > ${fit.client}`)
+  }
+
+  if (name && !written.has(name)) await shot(ws, name)
+
+  await evaluate(ws, `document.querySelector('[data-panel="report"] button')?.click()`)
+  await sleep(900)
+  return true
+}
+
+/**
+ * Every special chip the purse reaches, at whichever shop is open (GDD 9-2).
+ *
+ * The tool places into the first free cell, which builds no run of one suit and
+ * fires no constellation at all — a full board scores 40+80+120+160+200 flat,
+ * and GDD 12-4's third booth target is 640. A special is one card judged as two
+ * suits (GDD 3-2), so each one placed is worth twice the flat rate, and buying
+ * them is what carries the run to a third round without the tool having to learn
+ * to play.
+ *
+ * Bought rather than injected through the DEV panel on purpose: a purchase lands
+ * in `ownedDeck` between rounds, so the next round's population snapshot picks it
+ * up and CONSTELLATION LOG measures each round against the deck it really had
+ * (GDD 8-4). DEV adds a chip mid-round, which the snapshot has already passed.
+ */
+async function buySpecials(ws) {
+  // Mirrors SHOP_PRICES.specialChip. Core refuses what the purse cannot reach,
+  // so clicking every one of them buys as many as are affordable and no more.
+  await evaluate(
+    ws,
+    `(async () => {
+       for (const button of [...document.querySelectorAll('button')]) {
+         if (button.textContent.trim() !== '✦ 8') continue;
+         button.click();
+         await window.__wait(220);
+       }
+     })()`,
+  )
+  await sleep(400)
+}
+
+async function playRound(ws, reportShot) {
   for (let turn = 0; turn < 5; turn++) {
     await sleep(700)
     await answerWager(ws)
@@ -253,6 +319,8 @@ async function playRound(ws) {
     await sleep(500)
   }
   await sleep(1200)
+  if (!(await closeReport(ws, reportShot))) return false
+
   // Not the shop's own title: иєвυℓα is drawn as a sprite now (GDD 11-9), so her
   // name is no longer in `innerText`. BLACK-HOLE is text, and shop-only.
   return evaluate(ws, `document.body.innerText.includes('BLACK-HOLE')`)
@@ -309,8 +377,9 @@ async function playToSecondShop(ws) {
   await evaluate(ws, `window.__t('✕')?.click()`)
   await sleep(400)
 
-  if (!(await playRound(ws))) problems.push('round 1 did not end in the shop')
+  if (!(await playRound(ws, 'report-round1'))) problems.push('round 1 did not end in the shop')
   await shot(ws, 'shop')
+  await buySpecials(ws)
 
   // A constellation costs 10 and round 1 pays 6–11, so a second round is what
   // makes the purchase — and therefore the prompt — affordable.
@@ -385,6 +454,14 @@ async function main() {
     })
   }
 
+  // The booth run is three rounds (GDD 12-3), so this is the last report there
+  // is — and the only one with a convergence list long enough to read as one.
+  // The constellation was cancelled out of above, so the purse is still full.
+  await buySpecials(ws)
+  await evaluate(ws, `window.__t('라운드 3 시작')?.click()`)
+  await sleep(1500)
+  await playRound(ws, 'report-round3')
+
   ws.close()
   chrome.kill()
 
@@ -400,6 +477,12 @@ async function main() {
   // seed all three states are reached. Missing one means the drifter stopped
   // getting placed or the modal stopped opening.
   for (const name of ['oracle', 'oracle-correct', 'oracle-wrong']) {
+    if (!written.has(name)) problems.push(`${name}.png was never reached`)
+  }
+
+  // Round 1 and round 3, so the convergence list is seen with one point and with
+  // three. Missing the second one means round 3 stopped clearing.
+  for (const name of ['report-round1', 'report-round3']) {
     if (!written.has(name)) problems.push(`${name}.png was never reached`)
   }
 

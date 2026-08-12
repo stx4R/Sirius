@@ -23,6 +23,7 @@ import type { Status } from './HUD'
 import { Hand, HandCount } from './Hand'
 import { OraclePanel } from './Oracle'
 import { OrionBubble, OrionSprite, useOrion } from './Orion'
+import { ReportPanel } from './Report'
 import { StarChart } from './StarChart'
 import { WagerPanel } from './Wager'
 import { usePrefersReducedMotion } from './motion'
@@ -73,6 +74,7 @@ export function Game() {
   const settlement = useGame((state) => state.settlement)
   const wagerResult = useGame((state) => state.wagerResult)
   const oracleResult = useGame((state) => state.oracleResult)
+  const report = useGame((state) => state.report)
   const seed = useGame((state) => state.seed)
   const {
     select,
@@ -83,6 +85,7 @@ export function Game() {
     dismissWager,
     answerOracle,
     dismissOracle,
+    dismissReport,
     newGame,
     toTitle,
   } = useGame.getState()
@@ -383,6 +386,34 @@ export function Game() {
               row={LAYOUT.oracle.row}
               onAnswer={answerOracle}
               onDismiss={dismissOracle}
+            />
+          </At>
+        </>
+      )}
+
+      {/* GDD 4-1: CONSTELLATION LOG stands between the round and the shop, and
+          GDD 8-4 shows it on a clear. Above the game-over banner's z-index is
+          not needed — a run that ended here never builds one. */}
+      {report !== null && (
+        <>
+          <At x={0} y={0} w={CANVAS_WIDTH} h={CANVAS_HEIGHT} z={60}>
+            <div className="h-full w-full" style={{ background: `${PALETTE.void}E8` }} />
+          </At>
+          <At
+            x={LAYOUT.report.x}
+            y={LAYOUT.report.y}
+            w={LAYOUT.report.w}
+            h={LAYOUT.report.h}
+            z={61}
+          >
+            <ReportPanel
+              report={report}
+              reduced={reduced}
+              width={LAYOUT.report.w}
+              height={LAYOUT.report.h}
+              row={LAYOUT.report.row}
+              series={LAYOUT.report.series}
+              onDismiss={dismissReport}
             />
           </At>
         </>

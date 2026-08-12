@@ -497,6 +497,30 @@ export const WAGER_COMPLEMENT_THRESHOLDS: readonly number[] = [0.05, 0.1, 0.25, 
 /** Correct DRIFT ORACLE answer adds this fraction to that turn's drifter score (GDD 8-3). */
 export const DRIFT_ORACLE_BONUS = 0.5
 
+// ------------------------------------------------------- CONSTELLATION LOG
+// GDD 8-4
+
+/**
+ * What a player who reads nothing and picks at random scores on the wager.
+ *
+ * Not a balance knob — it follows from the wager being one of two answers
+ * (GDD 8-2), and `generateWager` picking the side it wants first, which balances
+ * YES and NO by construction. It is here rather than in the report so that a
+ * wager with a third answer could not leave the baseline behind.
+ */
+export const WAGER_GUESS_RATE = 0.5
+
+/**
+ * How wide "the range a sample this size usually lands in" is drawn, in standard
+ * deviations (GDD 8-4). Two of them is about 95 in 100.
+ *
+ * A display choice, not a balance one: it decides how forgiving the band on the
+ * report looks, and nothing about the game. It is deliberately generous — the
+ * report's job is to stop a middle schooler reading an ordinary gap as a broken
+ * theory, so a band that is slightly too wide fails in the safe direction.
+ */
+export const REPORT_BAND_SIGMA = 2
+
 // ---------------------------------------------------------------- modes
 // GDD 10, 12-3, 12-4
 

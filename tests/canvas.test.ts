@@ -15,6 +15,7 @@ import {
   OWNED_CONSTELLATION_LIMIT,
   STARTING_CONSTELLATION_CHOICES,
 } from '../src/core/config'
+import { SUIT_ORDER } from '../src/core/types'
 
 describe('canvas scale (GDD 11-10)', () => {
   // CLAUDE.md §7 allows integer scaling only: a 32×32 chip drawn at 1.22× lands
@@ -261,6 +262,65 @@ describe('canvas layout (GDD 11-10)', () => {
 
   it('places the oracle on whole pixels', () => {
     for (const value of Object.values(LAYOUT.oracle)) {
+      expect(Number.isInteger(value)).toBe(true)
+    }
+  })
+
+  // BOOTH-5: CONSTELLATION LOG (GDD 8-4) is the third modal, and the largest.
+  // Same two checks as the other two — on the plane, content inside it.
+  it('centres the report on the plane and keeps it inside', () => {
+    const panel = LAYOUT.report
+
+    expect(panel.x + panel.w / 2).toBe(CANVAS_WIDTH / 2)
+    expect(panel.y + panel.h / 2).toBe(CANVAS_HEIGHT / 2)
+    expect(panel.x).toBeGreaterThanOrEqual(0)
+    expect(panel.y).toBeGreaterThanOrEqual(0)
+    expect(panel.x + panel.w).toBeLessThanOrEqual(CANVAS_WIDTH)
+    expect(panel.y + panel.h).toBeLessThanOrEqual(CANVAS_HEIGHT)
+  })
+
+  // The tallest the right-hand column gets is a full run: five suit rows, then
+  // one convergence row per round played. Eight rounds is the longest mode
+  // (GDD 12-3), so that is the case the height has to hold.
+  it('holds five suit rows and a convergence row per round of the longest run', () => {
+    const panel = LAYOUT.report
+    const PADDING = 20 * 2
+    const GAPS = 12 * 3
+    const HEADER = 14
+    const SUIT_HEADER = 16
+    const SUITS = panel.row * SUIT_ORDER.length
+    const SERIES_HEADER = 16
+    const SERIES = panel.series * MODE_PRESETS.full.TOTAL_ROUNDS
+    const BUTTON = 40
+
+    expect(
+      HEADER + SUIT_HEADER + SUITS + SERIES_HEADER + SERIES + BUTTON + GAPS + PADDING,
+    ).toBeLessThanOrEqual(panel.h)
+  })
+
+  // The left column carries the round summary, the wager line and the three
+  // teaching sentences; the right carries the bars. They sit side by side, so
+  // the two columns plus the gap have to fit the width.
+  it('fits both columns of the report across it', () => {
+    const panel = LAYOUT.report
+    const PADDING = 20 * 2
+    const COLUMN_GAP = 20
+    const LEFT = 360
+    // Suit code, the 240px track, and the "24 / 20.0" figure beside it.
+    const RIGHT = 36 + 240 + 96 + 8 * 2
+
+    expect(LEFT + COLUMN_GAP + RIGHT).toBeLessThanOrEqual(panel.w - PADDING)
+  })
+
+  // It covers the whole play screen rather than sitting in a gap, so it is the
+  // largest of the three modals and the one that decides how much is hidden.
+  it('is the largest of the three modals', () => {
+    expect(LAYOUT.report.w).toBeGreaterThan(LAYOUT.oracle.w)
+    expect(LAYOUT.report.h).toBeGreaterThan(LAYOUT.oracle.h)
+  })
+
+  it('places the report on whole pixels', () => {
+    for (const value of Object.values(LAYOUT.report)) {
       expect(Number.isInteger(value)).toBe(true)
     }
   })

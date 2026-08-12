@@ -25,9 +25,15 @@ const subscribe = (onChange: () => void) => {
 function Play() {
   const started = useGame((state) => state.started)
   const phase = useGame((state) => state.game.phase)
+  // GDD 4-1 puts CONSTELLATION LOG *between* the round and the shop, so the
+  // round's own screen stays up under it — `endRound` has already moved the
+  // phase to 'shop', and switching on that alone would swap the board out from
+  // behind a report that is about the board (GDD 8-4). `dismissReport` is what
+  // opens the shop.
+  const reporting = useGame((state) => state.report !== null)
 
   if (!started) return <Title />
-  return phase === 'shop' ? <Shop /> : <Game />
+  return phase === 'shop' && !reporting ? <Shop /> : <Game />
 }
 
 /** The game is the app; `#gallery` reaches the P3-A sprite sheet for inspection. */

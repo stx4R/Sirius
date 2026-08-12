@@ -168,6 +168,10 @@ npm run shot -- shots  # 다른 쪽. shots/ 는 gitignore 대상
 그 다음 `P5` 학습 레이어(8절).
 - **STAR-CHART(8-1)**: `countDeck`이 이미 문양별 장수를 준다. 남은 것은 확률 표시와
   상점 덱 패널 자리에 얹는 일. GDD 8-1이 "BLACK-HOLE 옆"을 요구하므로 자리는 잡혀 있다.
+- ~~**CONSTELLATION LOG(8-4)**~~: ✅ **BOOTH-5에서 끝났다.** `core/report.ts`가 라운드별·누적을
+  집계하고 `ui/Report.tsx`가 그린다. **모집단은 라운드마다 `startRound`이 스냅샷한다**
+  (`Game.populations`) — 현재 덱으로 퉁치면 편향이 표본 흔들림의 0.7배라 실측으로 기각했다.
+  단위는 **카드**이며 8-1의 `observedChances`(손패 단위)와 **한 화면에 섞지 않는다.**
 - ~~**DRIFT ORACLE(8-3)**~~: ✅ **BOOTH-4b에서 출제까지 끝났다.** `core/oracle.ts`가 경우를
   열거하고(`byCell`로 각 경우의 점수를 읽는다), `ui/Oracle.tsx`가 표·3지선다·해설을 띄운다.
   경우의 수 1가지도 **출제하기로 확정**했다(8-3절, 부스판 오라클의 71%가 그 경우다).

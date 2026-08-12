@@ -32,10 +32,12 @@ import {
   reroll,
   resolveOracle,
   resolveWager,
+  roundReport,
   startRound,
 } from '../core/game'
 import type { Game, Placement } from '../core/game'
 import type { OracleRecord } from '../core/oracle'
+import type { RoundReport } from '../core/report'
 import { mulberry32 } from '../core/rng'
 import { scoreBoard } from '../core/scoring'
 import type { ScoreResult } from '../core/scoring'
@@ -146,6 +148,11 @@ interface GameStore {
    */
   oracleResult: OracleRecord | null
   /**
+   * The round-end report (GDD 8-4), held while it is read. Core counted every
+   * figure in it; this is only what keeps the shop waiting behind it.
+   */
+  report: RoundReport | null
+  /**
    * The seed this run was built from. ORION's lines are drawn from a generator
    * of their own, seeded off this one (CLAUDE.md §8) — taking them from
    * `game.rng` would spend draws the deck and the drifter are counting on, and a
@@ -170,6 +177,8 @@ interface GameStore {
   answerWager: (choice: WagerChoice) => void
   /** Closes the explanation. The turn is already under way behind it. */
   dismissWager: () => void
+  /** GDD 8-4. Closing the report is what opens the shop. */
+  dismissReport: () => void
   /** GDD 8-3. Core scores it; the board has not settled yet. */
   answerOracle: (choice: number) => void
   /** Closes the explanation, which is what lets the settlement run. */
@@ -232,6 +241,7 @@ export const useGame = create<GameStore>((set, get) => ({
   settlement: null,
   wagerResult: null,
   oracleResult: null,
+  report: null,
   seed: 1,
   setup: PLACEHOLDER_SETUP,
   started: false,
@@ -246,6 +256,7 @@ export const useGame = create<GameStore>((set, get) => ({
       settlement: null,
       wagerResult: null,
       oracleResult: null,
+      report: null,
       seed,
       setup,
       started: true,
@@ -264,6 +275,7 @@ export const useGame = create<GameStore>((set, get) => ({
       settlement: null,
       wagerResult: null,
       oracleResult: null,
+      report: null,
       seed,
     })
   },
@@ -297,16 +309,42 @@ export const useGame = create<GameStore>((set, get) => ({
 
   dismissSettlement: () => {
     const { game } = get()
-    let next = game
 
-    if (next.phase === 'roundEnd') next = endRound(next)
-    // The shop is a screen of its own from P4-A, so the walk stops here: core
-    // rolls the stock and hands over the drifter (GDD 13-4), and the next round
-    // does not start until `leaveShop`.
-    if (next.phase === 'shop') next = openShop(next)
-    else if (next.phase === 'draw') next = askWager(next)
+    // GDD 4-1 puts CONSTELLATION LOG between the round and the shop, so the walk
+    // stops on it. The report is built from the game as it stood *before*
+    // `endRound` — that is where the round number, its score and its target
+    // still are — and before `openShop`, which hands over the drifter (GDD 13-4)
+    // and would edit the very deck the report is about.
+    //
+    // GDD 8-4 shows it on a clear. A run that ended here goes straight to the
+    // game-over banner instead.
+    if (game.phase === 'roundEnd') {
+      const ended = endRound(game)
+      const report = ended.status === 'gameOver' ? null : roundReport(game)
 
+      return set({
+        game: ended,
+        turnStart: ended,
+        staged: [],
+        selected: null,
+        settlement: null,
+        report,
+      })
+    }
+
+    const next = game.phase === 'draw' ? askWager(game) : game
     set({ game: next, turnStart: next, staged: [], selected: null, settlement: null })
+  },
+
+  // Closing the report is what opens the shop: core rolls the stock and hands
+  // over the drifter (GDD 13-4), and the next round does not start until
+  // `leaveShop`. On the last round there is no shop and the banner is behind it.
+  dismissReport: () => {
+    const { game, report } = get()
+    if (report === null) return
+
+    const next = game.phase === 'shop' ? openShop(game) : game
+    set({ game: next, turnStart: next, report: null })
   },
 
   answerWager: (choice) => {
@@ -374,6 +412,7 @@ export const useGame = create<GameStore>((set, get) => ({
       settlement: null,
       wagerResult: null,
       oracleResult: null,
+      report: null,
     })
   },
 

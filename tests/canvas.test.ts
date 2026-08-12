@@ -203,25 +203,77 @@ describe('canvas layout (GDD 11-10)', () => {
     expect(panel.y + panel.h).toBeLessThanOrEqual(CANVAS_HEIGHT)
   })
 
-  // The explanation is the tallest state the box has (GDD 8-2 shows it in place
-  // of the buttons), and it is measured rather than guessed: 2~3 sentences of
-  // ~180 characters at 11px in a 680px column is six lines with room to spare.
-  it('holds the question, the verdict and the explanation at once', () => {
+  // The answered state is the tallest the box gets (GDD 8-2 shows the explanation
+  // in place of the buttons), and every figure below is measured off the generator
+  // rather than guessed. BOOTH-6c: the worst case is the conditional tier at 84
+  // characters of question and 101 of explanation — the longest either has ever
+  // produced over the 300-deck sample tests/wager.test.ts uses.
+  const WAGER_MAX_QUESTION = 84
+  const WAGER_MAX_EXPLANATION = 101
+  /** Korean at this face is one glyph per point of size (GDD 11-7's dot font). */
+  const wrap = (chars: number, column: number, glyph: number) =>
+    Math.max(1, Math.ceil(chars / Math.floor(column / glyph)))
+
+  it('holds the question, the counts, the verdict and the explanation at once', () => {
     const panel = LAYOUT.wager
     const PADDING = 20 * 2
-    const GAPS = 16 * 3
+    const column = panel.w - PADDING
+    // Five children in the answered state, so four gaps.
+    const GAPS = 16 * 4
     const HEADER = 14
-    const QUESTION = 23 * 2
+    const QUESTION = 23 * wrap(WAGER_MAX_QUESTION, column, 14)
     const VERDICT = 26
-    const EXPLANATION = 18 * 6
+    const EXPLANATION = 18 * wrap(WAGER_MAX_EXPLANATION, column, 11)
     const BUTTON = 40
 
-    expect(HEADER + QUESTION + VERDICT + EXPLANATION + BUTTON + GAPS + PADDING).toBeLessThanOrEqual(
-      panel.h,
-    )
-    // Wide enough that the explanation wraps to those six lines and not more:
-    // an 11px Galmuri glyph per Korean character is ~60 to the line.
-    expect(panel.w - PADDING).toBeGreaterThanOrEqual(11 * 60)
+    expect(
+      HEADER + QUESTION + panel.basis + VERDICT + EXPLANATION + BUTTON + GAPS + PADDING,
+    ).toBeLessThanOrEqual(panel.h)
+  })
+
+  // The open state: the question, the counts, three buttons and the line under them.
+  it('holds the question, the counts and the three answers at once', () => {
+    const panel = LAYOUT.wager
+    const PADDING = 20 * 2
+    const column = panel.w - PADDING
+    const GAPS = 16 * 3
+    const HEADER = 14
+    const QUESTION = 23 * wrap(WAGER_MAX_QUESTION, column, 14)
+    const BUTTONS = 40
+    const HINT = 14
+
+    expect(
+      HEADER + QUESTION + panel.basis + BUTTONS + HINT + GAPS + PADDING,
+    ).toBeLessThanOrEqual(panel.h)
+  })
+
+  // BOOTH-6c cut the height and left the width alone. 640 would also wrap the
+  // longest question to two lines — but to *exactly* two, with no character to
+  // spare, and the character model is optimistic: `word-break: keep-all` (index.css)
+  // breaks Korean at spaces only, so a line never fills to its last glyph. A fit
+  // with zero slack is not a fit.
+  it('leaves the longest question slack inside its two lines', () => {
+    const column = LAYOUT.wager.w - 20 * 2
+    const perLine = Math.floor(column / 14)
+
+    expect(wrap(WAGER_MAX_QUESTION, column, 14)).toBe(2)
+    expect(perLine * 2 - WAGER_MAX_QUESTION).toBeGreaterThanOrEqual(8)
+  })
+
+  // BOOTH-6c: the counts row exists because the scrim hides STAR-CHART, so the
+  // panel has to be wide enough for the widest one — two suits, each with its
+  // 16px symbol and its full star name, beside the deck total.
+  it('fits the widest row of counts the question can ask about', () => {
+    const panel = LAYOUT.wager
+    const PADDING = 20 * 2
+    const LABEL = 5 * 9
+    const DECK_TOTAL = 8 * 11
+    const longest = Math.max(...SUIT_ORDER.map((suit) => SUIT_STAR_NAMES[suit].length))
+    // '⬤Gacrux 10장' — the glyph, then the name and the count at 11px.
+    const ENTRY = 16 + 4 + (longest + 4) * 11
+    const GAPS = 12 * 3
+
+    expect(LABEL + DECK_TOTAL + ENTRY * 2 + GAPS).toBeLessThanOrEqual(panel.w - PADDING)
   })
 
   it('places the wager on whole pixels', () => {

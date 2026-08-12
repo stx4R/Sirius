@@ -179,7 +179,13 @@ describe('showsExplanation (GDD 8-2)', () => {
     turn: 1,
     choice,
     correct,
-    question: { text: '?', answer: true, tier: 'comparison', explanation: '.' },
+    question: {
+      text: '?',
+      answer: true,
+      tier: 'comparison',
+      explanation: '.',
+      basis: { deckSize: 50, counts: [{ suit: 'GAC', count: 10 }] },
+    },
   })
 
   it('always explains a miss', () => {

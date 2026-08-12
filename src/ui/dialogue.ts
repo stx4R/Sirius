@@ -12,6 +12,7 @@
 // drifter's roll, and spending draws from it on dialogue would mean the same seed
 // no longer replays the same run, which is the whole point of the rule.
 
+import type { OrionMood } from '../assets/palette'
 import type { Rng } from '../core/rng'
 
 /** A moment worth a line. The screen decides when one occurs. */
@@ -44,6 +45,30 @@ export const ORION_LINES: Readonly<Record<Beat, readonly string[]>> = {
   nearTarget: ['조금만 더', '목표가 가깝다', '손이 닿는 거리다'],
   roundClear: ['다음 성역으로', '넘었군', 'иєвυℓα가 기다린다'],
   gameOver: ['여기까지인가', '성도가 닫혔다', '별은 다시 뜬다'],
+}
+
+/**
+ * Which of GDD 11-8's four expressions each beat wears (BOOTH-6c).
+ *
+ * Seven beats over four faces, so three of them group. The grouping follows the
+ * tone of the lines above rather than the mechanics of the beat:
+ *
+ *   · `calm` is the character — a quiet observer reporting what he sees. Three of
+ *     the seven are that, and the fourth would be too if `placed` were ever fired.
+ *   · `surprised` is reserved for `bigScore` alone. '제법이군' is him being caught
+ *     out by a score, and spending the face anywhere else spends its meaning.
+ *   · `pleased` covers the two beats that are going well — one where the target is
+ *     within reach and one where it has been cleared.
+ *   · `dim` is the run ending. It is the face that replaces '거래' (GDD 11-8).
+ */
+export const MOOD_OF: Readonly<Record<Beat, OrionMood>> = {
+  turnStart: 'calm',
+  placed: 'calm',
+  settling: 'calm',
+  bigScore: 'surprised',
+  nearTarget: 'pleased',
+  roundClear: 'pleased',
+  gameOver: 'dim',
 }
 
 /** One line for the beat. Deterministic for a given generator state. */

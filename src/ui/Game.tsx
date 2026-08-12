@@ -357,7 +357,8 @@ export function Game() {
       </At>
 
       <At x={LAYOUT.orion.x} y={LAYOUT.orion.y}>
-        <OrionSprite width={LAYOUT.orion.w} height={LAYOUT.orion.h} />
+        {/* GDD 11-8: the face answers to the same beat the line does (Orion.tsx). */}
+        <OrionSprite mood={orion.mood} width={LAYOUT.orion.w} height={LAYOUT.orion.h} />
       </At>
 
       {/* GDD 8-2: the prediction is made before the draw, so it is a modal —

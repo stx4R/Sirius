@@ -15,11 +15,18 @@
 // BOOTH-6b). GDD 8-2 asks for a popup "오답 시"; showing one on a hit as well was
 // this file's addition, and BOOTH-6a measured the wager at 44% of the booth's
 // 20-minute budget. See `showsExplanation`.
+//
+// ★ The counts the question is about are printed on it (GDD 8-1, BOOTH-6c). The
+// scrim behind this panel hides STAR-CHART, and the question text never carried
+// the counts, so before this the figures needed to answer were nowhere on screen.
+// See `Basis` — and note what it is not given.
 
 import { motion } from 'framer-motion'
-import { FORCED_WAGER_COUNT, STARDUST_REWARDS } from '../core/config'
-import type { WagerChoice, WagerQuestion, WagerRecord } from '../core/types'
-import { PALETTE } from '../assets/palette'
+import { FORCED_WAGER_COUNT, STARDUST_REWARDS, SUIT_STAR_NAMES } from '../core/config'
+import type { WagerBasis, WagerChoice, WagerQuestion, WagerRecord } from '../core/types'
+import { suitGlyph } from '../assets/compose'
+import { PALETTE, SUIT_INK } from '../assets/palette'
+import { PixelSprite } from './PixelSprite'
 
 /** GDD 8-2: YES / NO / 기권, in that order. */
 const CHOICES: readonly { readonly choice: WagerChoice; readonly label: string }[] = [
@@ -42,6 +49,45 @@ const CHOICES: readonly { readonly choice: WagerChoice; readonly label: string }
  */
 export function showsExplanation(record: WagerRecord, answered: number): boolean {
   return !record.correct || answered <= FORCED_WAGER_COUNT
+}
+
+/**
+ * The counts the question is about (GDD 8-1, BOOTH-6c).
+ *
+ * ★ This is why the panel is answerable at all. The wager is a modal over the play
+ * screen and its scrim is 85% opaque, so STAR-CHART — where a player would
+ * otherwise read these — is behind it for as long as the question is open. The
+ * question text carries no counts either; they were only ever in the explanation,
+ * which arrives after the answer. So the figures come with the question instead
+ * (`WagerBasis`), and only the ones it names.
+ *
+ * ★ Counts, never a percentage. Core does not hand one over — see `WagerBasis` —
+ * because the comparison tier's answer is the order of the two chances, and a
+ * strip showing them would answer the question for the player. The step from
+ * "twelve chips against ten" to "so it is likelier" is Ⅱ-1, and it is the player's.
+ */
+function Basis({ basis }: { readonly basis: WagerBasis }) {
+  return (
+    <div className="flex items-center gap-3 whitespace-nowrap text-[11px]">
+      <span className="text-[9px]" style={{ color: PALETTE.starGlow }}>
+        남은 장수
+      </span>
+      <span className="tabular-nums" style={{ color: PALETTE.starGlow }}>
+        덱 {basis.deckSize}장
+      </span>
+      {basis.counts.map(({ suit, count }) => (
+        <span key={suit} className="flex items-center gap-1">
+          {/* The suit's own symbol, the same one on its chips — so the row is tied
+              to what is on the board and not only to a name (GDD 5-1's headers do
+              the same). */}
+          <PixelSprite pixels={suitGlyph(suit)} scale={1} alt="" />
+          <span className="tabular-nums" style={{ color: SUIT_INK[suit] }}>
+            {SUIT_STAR_NAMES[suit]} {count}장
+          </span>
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function Verdict({ record }: { readonly record: WagerRecord }) {
@@ -127,6 +173,8 @@ export function WagerPanel({
       <p className="text-sm leading-relaxed" style={{ color: PALETTE.starWhite }}>
         {asked.text}
       </p>
+
+      <Basis basis={asked.basis} />
 
       {result === null ? (
         <div className="mt-auto flex flex-col gap-2">

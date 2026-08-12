@@ -10,6 +10,7 @@
 import { CONSTELLATION_RULES } from '../core/config'
 import { mulberry32 } from '../core/rng'
 import type { ConstellationId, SuitId } from '../core/types'
+import type { OrionMood } from './palette'
 
 export const GLYPH_SIZE = 16
 export const CHIP_SIZE = 32
@@ -619,6 +620,385 @@ export function nebulaLayers(): NebulaLayer[][] {
         if (Math.abs(phase - Math.round(phase)) < FOLD_HALF_WIDTH) return 'fold'
       }
       return 'veil'
+    }),
+  )
+}
+
+// ------------------------------------------------------------------- ORION
+// GDD 11-8, and the other half of the contrast GDD 11-9 draws: ORION is a person
+// with a nebula for a body, иєвυℓα is a nebula wearing the shape of a person. The
+// two sprites share a frame and almost nothing else, on purpose.
+//
+// So four things separate him from her, and each one is a decision rather than a
+// leftover:
+//
+//  1. HE HAS A FACE. She has none and answers with light instead (11-9). He is the
+//     commentator, and four expressions are what 11-8 asks for — the face is where
+//     they live. His eyes and mouth are computed from a handful of numbers per
+//     mood, not drawn.
+//  2. HE DOES NOT DISSOLVE. Her hem runs out by density, and 11-9 makes that the
+//     line between "person in a cloak" and "unknown thing". His cloud is closed:
+//     it has a bottom edge, and it widens toward it.
+//  3. HIS ARMS STAND OFF THE BODY. Her sleeves are welded to the torso and told
+//     apart by tone, which 11-9's remaining-work list records as not enough — the
+//     signal that reads is a gap. His arms weld at the shoulder for four rows and
+//     then keep two pixels of clear air the whole way down.
+//  4. HIS LIGHT IS HIS FACE, not something inside a hood. The rim is graded off
+//     the head, and compose.ts holds it under the skin tone.
+//
+// What is borrowed from her, because it was learned the expensive way: no
+// pixel-level randomness (low-frequency sines only, CLAUDE.md §8), and nothing
+// mirror-symmetric — the two sides of the cloud run on different phases and the
+// two arms sit at different heights.
+
+export const ORION_WIDTH = 60
+export const ORION_HEIGHT = 78
+
+export type OrionLayer =
+  | 'outside'
+  | 'rim'
+  /** Head and arms: the humanlike parts (GDD 11-8). */
+  | 'skin'
+  /** Under the jaw and along an arm's outer edge, so both read as round. */
+  | 'skinShade'
+  | 'eye'
+  | 'brow'
+  | 'mouth'
+  /** The body. Its colour runs from Hα to the reflection nebula down the sprite. */
+  | 'cloud'
+  /** Bright filaments of gas. */
+  | 'filament'
+  /** Shadowed pockets in the cloud. */
+  | 'cloudDeep'
+
+const ORION_CX = (ORION_WIDTH - 1) / 2
+
+/**
+ * A head at a third of his height, which is more than иєвυℓα's quarter.
+ *
+ * GDD 11-8 asks for a cute dot character that is not threatening, and at this size
+ * head-to-body ratio is most of what decides that. Hers is a hood on a figure;
+ * his is deliberately chibi.
+ */
+const ORION_HEAD = { cy: 15, rx: 12, ry: 13.5 }
+
+/** Where the face sits inside the head. */
+const ORION_EYES = { dx: 5, cy: 14 }
+const ORION_MOUTH_Y = 21
+
+/** The same two or three rows of nothing-but-neck her rebuild needed (GDD 11-9). */
+const ORION_NECK = { top: 28, bottom: 30, half: 5 }
+
+/** Where the cloud starts, and so where its Hα-to-reflection gradient starts. */
+export const ORION_SHOULDER_Y = 31
+
+/**
+ * The cloud: narrow at the shoulders, widening to the bottom edge.
+ *
+ * Shoulders narrower than the head is the chibi proportion; widening to the hem is
+ * rule 2 — a cloud that tapers to a point is her silhouette, not his.
+ */
+const ORION_CLOUD = { shoulder: 10, hem: 19 }
+
+/**
+ * Two arms, each a taper measured in distance from the centre line.
+ *
+ * ★ They lean *outward*, and that is the one thing which makes an arm work against
+ * a cloud that widens downward. A straight-down arm is swallowed by the body within
+ * a dozen rows. An arm that opens away from it starts welded at the shoulder — its
+ * inner edge is inside the cloud there, so no gap is needed and none is drawn — and
+ * pulls clear on its own as it falls. The separation becomes a fact about the two
+ * shapes rather than a number that has to be kept true by hand.
+ *
+ * An earlier draft welded each arm by running its inner edge to the centre line for
+ * the first few rows, the way GDD 11-9's sleeves reach the torso. At this taper that
+ * put a skin-coloured plank clean across the body: the arm is at its narrowest on
+ * its top row, so the weld was one pixel tall and thirty wide.
+ *
+ * They also stop well above the hem, where the cloud is at its widest and no arm
+ * could stay out of it. Different lengths and top rows, so neither mirrors the other.
+ */
+const ORION_ARMS = [
+  { top: 32, bottom: 49, from: 10.5, to: 19.5, wide: 4.2, cuff: 2.3, side: -1 },
+  { top: 34, bottom: 47, from: 10.5, to: 18.5, wide: 4, cuff: 2.2, side: 1 },
+] as const
+
+/** Rows an arm takes to round off at the shoulder. A flat top is a bar at 2×. */
+const ORION_ARM_CAP = 3
+
+/**
+ * Pixels of clear air the cloud keeps either side of an arm, once the arm has left
+ * the body.
+ *
+ * ★ This is the whole reason the arms read. GDD 11-9's remaining-work list found
+ * that tone alone does not do it — her sleeves clear a luma gap of 12.6 and still
+ * read as cloak trim — and that the signal which works is a gap.
+ */
+export const ORION_ARM_GAP = 2
+
+/** Rows below the shoulders where the cloud stays solid, so no hole opens under the chin. */
+const ORION_CLOUD_SOLID = 5
+
+/**
+ * Filaments: spacing, how far they wander across the body, and how thin they are.
+ *
+ * ★ No constant slant. With one, every thread came out a straight diagonal parallel
+ * to every other — the body banded like a barrel, which is the failure GDD 11-9
+ * records for иєвυℓα's first folds. Two wander frequencies that do not divide each
+ * other give threads that curve and cross instead.
+ */
+const ORION_FILAMENT = {
+  period: 13,
+  halfWidth: 0.055,
+  bend: 7,
+  bendRate: 0.085,
+  sway: 5,
+  swayRate: 0.031,
+  /** Above this the thread is drawn; below it there is a break. */
+  gate: -0.2,
+}
+
+/** Where the light is. The rim is graded off it in compose.ts. */
+export const ORION_LIGHT = { x: ORION_CX, y: ORION_HEAD.cy } as const
+
+/**
+ * One expression, as numbers rather than a drawn map.
+ *
+ * `arc` eyes keep only the top of the ellipse, which is the "^ ^" squint of a
+ * pleased face. `bow` bends the mouth: positive drops its middle, which in screen
+ * coordinates is a smile. `open` replaces the line with a small round mouth.
+ */
+interface OrionFace {
+  readonly eye: { readonly rx: number; readonly ry: number }
+  readonly arc: boolean
+  readonly mouth: { readonly rx: number; readonly bow: number; readonly open: number }
+  /** Rows above the eye to put a brow, or 0 for none. */
+  readonly brow: number
+}
+
+export const ORION_FACES: Readonly<Record<OrionMood, OrionFace>> = {
+  calm: {
+    eye: { rx: 1.6, ry: 2 },
+    arc: false,
+    mouth: { rx: 3, bow: 0, open: 0 },
+    brow: 0,
+  },
+  surprised: {
+    eye: { rx: 2.4, ry: 2.8 },
+    arc: false,
+    mouth: { rx: 1.6, bow: 0, open: 1.8 },
+    brow: 4,
+  },
+  pleased: {
+    eye: { rx: 2.4, ry: 2 },
+    arc: true,
+    mouth: { rx: 4, bow: 1.6, open: 0 },
+    brow: 0,
+  },
+  dim: {
+    eye: { rx: 2, ry: 0.7 },
+    arc: false,
+    mouth: { rx: 2.5, bow: -1, open: 0 },
+    brow: 0,
+  },
+}
+
+/**
+ * How far the cloud bulges at a row, per side.
+ *
+ * Two sines whose wavelengths do not divide each other, on a different phase per
+ * side, so no part of the outline mirrors another (rule 2 restated). Damped over
+ * the first rows below the shoulders: a lobe up there makes one shoulder higher
+ * than the other, which reads as a shrug rather than as gas.
+ */
+function orionLobe(y: number, side: -1 | 1): number {
+  const phase = side < 0 ? 0 : 2.4
+  const settle = Math.min(1, (y - ORION_SHOULDER_Y) / 8)
+  // ★ Three frequencies, and the fastest one is what earns its place. With two the
+  // outline came out as two straight-sided panels and the whole figure read as a
+  // long dress — which is иєвυℓα's silhouette, and GDD 11-9 spends a section on
+  // keeping the two apart. A cloud has bumps; cloth has seams.
+  return (
+    (Math.sin(y * 0.17 + phase) * 2.6 +
+      Math.sin(y * 0.09 + phase * 1.7 + 1.1) * 2.2 +
+      Math.sin(y * 0.63 + phase * 2.3 + 0.4) * 1.4) *
+    settle
+  )
+}
+
+/** Half-width of the cloud at a row, on one side. */
+function orionCloudHalf(y: number, side: -1 | 1): number {
+  const t = Math.min(1, Math.max(0, (y - ORION_SHOULDER_Y) / (ORION_HEIGHT - 1 - ORION_SHOULDER_Y)))
+  // Smoothstep, so the shoulders round into the flare instead of stepping.
+  const eased = t * t * (3 - 2 * t)
+  const base = ORION_CLOUD.shoulder + (ORION_CLOUD.hem - ORION_CLOUD.shoulder) * eased
+  return Math.max(0, base + orionLobe(y, side))
+}
+
+/** An arm's inner and outer edge at a row, as distances from the centre line. */
+function orionArmSpan(arm: (typeof ORION_ARMS)[number], y: number): [number, number] | null {
+  if (y < arm.top || y > arm.bottom) return null
+  const along = (y - arm.top) / (arm.bottom - arm.top)
+  const cap = Math.min(1, (y - arm.top + 1) / ORION_ARM_CAP)
+  const half = (arm.wide + (arm.cuff - arm.wide) * along) * cap
+  const axis = arm.from + (arm.to - arm.from) * along
+  return [axis - half, axis + half]
+}
+
+/** The arm on a given side, or undefined for the centre column. */
+const orionArmOn = (x: number) =>
+  ORION_ARMS.find((arm) => arm.side === (x < ORION_CX ? -1 : 1))
+
+function inOrionArm(x: number, y: number): boolean {
+  const arm = orionArmOn(x)
+  if (arm === undefined) return false
+  const span = orionArmSpan(arm, y)
+  if (span === null) return false
+  const from = Math.abs(x - ORION_CX)
+  return from >= span[0] && from <= span[1]
+}
+
+/**
+ * Cells the cloud may not use, because an arm needs clear air beside it.
+ *
+ * Only where the arm has actually left the body. While its inner edge is still
+ * inside the cloud — which is the shoulder — there is nothing to separate and
+ * carving there would cut the arm off the thing it hangs from.
+ */
+function orionArmGap(x: number, y: number): boolean {
+  if (inOrionArm(x, y)) return false
+  const arm = orionArmOn(x)
+  if (arm === undefined) return false
+  if (y < arm.top || y > arm.bottom + ORION_ARM_GAP) return false
+
+  const span = orionArmSpan(arm, Math.min(y, arm.bottom))
+  if (span === null) return false
+
+  const [inner, outer] = span
+  const from = Math.abs(x - ORION_CX)
+  if (inner <= orionCloudHalf(y, arm.side)) return false
+
+  return (
+    (from >= inner - ORION_ARM_GAP && from < inner) || (from > outer && from <= outer + ORION_ARM_GAP)
+  )
+}
+
+function orionSolid(x: number, y: number): boolean {
+  if (inOrionArm(x, y)) return true
+  if (inEllipse(x, y, ORION_CX, ORION_HEAD.cy, ORION_HEAD.rx, ORION_HEAD.ry)) return true
+  if (y >= ORION_NECK.top && y <= ORION_NECK.bottom && Math.abs(x - ORION_CX) <= ORION_NECK.half) {
+    return true
+  }
+  if (y < ORION_SHOULDER_Y) return false
+  if (orionArmGap(x, y)) return false
+  const side = x < ORION_CX ? -1 : 1
+  return Math.abs(x - ORION_CX) <= orionCloudHalf(y, side)
+}
+
+/** Which face feature, if any, a cell inside the head belongs to. */
+function orionFeature(x: number, y: number, face: OrionFace): OrionLayer | null {
+  const dx = Math.abs(x - ORION_CX) - ORION_EYES.dx
+  const dy = y - ORION_EYES.cy
+  const inside = (dx / face.eye.rx) ** 2 + (dy / face.eye.ry) ** 2
+
+  if (face.arc) {
+    // The top of the ellipse only — a squint rather than a dot.
+    if (inside <= 1 && inside >= 0.2 && dy <= 0) return 'eye'
+  } else if (inside <= 1) {
+    return 'eye'
+  }
+
+  // Raised brows, for the one expression that needs them.
+  if (face.brow > 0 && Math.abs(dy + face.brow) <= 0.5 && Math.abs(dx) <= face.eye.rx) {
+    return 'brow'
+  }
+
+  const mx = (x - ORION_CX) / face.mouth.rx
+  if (Math.abs(mx) <= 1) {
+    const my = y - ORION_MOUTH_Y
+    if (face.mouth.open > 0) {
+      if (mx ** 2 + (my / face.mouth.open) ** 2 <= 1) return 'mouth'
+    } else if (Math.abs(my - face.mouth.bow * (1 - mx * mx)) <= 0.6) {
+      return 'mouth'
+    }
+  }
+  return null
+}
+
+/** GDD 11-8: one grid of layers per expression, rim derived from open neighbours. */
+export function orionLayers(mood: OrionMood): OrionLayer[][] {
+  const face = ORION_FACES[mood]
+  const body = Array.from({ length: ORION_HEIGHT }, (_, y) =>
+    Array.from({ length: ORION_WIDTH }, (_, x) => orionSolid(x, y)),
+  )
+
+  return body.map((row, y) =>
+    row.map((solid, x): OrionLayer => {
+      if (!solid) return 'outside'
+
+      const head = inEllipse(x, y, ORION_CX, ORION_HEAD.cy, ORION_HEAD.rx, ORION_HEAD.ry)
+      if (head && y < ORION_NECK.top) {
+        const feature = orionFeature(x, y, face)
+        if (feature !== null) return feature
+      }
+
+      const open = (dx: number, dy: number) => body[y + dy]?.[x + dx] !== true
+      if (open(-1, 0) || open(0, -1) || open(1, 0) || open(0, 1)) return 'rim'
+
+      if (inOrionArm(x, y)) {
+        const arm = orionArmOn(x)
+        const span = arm === undefined ? null : orionArmSpan(arm, y)
+        const from = Math.abs(x - ORION_CX)
+        // The outer pixel or two of an arm, a value down, so it reads as round
+        // rather than as a flat strip.
+        return span !== null && from >= span[1] - 1.6 ? 'skinShade' : 'skin'
+      }
+
+      if (head || (y >= ORION_NECK.top && y <= ORION_NECK.bottom)) {
+        // A jaw shadow, so the head is a ball and not a disc. The neck goes with
+        // it — it is in shadow under the chin by definition.
+        const distance = ellipseDistance(x, y, {
+          cx: ORION_CX,
+          cy: ORION_HEAD.cy,
+          rx: ORION_HEAD.rx,
+          ry: ORION_HEAD.ry,
+        })
+        return !head || (distance > 0.72 && y > ORION_HEAD.cy + 3) ? 'skinShade' : 'skin'
+      }
+
+      // Gas texture. Filaments first: a bright thread crossing a shadowed pocket
+      // is what a nebula looks like, and letting the pocket win eats the thread.
+      //
+      // ★ Solved for the nearest filament line rather than thresholded off a sum of
+      // sines, for the reason GDD 11-9's folds are: thresholding samples the wave at
+      // integer columns and misses its crest on most rows, so what came out was
+      // scattered two-pixel specks — grit on the sprite instead of structure.
+      const bend =
+        Math.sin(y * ORION_FILAMENT.bendRate) * ORION_FILAMENT.bend +
+        Math.sin(y * ORION_FILAMENT.swayRate + 1.9) * ORION_FILAMENT.sway
+      const phase = (x - ORION_CX - bend) / ORION_FILAMENT.period
+      if (Math.abs(phase - Math.round(phase)) < ORION_FILAMENT.halfWidth) {
+        // ★ Broken into segments. Unbroken, each thread ran the full height of the
+        // body as one smooth curve and read as a seam in cloth rather than as gas —
+        // the same dress the lobes were making, reinforced from the inside.
+        const patch = Math.sin(y * 0.11 + x * 0.05 + 0.8)
+        if (patch > ORION_FILAMENT.gate) return 'filament'
+      }
+
+      // Shadowed pockets, but never in the rows right under the chin: the field
+      // happens to be negative there and it opened a dark hole where the neck meets
+      // the body, which reads as a gap between the head and everything below it.
+      if (y < ORION_SHOULDER_Y + ORION_CLOUD_SOLID) return 'cloud'
+
+      // ★ Short wavelengths, so the shade is mottling spread over the whole body.
+      // The first field was slow in both axes, which put every shadowed pixel in one
+      // place — a single smooth dome across the bottom that read as the shadow under
+      // a skirt, and so as cloth again.
+      const pocket =
+        Math.sin(x * 0.29 + y * 0.19) * 1 +
+        Math.sin(x * 0.17 - y * 0.33 + 1.4) * 0.9 +
+        Math.sin(x * 0.41 + y * 0.11 + 2.6) * 0.6
+      return pocket < -1.35 ? 'cloudDeep' : 'cloud'
     }),
   )
 }

@@ -164,6 +164,68 @@ export const NEBULA_INK = {
   hollow: mix(PALETTE.nebulaDeep, PALETTE.nebulaMagenta, 0.14),
 } as const
 
+/**
+ * ORION (GDD 11-8). Derived tones, so the palette stays at 32 — the same way
+ * иєвυℓα's and the cards' are made.
+ *
+ * GDD 11-8 splits him in two: the head and arms are humanlike, and everything
+ * below is the nebula itself — red Hα over the blue reflection. So the tones split
+ * the same way, and the split is what makes the anatomy readable at 60×78: a pale
+ * blue-white head and pair of arms in front of a red-to-blue cloud are told apart
+ * by value before any outline is involved.
+ *
+ * He is the opposite side of the contrast 11-9 draws. иєвυℓα's one light is inside
+ * her hood and she has no face; his is his face, and it is the brightest thing on
+ * him — so the rim is graded to stay under it (compose.ts).
+ */
+export const ORION_INK = {
+  /** Head and arms — the parts GDD 11-8 makes humanlike. */
+  skin: mix(PALETTE.nebulaPeriwinkle, PALETTE.starWhite, 0.42),
+  /**
+   * Under the jaw, and the outer edge of an arm.
+   *
+   * 0.30 rather than 0.18, so it stays clear of the Hα the head sits against: at
+   * 0.18 the jaw shadow and the top of the cloud were within two of the same luma
+   * and the chin dissolved into the body.
+   */
+  skinShade: mix(PALETTE.nebulaPeriwinkle, PALETTE.nebulaDeep, 0.3),
+  /**
+   * Eyes, brows and mouth.
+   *
+   * Emphatically not `void`. A feature in the background colour on a pale head
+   * reads as a hole punched through it, which is the mistake иєвυℓα's first hood
+   * made (GDD 11-9, forbidden #3). A dark blue-violet says "eye" instead.
+   */
+  feature: mix(PALETTE.nebulaDeep, PALETTE.nebulaPeriwinkle, 0.15),
+  /** Hα emission — the top of the body. */
+  hydrogen: PALETTE.nebulaHydrogen,
+  /** The blue reflection nebula — the bottom of it. */
+  reflection: PALETTE.nebulaPeriwinkle,
+  /** The lit edge, before compose.ts grades it down by distance from his face. */
+  rim: mix(PALETTE.nebulaHydrogen, PALETTE.starWhite, 0.45),
+} as const
+
+/**
+ * GDD 11-8's four expressions. '거래' is gone — see 11-8 for why, and `MOOD_OF` in
+ * dialogue.ts for which of ORION's beats each of these answers.
+ */
+export type OrionMood = 'calm' | 'surprised' | 'pleased' | 'dim'
+
+/**
+ * How much the whole figure lifts or drops with the mood.
+ *
+ * The face carries the expression; this is what makes it read at 120×156 across a
+ * booth table, where a two-pixel change to a mouth does not. Positive steps toward
+ * `starWhite`, negative toward `nebulaDeep` — so `dim`, which is the run ending,
+ * visibly goes out.
+ */
+export const ORION_LIFT: Readonly<Record<OrionMood, number>> = {
+  calm: 0,
+  surprised: 0.08,
+  pleased: 0.16,
+  dim: -0.18,
+}
+
 /** GDD 11-9: she has no expressions — the light out of the hood answers instead. */
 export type NebulaMood = 'idle' | 'keen' | 'dealt'
 

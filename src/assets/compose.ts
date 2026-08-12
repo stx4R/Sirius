@@ -10,12 +10,14 @@ import {
   CHIP_COLOURS,
   NEBULA_GLOW,
   NEBULA_INK,
+  ORION_INK,
+  ORION_LIFT,
   PALETTE,
   SUIT_INK,
   luma,
   mix,
 } from './palette'
-import type { NebulaMood } from './palette'
+import type { NebulaMood, OrionMood } from './palette'
 import {
   CARD_FRAME,
   CARD_HEIGHT,
@@ -29,12 +31,16 @@ import {
   LOCK_GLYPH,
   NEBULA_LIGHT,
   NEBULA_NAME,
+  ORION_HEIGHT,
+  ORION_LIGHT,
+  ORION_SHOULDER_Y,
   SUIT_GLYPHS,
   nebulaLayers,
   chipLayerAt,
+  orionLayers,
   skyOf,
 } from './pixels'
-import type { ChartStar, Magnitude, Mask, NebulaLayer } from './pixels'
+import type { ChartStar, Magnitude, Mask, NebulaLayer, OrionLayer } from './pixels'
 
 /** One sprite. `null` is transparent. */
 export type PixelMap = readonly (readonly (string | null)[])[]
@@ -265,6 +271,127 @@ export function nebulaSprite(mood: NebulaMood = 'idle'): PixelMap {
       }
     }),
   )
+}
+
+// ------------------------------------------------------------------- ORION
+// GDD 11-8. The colouring is where his two halves are actually told apart: the
+// head and arms take a flat pale skin tone, and the cloud below takes a gradient
+// from Hα to the blue reflection nebula down the sprite.
+//
+// The hierarchy is the mirror of иєвυℓα's. Hers puts the one bright thing inside
+// the hood and grades the rim under it; his brightest thing is his face, because
+// that is where GDD 11-8's four expressions live, and the rim is graded under the
+// skin tone the same way.
+
+/** The most a rim pixel may reach, as a share of the skin it has to stay under. */
+const ORION_RIM_CEILING = 0.94
+/** Above 1 the rim gives out early, so the bottom of the cloud is unlit. */
+const ORION_RIM_FALLOFF = 1.5
+/**
+ * How far a filament is lifted out of the gas around it.
+ *
+ * 0.18 and not 0.28. At 0.28 a thread over the blue end of the body reached luma
+ * 189, which is past the ceiling the rim is held to and close enough to the skin to
+ * compete with his face for the eye — and the face is where GDD 11-8's expressions
+ * are. Enough to read as a filament, not enough to be the brightest thing on him.
+ */
+const ORION_FILAMENT_LIFT = 0.18
+
+/** Mood, applied to a tone: up toward starlight, down toward the deep. */
+const lifted = (colour: string, lift: number): string =>
+  lift >= 0 ? mix(colour, PALETTE.starWhite, lift) : mix(colour, PALETTE.nebulaDeep, -lift)
+
+/**
+ * The rim tone at a pixel, as a falloff from his face.
+ *
+ * Same device as `nebulaRim`, and for the same two reasons GDD 11-9 records: an
+ * outline that out-shines the face pulls the eye off the expression, and one bright
+ * unbroken line round a silhouette reads as a sticker. The ceiling is arithmetic
+ * rather than a chosen tone, so it holds in every mood.
+ */
+function orionRim(
+  skin: string,
+  lift: number,
+  gasAt: (y: number) => string,
+  layers: readonly (readonly OrionLayer[])[],
+) {
+  let brightest = lifted(ORION_INK.rim, lift)
+  // A tenth at a time, the same step `frameTones` and `nebulaRim` take.
+  while (luma(brightest) > luma(skin) * ORION_RIM_CEILING) {
+    brightest = mix(brightest, PALETTE.nebulaDeep, 0.1)
+  }
+
+  const reach = (x: number, y: number) => Math.hypot(x - ORION_LIGHT.x, y - ORION_LIGHT.y)
+  const distances = layers.flatMap((row, y) =>
+    row.flatMap((layer, x) => (layer === 'rim' ? [reach(x, y)] : [])),
+  )
+  // Measured off the sprite, so the nearest rim pixel really does reach the
+  // ceiling and the farthest really does sink into the body behind it.
+  const near = Math.min(...distances)
+  const span = Math.max(...distances) - near
+
+  return (x: number, y: number) => {
+    const away = span === 0 ? 0 : (reach(x, y) - near) / span
+    // ★ Graded toward the body's own colour *at that row*, not toward a fixed tone.
+    // The first version faded toward Hα, which is right at the shoulders and wrong
+    // at the hem — down there the cloud has turned blue and a red rim reads as a
+    // dark line drawn round him. Fading into whatever the neighbouring pixel is
+    // means the far end of the outline is not an outline, which is the half of GDD
+    // 11-9's forbidden #4 that a ceiling alone does not buy.
+    return mix(gasAt(y), brightest, (1 - away) ** ORION_RIM_FALLOFF)
+  }
+}
+
+/**
+ * ORION at 60×78 (GDD 11-8), shown at 2× on the play screen.
+ *
+ * `mood` moves the face — which is what GDD 11-8's four expressions are — and lifts
+ * or drops the whole figure with it. Two pixels of mouth do not read across a booth
+ * table at 120×156; the value shift does, and it is what makes `dim` land as the
+ * run going out rather than as a slightly different smile.
+ */
+export function orionSprite(mood: OrionMood = 'calm'): PixelMap {
+  const lift = ORION_LIFT[mood]
+  const skin = lifted(ORION_INK.skin, lift)
+  const layers = orionLayers(mood)
+
+  // The body's colour by row: Hα at the shoulders, the reflection nebula at the
+  // bottom edge. GDD 11-8 asks for the gradient; this is the whole of it.
+  const gasAt = (y: number) => {
+    const depth = Math.min(
+      1,
+      Math.max(0, (y - ORION_SHOULDER_Y) / (ORION_HEIGHT - 1 - ORION_SHOULDER_Y)),
+    )
+    return lifted(mix(ORION_INK.hydrogen, ORION_INK.reflection, depth), lift)
+  }
+  const rimAt = orionRim(skin, lift, gasAt, layers)
+
+  return layers.map((row, y) => {
+    const gas = gasAt(y)
+
+    return row.map((layer, x) => {
+      switch (layer) {
+        case 'outside':
+          return null
+        case 'eye':
+        case 'brow':
+        case 'mouth':
+          return ORION_INK.feature
+        case 'rim':
+          return rimAt(x, y)
+        case 'skin':
+          return skin
+        case 'skinShade':
+          return lifted(ORION_INK.skinShade, lift)
+        case 'filament':
+          return mix(gas, PALETTE.starWhite, ORION_FILAMENT_LIFT)
+        case 'cloudDeep':
+          return mix(gas, PALETTE.nebulaDeep, 0.45)
+        case 'cloud':
+          return gas
+      }
+    })
+  })
 }
 
 /**

@@ -61,6 +61,9 @@ const problems = []
 /** PNG sizes by name, for the duplicate check below. */
 const written = new Map()
 
+/** Under this many bytes a capture is a solid colour and nothing else. */
+const BLANK_BYTES = 2000
+
 let nextId = 1
 const rpc = (ws, method, params = {}) =>
   new Promise((resolve, reject) => {
@@ -85,12 +88,34 @@ async function evaluate(ws, expression) {
   return res.result.value
 }
 
-async function shot(ws, name, clip) {
-  const { data } = await rpc(ws, 'Page.captureScreenshot', { format: 'png', ...(clip && { clip }) })
+/**
+ * `beyond` switches the clip from viewport coordinates to *page* ones and lets the
+ * capture reach past the fold. The gallery sections need it — they are taller than
+ * a booth window, and a clip that runs off the viewport without it comes back blank.
+ *
+ * ★ Not `Emulation.setDeviceMetricsOverride`. Growing the viewport to fit them
+ * produced two entirely white PNGs of the right size: the layout reflowed but the
+ * compositor surface did not, so the clip was reading pixels nothing had painted.
+ * Nothing in this file caught it either — the names existed and the byte lengths
+ * differed, so the duplicate check passed a pair of blank images.
+ */
+async function shot(ws, name, clip, beyond = false) {
+  const { data } = await rpc(ws, 'Page.captureScreenshot', {
+    format: 'png',
+    ...(clip && { clip }),
+    ...(beyond && { captureBeyondViewport: true }),
+  })
   const png = Buffer.from(data, 'base64')
   await writeFile(`${OUT}/${name}.png`, png)
   written.set(name, png.length)
   console.log('  →', `${OUT}/${name}.png`)
+
+  // A flat expanse compresses to almost nothing, so a PNG this small is a picture of
+  // nothing. Every real shot here is tens of kilobytes. Added because a pair of
+  // entirely blank captures got through everything else this file checks.
+  if (png.length < BLANK_BYTES) {
+    problems.push(`${name}.png is ${png.length} bytes — very likely blank`)
+  }
 }
 
 /**
@@ -255,6 +280,37 @@ async function answerOracle(ws) {
 
   await evaluate(ws, `window.__t('정산으로')?.click()`)
   await sleep(600)
+}
+
+/**
+ * A character sprite on its own, at 3×, measured off its own <img>.
+ *
+ * Not computed from WINDOW: the canvas is centred in the *viewport*, which is
+ * shorter than the window this was once derived from, and the difference cropped
+ * иєвυℓα's head off.
+ */
+async function closeUp(ws, alt, name, missing) {
+  const box = await evaluate(
+    ws,
+    `(() => {
+       const img = document.querySelector('img[alt=${JSON.stringify(alt)}]');
+       if (!img) return null;
+       const r = img.getBoundingClientRect();
+       return { x: r.x, y: r.y, width: r.width, height: r.height };
+     })()`,
+  )
+  if (box === null) {
+    problems.push(missing)
+    return
+  }
+  const pad = 12
+  await shot(ws, name, {
+    x: box.x - pad,
+    y: box.y - pad,
+    width: box.width + pad * 2,
+    height: box.height + pad * 2,
+    scale: 3,
+  })
 }
 
 /**
@@ -456,6 +512,12 @@ async function playToSecondShop(ws) {
   await evaluate(ws, `window.__t('닫기')?.click()`)
   await sleep(400)
 
+  // ORION at 3×, so the sprite BOOTH-6c drew is reviewable at the size the three
+  // approval criteria are judged at — brightness order, anatomy, and the value gaps
+  // between parts (GDD 11-8). This one is `calm`; the other three faces are on the
+  // gallery, shot at the end of the run.
+  await closeUp(ws, 'ORION', 'orion', 'ORION is not on the play screen')
+
   // Four constellations, so the replacement prompt is reachable at all (GDD 6).
   await evaluate(ws, `window.__t('DEV')?.click()`)
   await sleep(500)
@@ -527,27 +589,7 @@ async function main() {
   // иєвυℓα close up, measured off her own <img> rather than computed from
   // WINDOW. The canvas is centred in the *viewport*, which is shorter than the
   // window it was being derived from, and the difference cropped her head off.
-  const box = await evaluate(
-    ws,
-    `(() => {
-       const img = document.querySelector('img[alt="иєвυℓα"]');
-       if (!img) return null;
-       const r = img.getBoundingClientRect();
-       return { x: r.x, y: r.y, width: r.width, height: r.height };
-     })()`,
-  )
-  if (box === null) {
-    problems.push('иєвυℓα is not on the shop screen')
-  } else {
-    const pad = 12
-    await shot(ws, 'nebula', {
-      x: box.x - pad,
-      y: box.y - pad,
-      width: box.width + pad * 2,
-      height: box.height + pad * 2,
-      scale: 3,
-    })
-  }
+  await closeUp(ws, 'иєвυℓα', 'nebula', 'иєвυℓα is not on the shop screen')
 
   // The booth run is three rounds (GDD 12-3), so this is the last report there
   // is — and the only one with a convergence list long enough to read as one.
@@ -556,6 +598,34 @@ async function main() {
   await evaluate(ws, `window.__t('라운드 3 시작')?.click()`)
   await sleep(1500)
   await playRound(ws, 'report-round3')
+
+  // GDD 11-8's four expressions, from the sprite gallery — the play screen shows one
+  // at a time, so this is the only place they can be compared. Last, because loading
+  // `#gallery` throws the run away.
+  //
+  await evaluate(ws, `location.href = ${JSON.stringify(`${APP}#gallery`)}`)
+  await sleep(2000)
+  for (const [id, name] of [
+    ['orion', 'orion-moods'],
+    ['orion-zoom', 'orion-zoom'],
+  ]) {
+    const box = await evaluate(
+      ws,
+      `(() => {
+         const el = document.getElementById(${JSON.stringify(id)});
+         if (!el) return null;
+         const r = el.getBoundingClientRect();
+         return {
+           x: r.x + window.scrollX,
+           y: r.y + window.scrollY,
+           width: r.width,
+           height: r.height,
+         };
+       })()`,
+    )
+    if (box === null) problems.push(`the gallery has no #${id} section`)
+    else await shot(ws, name, { ...box, scale: 1 }, true)
+  }
 
   ws.close()
   chrome.kill()
@@ -588,6 +658,12 @@ async function main() {
     if (!written.has(`coach-${step}`)) problems.push(`coach-${step}.png was never reached`)
   }
   if (!written.has('help')) problems.push('help.png was never reached')
+
+  // ORION's sprite and his four faces (GDD 11-8, BOOTH-6c). The sprite is the one
+  // deliverable here that only an image can settle.
+  for (const name of ['orion', 'orion-moods', 'orion-zoom']) {
+    if (!written.has(name)) problems.push(`${name}.png was never reached`)
+  }
 
   // Two PNGs the same length to the byte are the same PNG under two names, which
   // is what a run against an error page produces.

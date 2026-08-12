@@ -83,11 +83,22 @@ export const LAYOUT = {
    * replacement prompt is (GDD 11-10) — it covers the board it is asked over,
    * and there is nothing to do behind it until it is answered.
    *
-   * 360 tall because the explanation is the tallest thing on it: two lines of
-   * question at 14px over a verdict and up to six lines of explanation at 11px,
-   * with the button under them. `tests/canvas.test.ts` holds the sum.
+   * `basis` is the row of counts the question is asked against (GDD 8-1, BOOTH-6c),
+   * which is on the panel because the scrim behind it hides STAR-CHART.
+   *
+   * ★ 312 tall, down from 360 (BOOTH-6c). The old height was sized for six lines
+   * of explanation, which BOOTH-6b's cut left as two — a hit outside the tutorial
+   * window has no explanation at all and the box was most of the way empty. The
+   * new figure is measured off the generator: the worst case is the conditional
+   * tier at 84 characters of question and 101 of explanation, which is two lines
+   * of each in this width. `tests/canvas.test.ts` holds the sum.
+   *
+   * The width is unchanged at 720 on purpose. 640 would wrap the same worst case
+   * to two lines as well — but to exactly two, with no character to spare, and
+   * `word-break: keep-all` (index.css) breaks Korean at spaces only, so a line
+   * never fills to its last glyph. 720 leaves twelve characters of slack.
    */
-  wager: { x: 200, y: 135, w: 720, h: 360 },
+  wager: { x: 200, y: 159, w: 720, h: 312, basis: 20 },
 
   /**
    * DRIFT ORACLE (GDD 8-3), on the same terms as the wager: a modal over the

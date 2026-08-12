@@ -146,6 +146,22 @@ export type WagerTier = 'comparison' | 'complement' | 'conditional'
 export type WagerChoice = 'yes' | 'no' | 'abstain'
 
 /**
+ * What the question is asked against: the deck's size and the count of each suit
+ * it names, in the order it names them (GDD 8-1, 8-2).
+ *
+ * ★ Counts only, and deliberately no probability. The wager is a modal over the
+ * play screen, so STAR-CHART — the panel these figures otherwise come from — is
+ * behind it while the question is open, and a question a player has no way to
+ * work out is not a question (BOOTH-6a, BOOTH-6c). Handing the panel the counts
+ * fixes that; handing it the computed chance would answer the comparison tier
+ * outright, so this type cannot carry one.
+ */
+export interface WagerBasis {
+  readonly deckSize: number
+  readonly counts: readonly { readonly suit: SuitId; readonly count: number }[]
+}
+
+/**
  * One ORION'S WAGER prediction question.
  * Phrasing rule (GDD 8-2): conditional questions state a deck *condition*,
  * never a temporal or causal sequence.
@@ -155,6 +171,7 @@ export interface WagerQuestion {
   readonly answer: boolean
   readonly tier: WagerTier
   readonly explanation: string
+  readonly basis: WagerBasis
 }
 
 export interface WagerRecord {

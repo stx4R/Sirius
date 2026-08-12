@@ -10,12 +10,14 @@ import {
   drifterChip,
   lockIcon,
   nebulaSprite,
+  orionSprite,
   specialChip,
   suitGlyph,
 } from '../src/assets/compose'
 import type { PixelMap } from '../src/assets/compose'
-import type { NebulaLayer } from '../src/assets/pixels'
+import type { NebulaLayer, OrionLayer } from '../src/assets/pixels'
 import { AXIS_COLOURS, CHIP_COLOURS, NEBULA_INK, PALETTE, luma } from '../src/assets/palette'
+import type { OrionMood } from '../src/assets/palette'
 import {
   CARD_FRAME,
   CARD_HEIGHT,
@@ -28,12 +30,19 @@ import {
   NEBULA_FADE_TOP,
   NEBULA_HEIGHT,
   NEBULA_WIDTH,
+  ORION_ARM_GAP,
+  ORION_HEIGHT,
+  ORION_SHOULDER_Y,
+  ORION_WIDTH,
   SUIT_GLYPHS,
   nebulaLayers,
   chipLayerAt,
+  orionLayers,
   skyOf,
 } from '../src/assets/pixels'
 import type { Mask } from '../src/assets/pixels'
+import { MOOD_OF, ORION_LINES } from '../src/ui/dialogue'
+import type { Beat } from '../src/ui/dialogue'
 import { CONSTELLATION_RULES, SPECIAL_SUIT_PAIRS } from '../src/core/config'
 import { mulberry32 } from '../src/core/rng'
 import { createStartingLoadout, rollStock } from '../src/core/shop'
@@ -394,6 +403,257 @@ describe('иєвυℓα (GDD 11-9)', () => {
     // Interest and a closed deal read brighter than resting.
     expect(luma(glows[1])).toBeGreaterThan(luma(glows[0]))
     expect(luma(glows[2])).toBeGreaterThan(luma(glows[1]))
+  })
+})
+
+// BOOTH-6c: ORION's 60×78 map (GDD 11-8). These are the three things the sprite has
+// to be checked against that a screenshot cannot settle — the brightness order, that
+// the anatomy is there, and that no two parts are told apart by hue alone.
+describe('ORION (GDD 11-8)', () => {
+  const MOODS: OrionMood[] = ['calm', 'surprised', 'pleased', 'dim']
+
+  /** Solid columns of a row, as [start, end] runs. */
+  const runsOf = (layers: readonly (readonly OrionLayer[])[], y: number): [number, number][] => {
+    const out: [number, number][] = []
+    let start = -1
+    layers[y].forEach((layer, x) => {
+      const on = layer !== 'outside'
+      if (on && start < 0) start = x
+      if (!on && start >= 0) {
+        out.push([start, x - 1])
+        start = -1
+      }
+    })
+    if (start >= 0) out.push([start, layers[y].length - 1])
+    return out
+  }
+
+  const countOfLayer = (layers: readonly (readonly OrionLayer[])[], want: OrionLayer): number =>
+    layers.flat().filter((layer) => layer === want).length
+
+  it('is 60×78, the same frame иєвυℓα gets (GDD 11-4)', () => {
+    for (const mood of MOODS) {
+      const sprite = orionSprite(mood)
+
+      expect(sprite).toHaveLength(ORION_HEIGHT)
+      for (const row of sprite) expect(row).toHaveLength(ORION_WIDTH)
+    }
+    expect(ORION_WIDTH).toBe(NEBULA_WIDTH)
+    expect(ORION_HEIGHT).toBe(NEBULA_HEIGHT)
+  })
+
+  // ① Brightness order, outline included. His face is the brightest thing on him,
+  // because that is where the four expressions live — the mirror of GDD 11-9, where
+  // the light inside the hood is the brightest and she has no face at all.
+  it('never lets the outline or a filament out-shine his face, in any mood', () => {
+    for (const mood of MOODS) {
+      const layers = orionLayers(mood)
+      const sprite = orionSprite(mood)
+      const lumaOf = (want: OrionLayer) =>
+        layers.flatMap((row, y) =>
+          row.flatMap((layer, x) => (layer === want ? [luma(sprite[y][x] as string)] : [])),
+        )
+
+      const skin = Math.max(...lumaOf('skin'))
+      for (const part of ['rim', 'filament', 'cloud', 'cloudDeep', 'skinShade'] as const) {
+        const values = lumaOf(part)
+        expect(values.length, `${mood}: no ${part}`).toBeGreaterThan(0)
+        expect(Math.max(...values), `${mood}: ${part} vs skin`).toBeLessThan(skin)
+      }
+    }
+  })
+
+  // The rim also has to *stop* being a rim. GDD 11-9's forbidden #4: one bright line
+  // all the way round a silhouette reads as a sticker on the background, and the
+  // ceiling alone does not buy that — the far end has to sink into the body.
+  it('fades the outline into the body at the far end from his face', () => {
+    const layers = orionLayers('calm')
+    const sprite = orionSprite('calm')
+    const rim = layers.flatMap((row, y) =>
+      row.flatMap((layer, x) => (layer === 'rim' ? [{ y, luma: luma(sprite[y][x] as string) }] : [])),
+    )
+    const near = rim.filter((pixel) => pixel.y < ORION_HEIGHT / 3)
+    const far = rim.filter((pixel) => pixel.y > (ORION_HEIGHT * 2) / 3)
+
+    // It dims with distance from his face.
+    expect(Math.max(...near.map((p) => p.luma))).toBeGreaterThan(
+      Math.max(...far.map((p) => p.luma)) + 12,
+    )
+
+    // And somewhere it has stopped being an outline at all: the dimmest rim pixel is
+    // the colour of the body on its own row, give or take a value. That is the half
+    // of GDD 11-9's forbidden #4 a ceiling does not buy — a silhouette closed by an
+    // unbroken bright line reads as a sticker however dim the line is.
+    const bodyOn = (y: number) => {
+      const x = layers[y].findIndex((layer) => layer === 'cloud')
+      return x < 0 ? null : luma(sprite[y][x] as string)
+    }
+    const gaps = rim.flatMap((pixel) => {
+      const body = bodyOn(pixel.y)
+      return body === null ? [] : [Math.abs(pixel.luma - body)]
+    })
+
+    expect(Math.min(...gaps)).toBeLessThan(5)
+  })
+
+  // ② The anatomy. A head wider than the neck under it, a neck narrower than the
+  // shoulders under that, and two arms — each standing off the body by the gap that
+  // GDD 11-9's remaining-work list found is what makes an arm read at all.
+  it('has a head, a neck, and two arms held off the body', () => {
+    const layers = orionLayers('calm')
+    const width = (y: number) => layers[y].filter((layer) => layer !== 'outside').length
+
+    // The neck: narrower than the head above it and the shoulders below it.
+    expect(width(15)).toBeGreaterThan(width(29))
+    expect(width(ORION_SHOULDER_Y)).toBeGreaterThan(width(29))
+
+    // Three runs across a row through both arms: arm, body, arm.
+    const midArm = runsOf(layers, 43)
+    expect(midArm, `runs at y=43: ${JSON.stringify(midArm)}`).toHaveLength(3)
+    for (const [start, end] of [midArm[0], midArm[2]]) {
+      expect(end - start).toBeGreaterThanOrEqual(2)
+    }
+    // And the gaps either side of the body are the ones that were carved for it.
+    expect(midArm[1][0] - midArm[0][1] - 1).toBeGreaterThanOrEqual(ORION_ARM_GAP)
+    expect(midArm[2][0] - midArm[1][1] - 1).toBeGreaterThanOrEqual(ORION_ARM_GAP)
+  })
+
+  // The arms are welded where they leave the shoulder. An arm that is a free-floating
+  // blob at every row is not an arm, which is what an earlier draft produced — and
+  // the row each one welds on differs, because the two sides run on different lobe
+  // phases, so this asks the question per arm rather than at one chosen row.
+  it('joins each arm to the body at the shoulder', () => {
+    const layers = orionLayers('calm')
+    const centre = Math.round((ORION_WIDTH - 1) / 2)
+    const runAt = (y: number, x: number) =>
+      runsOf(layers, y).find(([start, end]) => x >= start && x <= end)
+
+    for (const [side, top] of [
+      [-1, 32],
+      [1, 34],
+    ] as const) {
+      // The row under each arm's first: the arm is at width by then and still on the
+      // body. The pixel one in from its outer edge has to sit in the run the centre
+      // column is in — which is to say there is no gap between them yet.
+      const y = top + 1
+      const runs = runsOf(layers, y)
+      const outer = side < 0 ? runs[0][0] + 1 : runs[runs.length - 1][1] - 1
+
+      expect(runAt(y, outer), `arm ${side} at y=${y}`).toEqual(runAt(y, centre))
+    }
+  })
+
+  // ③ Contrast between parts, so nothing is told apart by hue alone — the case that
+  // fails first for a player with colour-vision deficiency.
+  it('separates every part from its neighbour by value, not only by hue', () => {
+    const sprite = orionSprite('calm')
+    const layers = orionLayers('calm')
+    const tone = (want: OrionLayer) => {
+      const found = layers.flatMap((row, y) =>
+        row.flatMap((layer, x) => (layer === want ? [sprite[y][x] as string] : [])),
+      )
+      return luma(found[0])
+    }
+
+    // Skin against the body it stands in front of, at both ends of the gradient.
+    expect(Math.abs(tone('skin') - tone('cloud'))).toBeGreaterThanOrEqual(10)
+    // The jaw and arm shading against the skin it shades, and against the body.
+    expect(Math.abs(tone('skin') - tone('skinShade'))).toBeGreaterThanOrEqual(10)
+    expect(Math.abs(tone('skinShade') - tone('cloud'))).toBeGreaterThanOrEqual(10)
+    // Gas structure against the gas around it.
+    expect(Math.abs(tone('filament') - tone('cloud'))).toBeGreaterThanOrEqual(10)
+    expect(Math.abs(tone('cloudDeep') - tone('cloud'))).toBeGreaterThanOrEqual(10)
+  })
+
+  // GDD 11-8: the body runs from Hα at the shoulders to the blue reflection nebula
+  // at the bottom. The gradient is the whole of what makes it M42 and not a cloak.
+  it('runs the body from Hα down to the reflection nebula', () => {
+    const sprite = orionSprite('calm')
+    const layers = orionLayers('calm')
+    const cloudAt = (y: number) => {
+      const x = layers[y].findIndex((layer) => layer === 'cloud')
+      return x < 0 ? null : sprite[y][x] as string
+    }
+    const top = cloudAt(ORION_SHOULDER_Y + 6)
+    const bottom = cloudAt(ORION_HEIGHT - 4)
+
+    expect(top).not.toBeNull()
+    expect(bottom).not.toBeNull()
+    // Redder at the top, bluer at the bottom, measured off the channels themselves.
+    const red = (hex: string) => parseInt(hex.slice(1, 3), 16)
+    const blue = (hex: string) => parseInt(hex.slice(5, 7), 16)
+    expect(red(top!)).toBeGreaterThan(red(bottom!))
+    expect(blue(bottom!)).toBeGreaterThan(blue(top!))
+  })
+
+  // Unlike hers, his silhouette closes. GDD 11-9 makes the dissolving hem the line
+  // between "person in a cloak" and "unknown thing", and he is on the other side of it.
+  it('closes at the bottom instead of running out by density', () => {
+    const layers = orionLayers('calm')
+    const bottom = layers[ORION_HEIGHT - 1].filter((layer) => layer !== 'outside').length
+    const waist = layers[56].filter((layer) => layer !== 'outside').length
+
+    // Wider at the bottom edge than at the waist, and solid across it.
+    expect(bottom).toBeGreaterThan(waist)
+    expect(runsOf(layers, ORION_HEIGHT - 1)).toHaveLength(1)
+  })
+
+  // No pixel-level randomness anywhere, so a seed is not even consulted (CLAUDE.md §8).
+  it('is the same sprite every time it is built', () => {
+    for (const mood of MOODS) {
+      expect(orionSprite(mood)).toEqual(orionSprite(mood))
+    }
+  })
+
+  // GDD 11-8 asks for four, and four that look alike are one. The face is where they
+  // differ, and the value shift is what carries them across a booth table.
+  it('gives each of the four expressions a different face and a different value', () => {
+    const faces = MOODS.map((mood) => {
+      const layers = orionLayers(mood)
+      return JSON.stringify([
+        countOfLayer(layers, 'eye'),
+        countOfLayer(layers, 'brow'),
+        countOfLayer(layers, 'mouth'),
+      ])
+    })
+    expect(new Set(faces).size).toBe(MOODS.length)
+
+    const brightest = MOODS.map((mood) =>
+      Math.max(
+        ...orionSprite(mood)
+          .flat()
+          .filter((cell): cell is string => cell !== null)
+          .map(luma),
+      ),
+    )
+    expect(new Set(brightest).size).toBe(MOODS.length)
+    // `dim` is the run ending, so it is the one that goes out.
+    expect(Math.min(...brightest)).toBe(brightest[MOODS.indexOf('dim')])
+  })
+
+  // GDD 11-8 replaced '거래' with a face for the run ending, and every beat has to
+  // land on one of the four — a beat with no face would render as whatever was last.
+  it('gives every one of ORION`s beats one of the four faces', () => {
+    for (const beat of Object.keys(ORION_LINES) as Beat[]) {
+      expect(MOODS).toContain(MOOD_OF[beat])
+    }
+    // The two that must not be shared with anything else.
+    expect(MOOD_OF.bigScore).toBe('surprised')
+    expect(MOOD_OF.gameOver).toBe('dim')
+  })
+
+  it('keeps his tones out of the chip palette, so he is not made of pieces', () => {
+    const colours = new Set(
+      MOODS.flatMap((mood) =>
+        orionSprite(mood)
+          .flat()
+          .filter((cell): cell is string => cell !== null),
+      ),
+    )
+
+    for (const suit of SUIT_ORDER) {
+      expect(colours.has(CHIP_COLOURS[suit].base)).toBe(false)
+    }
   })
 })
 

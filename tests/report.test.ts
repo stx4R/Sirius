@@ -29,7 +29,13 @@ const draw = (round: number, turn: number, drawn: readonly Chip[]): DrawRecord =
 const wager = (round: number, choice: WagerRecord['choice'], correct: boolean): WagerRecord => ({
   round,
   turn: 1,
-  question: { text: '', answer: true, tier: 'comparison', explanation: '' },
+  question: {
+    text: '',
+    answer: true,
+    tier: 'comparison',
+    explanation: '',
+    basis: { deckSize: 50, counts: [] },
+  },
   choice,
   correct,
 })

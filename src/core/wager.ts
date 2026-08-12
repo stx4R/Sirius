@@ -70,6 +70,12 @@ interface Proposition {
   readonly text: string
   readonly answer: boolean
   readonly explanation: string
+  /**
+   * The suits the sentence names, in the order it names them. `generateWager`
+   * turns them into the question's `basis` so the panel can print the counts the
+   * answer was worked out from (GDD 8-1).
+   */
+  readonly suits: readonly SuitId[]
   /** Distance between the two quantities the question puts side by side. */
   readonly gap: number
   /**
@@ -120,6 +126,7 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
       text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성이 ${chip(b)}보다 크거나 같을까?`,
       answer,
       explanation: `${basis(a, b)} ${rebuttal}`,
+      suits: [a, b],
       gap,
       clear: tied || gap >= WAGER_MIN_GAP,
     })
@@ -137,6 +144,7 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
       explanation: same
         ? `${standings} NO를 고르면 장수가 같은데도 가능성이 다르다고 본 것이다.`
         : `${standings} YES를 고르면 장수가 다른데도 가능성이 같다고 본 것이다.`,
+      suits: [a, b],
       gap,
       clear: tied || gap >= WAGER_MIN_GAP,
     })
@@ -151,6 +159,7 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
       explanation: same
         ? `${standings} YES를 고르면 장수가 같은데도 가능성이 다르다고 본 것이다.`
         : `${standings} NO를 고르면 장수가 다른데도 가능성이 같다고 본 것이다.`,
+      suits: [a, b],
       gap,
       clear: tied || gap >= WAGER_MIN_GAP,
     })
@@ -191,6 +200,7 @@ function complements(deck: readonly Chip[], handSize: number): Proposition[] {
         explanation: answer
           ? `${fact} NO를 고르면 확률을 ${label}보다 작게 본 것이다.`
           : `${fact} YES를 고르면 확률을 ${label}보다 크게 본 것이다.`,
+        suits: [suit],
         gap: Math.abs(none - threshold),
         clear: Math.abs(none - threshold) >= WAGER_MIN_GAP,
       })
@@ -250,6 +260,7 @@ function conditionals(deck: readonly Chip[]): Proposition[] {
           : half
             ? `${fact} YES를 고르면 절반과 같은 것을 절반보다 큰 것으로 본 것이다.`
             : `${fact} YES를 고르면 그 몫이 절반에 못 미친 것을 놓친 것이다.`,
+      suits: [a, b],
       gap,
       clear,
     })
@@ -260,6 +271,7 @@ function conditionals(deck: readonly Chip[]): Proposition[] {
       explanation: half
         ? `${fact} NO를 고르면 남은 ${union}장이 두 문양으로 반씩 갈린 것을 놓친 것이다.`
         : `${fact} YES를 고르면 그 몫을 절반으로 본 것이다.`,
+      suits: [a, b],
       gap,
       clear,
     })
@@ -325,7 +337,28 @@ export function generateWager(
       : tier === 'complement'
         ? complements(deck, handSize)
         : conditionals(deck)
-  const { text, answer, explanation } = choose(propositions, rng)
+  const { text, answer, explanation, suits } = choose(propositions, rng)
 
-  return { text, answer, tier, explanation }
+  // ★ The counts, and only the counts (GDD 8-1, BOOTH-6c). The wager is a modal
+  // over the play screen, so STAR-CHART is behind it while the question is open —
+  // a player had no way to reach the figures the question is about, which made it
+  // unanswerable rather than merely hard. These travel with the question so the
+  // panel can print them.
+  //
+  // No probability rides along. `chance` is right here and it is deliberately not
+  // used: the comparison tier's answer *is* the order of the two chances, so a
+  // panel holding them would answer itself. Counts leave the monotonic step — more
+  // chips means likelier — for the player to take, and that step is Ⅱ-1.
+  const bySuit = countDeck(deck).bySuit
+
+  return {
+    text,
+    answer,
+    tier,
+    explanation,
+    basis: {
+      deckSize: deck.length,
+      counts: suits.map((suit) => ({ suit, count: bySuit[suit] })),
+    },
+  }
 }

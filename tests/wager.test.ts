@@ -297,6 +297,42 @@ describe('generateWager (GDD 8-2)', () => {
         }
       })
 
+      // BOOTH-6c: the counts the panel prints, because the scrim over the play
+      // screen hides STAR-CHART while the question is open. Two things have to
+      // hold — they are the suits the question actually names, and the figures are
+      // the deck's own.
+      it('carries the counts of the suits it names, and the deck size', () => {
+        for (const { deck, question } of cases) {
+          const named = suitsIn(question.text)
+
+          expect(question.basis.deckSize).toBe(deck.length)
+          expect(question.basis.counts.map((entry) => entry.suit)).toEqual(named)
+          for (const { suit, count } of question.basis.counts) {
+            expect(count).toBe(countAs(deck, suit))
+          }
+        }
+      })
+
+      // ★ And no probability, ever. The comparison tier's answer *is* the order of
+      // the two chances, so a panel holding them would answer the question for the
+      // player — the step from "twelve against ten" to "so it is likelier" is Ⅱ-1
+      // and has to stay theirs. Enforced on the type by having nowhere to put one,
+      // and here on the values.
+      it('never carries a probability alongside the counts', () => {
+        for (const { question } of cases) {
+          const fields = question.basis.counts.flatMap((entry) => Object.values(entry))
+
+          expect(Object.keys(question.basis).sort()).toEqual(['counts', 'deckSize'])
+          for (const { suit, count } of question.basis.counts) {
+            expect(Object.keys({ suit, count }).sort()).toEqual(['count', 'suit'])
+          }
+          // Whole chip counts only. A probability in this shape would be a fraction.
+          for (const value of fields) {
+            if (typeof value === 'number') expect(Number.isInteger(value)).toBe(true)
+          }
+        }
+      })
+
       // The shape the budget was cut to: the basis first, then the misconception
       // the wrong side stands for, and nothing after it. The qualitative tails
       // that used to follow the rebuttal are what went.

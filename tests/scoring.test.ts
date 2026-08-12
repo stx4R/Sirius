@@ -285,3 +285,133 @@ describe('per-suit breakdown', () => {
     }
   })
 })
+
+// GDD 13 #13. DRIFT ORACLE pays out a fraction of what the drifter itself
+// scored, which the suit-level split cannot answer — it says what GAC earned,
+// not what the chip at (1,1) earned.
+describe('per-cell contribution', () => {
+  const at = (result: ReturnType<typeof scoreBoard>, row: number, col: number) =>
+    result.byCell.find((cell) => cell.position.row === row && cell.position.col === col)!
+
+  it('has one entry per occupied cell, in row-major order', () => {
+    const board = boardFrom(['.   GAC .   .   .', 'GAC *   .   .   .', EMPTY, EMPTY, EMPTY])
+
+    const { byCell } = scoreBoard(board, context([]))
+
+    expect(byCell.map((cell) => `${cell.position.row},${cell.position.col}`)).toEqual([
+      '0,1',
+      '1,0',
+      '1,1',
+    ])
+  })
+
+  it('is empty for an empty board', () => {
+    const result = scoreBoard(boardFrom([EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]), context([]))
+
+    expect(result.byCell).toEqual([])
+    expect(result.total).toBe(0)
+  })
+
+  // GDD 5-2, B-4: the chip at (0,0) closes both the vertical and the horizontal
+  // run, and is paid by each of them.
+  it('pays a crossing chip once per line', () => {
+    const board = boardFrom([
+      'GAC GAC GAC .   .',
+      'GAC .   .   .   .',
+      'GAC .   .   .   .',
+      EMPTY,
+      EMPTY,
+    ])
+
+    const result = scoreBoard(board, context(['aries', 'libra']))
+
+    // Both lines pay 10 × 1.2 per cell. The crossing takes both, the other four take one.
+    expect(at(result, 0, 0)).toMatchObject({ lineScore: 24, flatScore: 0, total: 24 })
+    for (const [row, col] of [
+      [0, 1],
+      [0, 2],
+      [1, 0],
+      [2, 0],
+    ]) {
+      expect(at(result, row, col)).toMatchObject({ lineScore: 12, total: 12 })
+    }
+  })
+
+  it('gives a chip in no firing line no line score, only the flat ×1.0', () => {
+    const board = boardFrom([
+      'GAC GAC GAC .   .',
+      'GAC .   .   .   .',
+      'GAC .   .   .   .',
+      EMPTY,
+      EMPTY,
+    ])
+
+    // Aries alone fires on the vertical run; (0,1) and (0,2) are in nothing.
+    const result = scoreBoard(board, context(['aries']))
+
+    expect(at(result, 0, 1)).toMatchObject({ lineScore: 0, flatScore: 10, total: 10 })
+    expect(at(result, 0, 2)).toMatchObject({ lineScore: 0, flatScore: 10, total: 10 })
+    expect(at(result, 0, 0)).toMatchObject({ lineScore: 12, flatScore: 0, total: 12 })
+  })
+
+  // The one chip that can be on the board and still earn nothing (GDD 3-3).
+  it('scores a drifter with no neighbours at 0', () => {
+    const result = scoreBoard(boardFrom(['*   .   .   .   .', EMPTY, EMPTY, EMPTY, EMPTY]), context([]))
+
+    expect(result.byCell).toHaveLength(1)
+    expect(result.byCell[0]).toMatchObject({ lineScore: 0, flatScore: 0, cancerBonus: 0, total: 0 })
+    expect(result.total).toBe(0)
+  })
+
+  // A drifter judged as two suits earns under both, and the cell carries the sum
+  // rather than a split — the suit axis is `bySuit`'s job.
+  it('merges the suits a drifter is judged as into one figure', () => {
+    const board = boardFrom(['.   GAC .   .   .', 'GAC *   IMA .   .', EMPTY, EMPTY, EMPTY])
+
+    const result = scoreBoard(board, context([]))
+
+    expect(at(result, 1, 1)).toMatchObject({ flatScore: 20, total: 20 })
+    expect(at(result, 0, 1).total).toBe(10)
+    expect(at(result, 1, 0).total).toBe(10)
+    expect(at(result, 1, 2).total).toBe(10)
+  })
+
+  it('spreads the whole-suit cancer bonus over the cells that earned it', () => {
+    const board = boardFrom(['GAC GAC .   .   .', 'IMA IMA .   .   .', EMPTY, EMPTY, EMPTY])
+
+    // Both suits are tied for most placed: 2 × 10 × 0.1 = 2 each, one point a cell.
+    const result = scoreBoard(board, context(['cancer']))
+
+    for (const cell of result.byCell) {
+      expect(cell).toMatchObject({ lineScore: 0, flatScore: 10, cancerBonus: 1, total: 11 })
+    }
+    expect(result.total).toBe(44)
+  })
+
+  // The invariant the decomposition exists for: it accounts for the settlement
+  // exactly, so a share of it is a share of what the player actually scored.
+  //
+  // Scoped to the shipped stack mode, like the `bySuit` equation above. 'sum'
+  // keeps every cell an exact integer (10 × a one-decimal multiplier); 'product'
+  // can put two decimals on a multiplier, and then the rounded parts need not add
+  // back up to the rounded whole. It is a Phase 2 comparison mode only.
+  it('adds back up to the total', () => {
+    const boards = [
+      ['GAC GAC GAC .   .', 'GAC .   .   .   .', 'GAC .   .   .   .', EMPTY, EMPTY],
+      ['GAC GAC .   .   .', 'IMA IMA .   .   .', EMPTY, EMPTY, EMPTY],
+      ['GAC&IMA GAC&IMA GAC&IMA .   .', 'MIM MIM MIM .   .', EMPTY, EMPTY, EMPTY],
+      ['GAC GAC GAC GAC GAC', 'IMA IMA IMA IMA .', 'ACR .   .   .   .', EMPTY, EMPTY],
+      ['GAC .   .   .   .', 'GAC .   .   .   .', '*   .   .   .   .', 'MIM MIM MIM .   .', EMPTY],
+      ['GAC GAC GAC GAC GAC', 'GAC GAC GAC GAC GAC', 'GAC GAC GAC GAC GAC', 'GAC GAC GAC GAC GAC', 'GAC GAC GAC GAC GAC'],
+      [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY],
+    ]
+    const owned = ['aries', 'libra', 'cancer', 'leo', 'aquarius', 'virgo'] as const
+
+    for (const rows of boards) {
+      const result = scoreBoard(boardFrom(rows), context([...owned], MULTIPLIER_STACK_MODE))
+
+      const summed = result.byCell.reduce((acc, cell) => acc + cell.total, 0)
+      expect(summed, rows.join(' / ')).toBe(result.total)
+    }
+  })
+})

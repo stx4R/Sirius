@@ -344,7 +344,11 @@ export function resolveWager(game: Game, choice: WagerChoice): Game {
   }
 }
 
-/** GDD 9-1. The score half of DRIFT ORACLE needs per-chip attribution (GDD 13 #13). */
+/**
+ * GDD 9-1 — the stardust half only. The score half of DRIFT ORACLE (GDD 8-3)
+ * pays a fraction of what the drifter scored, which `ScoreResult.byCell` can now
+ * answer (GDD 5-1); wiring it is still to come.
+ */
 export function awardOracle(game: Game, correct: boolean): Game {
   return correct ? { ...game, stardust: game.stardust + STARDUST_REWARDS.oracleCorrect } : game
 }

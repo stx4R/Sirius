@@ -16,6 +16,7 @@ import { PALETTE } from '../assets/palette'
 import { useGame } from '../store/gameStore'
 import { Board } from './Board'
 import { At, CANVAS_HEIGHT, CANVAS_WIDTH, Canvas, LAYOUT } from './Canvas'
+import { CoachTip, HelpButton, HelpCard, coachLine, coachStep } from './Coach'
 import { ConstellationCard } from './ConstellationCard'
 import { DEV_TOOLS, DevPanel } from './DevPanel'
 import { RoundTurn, Stardust, StatusLine } from './HUD'
@@ -97,6 +98,7 @@ export function Game() {
   const [step, setStep] = useState(0)
   const [speed, setSpeed] = useState(0)
   const [shuffling, setShuffling] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const steps = useMemo(() => (settlement === null ? [] : stepsOf(settlement)), [settlement])
   const lit = useMemo(() => litCells(steps[step]), [steps, step])
@@ -185,6 +187,25 @@ export function Game() {
       : settlement.roundScoreBefore + (settling ? scoredSoFar : settlement.awarded)
 
   const cards = LAYOUT.constellations
+
+  // GDD 12-2 ①. Derived, not stored: every field below is already on this screen
+  // for its own reasons, so the coach cannot fall out of step with the game.
+  const starting = game.ownedConstellations[0] ?? null
+  const coach = over
+    ? null
+    : coachStep({
+        round: game.round,
+        turn: game.turn,
+        shuffling,
+        pendingWager: game.pendingWager !== null,
+        wagerOpen: wagering,
+        oracleOpen: asking,
+        reportOpen: report !== null,
+        answered: game.wagerHistory.length,
+        holding: selected !== null,
+        placed: staged.length,
+        settlingTurn: settlement?.turn ?? null,
+      })
 
   return (
     <Canvas>
@@ -352,6 +373,7 @@ export function Game() {
               question={game.pendingWager}
               result={wagerResult}
               forced={wagerIsForced(game)}
+              answered={game.wagerHistory.length}
               reduced={reduced}
               width={LAYOUT.wager.w}
               height={LAYOUT.wager.h}
@@ -417,6 +439,32 @@ export function Game() {
             />
           </At>
         </>
+      )}
+
+      {/* GDD 12-2 ①: one caption at a time, over the round it is teaching, gone
+          the moment the action it asks for happens. It blocks nothing — a player
+          who ignores it plays a normal game (see Coach.tsx). */}
+      {coach !== null && (
+        <CoachTip
+          step={coach}
+          line={coachLine(coach, starting, game.targetScore)}
+          reduced={reduced}
+        />
+      )}
+
+      {/* GDD 12-2 ①: the way back in for a player who lost the thread. Always
+          there, on every round — the coach marks are round 1 only. */}
+      <At x={LAYOUT.help.x} y={LAYOUT.help.y} z={40}>
+        <HelpButton onOpen={() => setHelpOpen(true)} />
+      </At>
+
+      {helpOpen && (
+        <HelpCard
+          starting={starting}
+          target={game.targetScore}
+          reduced={reduced}
+          onClose={() => setHelpOpen(false)}
+        />
       )}
 
       {over && (

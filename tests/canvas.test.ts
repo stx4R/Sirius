@@ -9,11 +9,14 @@ import {
   TITLE_LAYOUT,
   canvasScale,
 } from '../src/ui/Canvas'
+import { COACH_ORDER } from '../src/ui/Coach'
+import { DECK_NAME_COLUMN } from '../src/ui/Shop'
 import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH } from '../src/assets/pixels'
 import {
   MODE_PRESETS,
   OWNED_CONSTELLATION_LIMIT,
   STARTING_CONSTELLATION_CHOICES,
+  SUIT_STAR_NAMES,
 } from '../src/core/config'
 import { SUIT_ORDER } from '../src/core/types'
 
@@ -70,6 +73,9 @@ describe('canvas layout (GDD 11-10)', () => {
       w: LAYOUT.constellations.cell * 2 + LAYOUT.constellations.gap,
       h: 142 * 2 + LAYOUT.constellations.gap,
     },
+    // BOOTH-6b: the ? button is always on screen (GDD 12-2 ①), so unlike the
+    // coach captions it is not an overlay and belongs in the pairwise check.
+    help: { x: LAYOUT.help.x, y: LAYOUT.help.y, w: LAYOUT.help.size, h: LAYOUT.help.size },
   }
 
   it('keeps every placed box on the plane', () => {
@@ -155,6 +161,25 @@ describe('canvas layout (GDD 11-10)', () => {
     expect(panel.row * 5 + HEADER + PADDING).toBeLessThanOrEqual(panel.h)
     // The bar has to leave room for the percentage beside it.
     expect(panel.bar).toBeLessThan(panel.w - PADDING)
+  })
+
+  // BOOTH-6b: GDD 8-1 puts the full star name on this panel too, and 108px is the
+  // reason it was not there before. The name goes under the three-letter code, in
+  // the column beside the 32px chip, at the 9px face.
+  it('fits the longest star name in the vertical STAR-CHART column', () => {
+    const panel = LAYOUT.starChart
+    const PADDING = 4 * 2
+    const CHIP = 32
+    const GAP = 4
+    // Galmuri9, and the canvas tests take a Latin glyph at the face's own size as
+    // the conservative width (see the oracle row below). Gacrux and Mimosa are the
+    // longest of the five at six glyphs.
+    const longest = Math.max(...SUIT_ORDER.map((suit) => SUIT_STAR_NAMES[suit].length))
+
+    expect(longest).toBe(6)
+    expect(CHIP + GAP + longest * 9).toBeLessThanOrEqual(panel.w - PADDING)
+    // Code (11) over name (9) over count (9), against the row height.
+    expect(11 + 9 + 9).toBeLessThanOrEqual(panel.row)
   })
 
   it('places STAR-CHART on whole pixels', () => {
@@ -324,6 +349,92 @@ describe('canvas layout (GDD 11-10)', () => {
       expect(Number.isInteger(value)).toBe(true)
     }
   })
+
+  // BOOTH-6b: the coach captions (GDD 12-2 ①) are overlays, so they are out of
+  // `boxes` for the reason the three modals are — each sits over a corner of the
+  // thing it points at. The two things asked of an overlay instead: it lands on
+  // the plane, and it lands where it says it points.
+  it('keeps every coach caption on the plane', () => {
+    for (const [name, spot] of Object.entries(LAYOUT.coach.steps)) {
+      expect(spot.x, `${name} left`).toBeGreaterThanOrEqual(0)
+      expect(spot.y, `${name} top`).toBeGreaterThanOrEqual(0)
+      expect(spot.x + spot.w, `${name} right`).toBeLessThanOrEqual(CANVAS_WIDTH)
+      expect(spot.y + LAYOUT.coach.h, `${name} bottom`).toBeLessThanOrEqual(CANVAS_HEIGHT)
+    }
+  })
+
+  // A caret that points up has to have its subject above it and vice versa, and
+  // the caption must not cover that subject. Both failed on the first pass — see
+  // the note on LAYOUT.coach.
+  it('seats each caption beside what its caret points at', () => {
+    const steps = LAYOUT.coach.steps
+    const bottom = (y: number) => y + LAYOUT.coach.h
+
+    // 'wager' points up at the modal, which ends at 495; the caption starts below it.
+    expect(steps.wager.caret).toBe('up')
+    expect(steps.wager.y).toBeGreaterThanOrEqual(LAYOUT.wager.y + LAYOUT.wager.h)
+
+    // 'hand' and 'limit' share the slot above the fan, pointing down at it and at
+    // the placement counter under it. They never appear together (see coachStep).
+    for (const spot of [steps.hand, steps.limit]) {
+      expect(spot.caret).toBe('down')
+      expect(bottom(spot.y)).toBeLessThanOrEqual(LAYOUT.hand.y)
+      // Clear of STAR-CHART, which a caption reaching further right would cover.
+      expect(spot.x + spot.w).toBeLessThanOrEqual(LAYOUT.starChart.x)
+    }
+    expect(steps.limit).toEqual(steps.hand)
+
+    // 'board' points down at the 5×5 chart, from above it.
+    expect(steps.board.caret).toBe('down')
+    expect(bottom(steps.board.y)).toBeLessThanOrEqual(LAYOUT.board.y)
+    expect(steps.board.x + steps.board.w).toBeLessThanOrEqual(LAYOUT.constellations.label.x)
+
+    // 'target' points up at the round total and starts below it, so the figure and
+    // the target line it names stay readable.
+    expect(steps.target.caret).toBe('up')
+    expect(steps.target.y).toBeGreaterThanOrEqual(LAYOUT.roundTotal.y + LAYOUT.roundTotal.h)
+    // It clips the top edge of ORION's bubble by 14px, deliberately: that band is
+    // the only room left, and his line is decoration where the target is not.
+    expect(steps.target.y).toBeLessThan(LAYOUT.bubble.y)
+    expect(bottom(steps.target.y) - LAYOUT.bubble.y).toBeLessThanOrEqual(16)
+    // Clear of ORION himself.
+    expect(steps.target.x + steps.target.w).toBeLessThanOrEqual(LAYOUT.orion.x)
+  })
+
+  it('places the coach, the ? button and its card on whole pixels', () => {
+    const numbers = [
+      LAYOUT.coach.h,
+      ...Object.values(LAYOUT.coach.steps).flatMap((spot) => [spot.x, spot.y, spot.w]),
+      ...Object.values(LAYOUT.help),
+      ...Object.values(LAYOUT.helpCard),
+    ]
+
+    for (const value of numbers) expect(Number.isInteger(value)).toBe(true)
+  })
+
+  // The ? card is the fifth modal, and gets the modal pair of checks.
+  it('centres the help card on the plane and keeps it inside', () => {
+    const card = LAYOUT.helpCard
+
+    expect(card.x + card.w / 2).toBe(CANVAS_WIDTH / 2)
+    expect(card.y + card.h / 2).toBe(CANVAS_HEIGHT / 2)
+    expect(card.x).toBeGreaterThanOrEqual(0)
+    expect(card.y).toBeGreaterThanOrEqual(0)
+  })
+
+  // Five numbered lines, a heading and a button. The lines are the coach captions,
+  // so the longest one is what the height has to hold.
+  it('holds the five help lines, its heading and its button', () => {
+    const card = LAYOUT.helpCard
+    const PADDING = 20 * 2
+    const GAPS = 12 * 2
+    const HEADING = 14
+    const LINES = 20 * COACH_ORDER.length
+    const BUTTON = 40
+
+    expect(COACH_ORDER).toHaveLength(5)
+    expect(HEADING + LINES + BUTTON + GAPS + PADDING).toBeLessThanOrEqual(card.h)
+  })
 })
 
 // P4-A: the shop is drawn on the same plane and answers to the same rules
@@ -403,6 +514,28 @@ describe('shop layout (GDD 9-3, 11-10)', () => {
 
     expect(gap).toBeGreaterThanOrEqual(0)
     expect(gap).toBeLessThanOrEqual(40)
+  })
+
+  // BOOTH-6b: GDD 8-1 now asks for the full star name on the shop's STAR-CHART
+  // too, and the suit column went from 36 to 54 to hold it. It came out of the
+  // row's own slack, which is what this holds — the fixed columns and the gaps
+  // between them still fit the 440px panel.
+  it('fits the shop STAR-CHART row once the star names are in it', () => {
+    const PADDING = 8 * 2
+    const CHILDREN = 9
+    const GAPS = 4 * (CHILDREN - 1)
+    const CHIP = 32
+    const COUNT = 44
+    const BAR = 52
+    // 계산 · 실제 · 기본, then the add and remove buttons.
+    const FIGURES = 40 * 3
+    const BUTTONS = 40 * 2 + 4
+    const fixed = CHIP + DECK_NAME_COLUMN + COUNT + BAR + FIGURES + BUTTONS
+
+    expect(DECK_NAME_COLUMN).toBeGreaterThanOrEqual(
+      Math.max(...SUIT_ORDER.map((suit) => SUIT_STAR_NAMES[suit].length)) * 9,
+    )
+    expect(fixed + GAPS + PADDING).toBeLessThanOrEqual(SHOP_LAYOUT.deck.w)
   })
 
   // GDD 8-1 puts STAR-CHART beside BLACK-HOLE at P5, and the deck panel is where

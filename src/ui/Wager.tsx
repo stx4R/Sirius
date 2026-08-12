@@ -10,6 +10,11 @@
 // the hand exists, so there is nothing else to be doing while it is up. The
 // explanation replaces the buttons in the same box rather than opening a second
 // one, so the question stays on screen next to the reason.
+//
+// ★ A correct answer outside the tutorial window shows no explanation (GDD 8-2,
+// BOOTH-6b). GDD 8-2 asks for a popup "오답 시"; showing one on a hit as well was
+// this file's addition, and BOOTH-6a measured the wager at 44% of the booth's
+// 20-minute budget. See `showsExplanation`.
 
 import { motion } from 'framer-motion'
 import { FORCED_WAGER_COUNT, STARDUST_REWARDS } from '../core/config'
@@ -22,6 +27,22 @@ const CHOICES: readonly { readonly choice: WagerChoice; readonly label: string }
   { choice: 'no', label: 'NO' },
   { choice: 'abstain', label: '기권' },
 ]
+
+/**
+ * Whether the explanation is shown at all (GDD 8-2, BOOTH-6b).
+ *
+ * A wrong answer and an abstention always get it — that is the case GDD 8-2 asks
+ * for by name, and the reason the popup exists. A correct one gets it only inside
+ * the tutorial window, where the point is the reasoning rather than the score.
+ *
+ * `answered` is how many wagers core has recorded, which is what its own
+ * `wagerIsForced` counts. It is passed rather than read off a game here because
+ * by the time a result is on screen core has already recorded it: the wager just
+ * answered is the `answered`-th, so the window it falls in is `<=` and not `<`.
+ */
+export function showsExplanation(record: WagerRecord, answered: number): boolean {
+  return !record.correct || answered <= FORCED_WAGER_COUNT
+}
 
 function Verdict({ record }: { readonly record: WagerRecord }) {
   const [text, colour] =
@@ -49,6 +70,7 @@ export function WagerPanel({
   question,
   result,
   forced,
+  answered,
   reduced,
   width,
   height,
@@ -60,6 +82,8 @@ export function WagerPanel({
   /** The answer just scored, or null while the question is still open. */
   readonly result: WagerRecord | null
   readonly forced: boolean
+  /** How many wagers core has recorded. See `showsExplanation`. */
+  readonly answered: number
   readonly reduced: boolean
   readonly width: number
   readonly height: number
@@ -75,6 +99,10 @@ export function WagerPanel({
       // explanation is 2~3 sentences core wrote, and a clipped one is a wrong
       // answer with no visible reason (tools/screenshot.mjs).
       data-panel="wager"
+      // Whether the explanation is on this frame, so `npm run shot` can name the
+      // two verdict states apart — a hit inside the tutorial window looks nothing
+      // like a hit after it, and both have to be reviewable (BOOTH-6b).
+      data-explained={result === null ? undefined : String(showsExplanation(result, answered))}
       initial={reduced ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: reduced ? 0 : 0.2 }}
@@ -132,9 +160,11 @@ export function WagerPanel({
       ) : (
         <div className="flex flex-1 flex-col gap-3">
           <Verdict record={result} />
-          <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
-            {result.question.explanation}
-          </p>
+          {showsExplanation(result, answered) && (
+            <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
+              {result.question.explanation}
+            </p>
+          )}
           <button
             type="button"
             onClick={onDismiss}

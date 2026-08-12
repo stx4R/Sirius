@@ -169,14 +169,33 @@ async function answerWager(ws) {
     problems.push(`the wager panel clips its own content: ${fit.scroll} > ${fit.client}`)
   }
 
-  if (!written.has('wager')) await shot(ws, 'wager')
+  // Not while a coach caption is up (BOOTH-6b). The first wager of a run carries
+  // one, and `coach-wager.png` is that same frame — two names for one image is
+  // what the duplicate check at the end of this file calls a failure, and it
+  // would be right. The panel's own shot waits for the next wager instead.
+  const coached = await evaluate(ws, `!!document.querySelector('[data-coach]')`)
+  if (!written.has('wager') && !coached) await shot(ws, 'wager')
 
   await evaluate(ws, `window.__t('YES')?.click()`)
   await sleep(400)
 
   // The verdict beside a miss reads "정답은 …", so a hit is the absence of 오답.
+  //
+  // A hit has two faces from BOOTH-6b: inside the tutorial window it still carries
+  // the explanation, and after it there is nothing under the verdict but the
+  // button (GDD 8-2). Both are shots this file has to produce, and naming the
+  // frame by what is actually on it is what keeps them from being one image under
+  // two names — `data-explained` is the panel saying which it is.
   const missed = await evaluate(ws, `document.body.innerText.includes('오답')`)
-  const name = missed ? 'wager-wrong' : 'wager-correct'
+  const explained = await evaluate(
+    ws,
+    `document.querySelector('[data-panel="wager"]')?.dataset.explained ?? 'unknown'`,
+  )
+  const name = missed
+    ? 'wager-wrong'
+    : explained === 'false'
+      ? 'wager-correct-brief'
+      : 'wager-correct'
   if (!written.has(name)) await shot(ws, name)
 
   // Closing the explanation is what deals the hand (gameStore `dismissWager`),
@@ -236,6 +255,51 @@ async function answerOracle(ws) {
 
   await evaluate(ws, `window.__t('정산으로')?.click()`)
   await sleep(600)
+}
+
+/**
+ * The first-run coach captions (GDD 12-2 ①), added at BOOTH-6b.
+ *
+ * Each one is dismissed by *doing* the thing it asks for, so the only way to
+ * photograph all five is to walk turn 1 of round 1 a click at a time —
+ * `__playTurn` makes four placements inside one page-side loop and there is no
+ * moment in between for Node to reach.
+ *
+ * The caption is found by `data-coach`, and a shot is only taken when it is really
+ * there. A PNG of the step that was aimed at rather than the one that was up is
+ * exactly the silent failure this file exists to stop.
+ */
+async function shotCoach(ws, step) {
+  const up = await evaluate(ws, `!!document.querySelector('[data-coach="${step}"]')`)
+  if (!up) {
+    const showing = await evaluate(
+      ws,
+      `document.querySelector('[data-coach]')?.dataset.coach ?? 'none'`,
+    )
+    problems.push(`coach step "${step}" was due but "${showing}" was on screen`)
+    return
+  }
+  if (!written.has(`coach-${step}`)) await shot(ws, `coach-${step}`)
+}
+
+/**
+ * Steps 2 to 4 — pick a chip up, put it down, see the placement cap — which are
+ * three single clicks into the first turn.
+ *
+ * The one placement goes into the ring `__playTurn` builds around (2,2), so the
+ * drifter still lands on four neighbours two rounds later (GDD 3-3) and this chip
+ * is not spent somewhere the rest of the run has to work around.
+ */
+async function walkCoach(ws) {
+  await shotCoach(ws, 'hand')
+
+  await evaluate(ws, `window.__hand().find(c => c.dataset.kind !== 'drifter')?.click()`)
+  await sleep(300)
+  await shotCoach(ws, 'board')
+
+  await evaluate(ws, `window.__cells()[window.__RING[0]]?.click()`)
+  await sleep(300)
+  await shotCoach(ws, 'limit')
 }
 
 /**
@@ -313,6 +377,15 @@ async function playRound(ws, reportShot) {
     await evaluate(ws, `window.__t('턴 종료')?.click()`)
     await sleep(700)
     await answerOracle(ws)
+
+    // Coach step 5 (BOOTH-6b): the round total and its target, up only over the
+    // first settlement of round 1. This is the one moment in the whole run it
+    // exists, so it is taken here rather than in `walkCoach`.
+    if (!written.has('coach-target')) {
+      const up = await evaluate(ws, `!!document.querySelector('[data-coach="target"]')`)
+      if (up) await shot(ws, 'coach-target')
+    }
+
     await evaluate(ws, `(window.__t('건너뛰기') ?? window.__t('다음 턴'))?.click()`)
     await sleep(300)
     await evaluate(ws, `window.__t('다음 턴')?.click()`)
@@ -357,9 +430,31 @@ async function playToSecondShop(ws) {
   }
 
   // A run opens on its first wager, not on a hand (GDD 8-2), so the play screen
-  // is only photographable once that one has been answered and read.
+  // is only photographable once that one has been answered and read. Coach step 1
+  // is over that same modal (BOOTH-6b) and has to be taken before it is answered.
+  await shotCoach(ws, 'wager')
   await answerWager(ws)
+
+  // Steps 2 to 4, and then the rest of the turn filled in, so `game.png` is a
+  // board with chips on it rather than an empty one. It is taken here and not
+  // before the walk because every frame of turn 1 carries a caption, and the two
+  // shots would otherwise be one image under two names.
+  await walkCoach(ws)
+  await evaluate(ws, `window.__playTurn()`)
+  await sleep(350)
   await shot(ws, 'game')
+
+  // The ? summary (GDD 12-2 ①) — the way back in for a player who lost the
+  // thread, so it is reviewed on its own rather than only in passing.
+  await evaluate(ws, `document.querySelector('[data-help="open"]')?.click()`)
+  await sleep(500)
+  if (!(await evaluate(ws, `!!document.querySelector('[data-panel="help"]')`))) {
+    problems.push('the ? summary did not open')
+  } else {
+    await shot(ws, 'help')
+  }
+  await evaluate(ws, `window.__t('닫기')?.click()`)
+  await sleep(400)
 
   // Four constellations, so the replacement prompt is reachable at all (GDD 6).
   await evaluate(ws, `window.__t('DEV')?.click()`)
@@ -468,7 +563,7 @@ async function main() {
   // Both wager verdicts have to have come up. Ten or so questions at roughly
   // even odds should produce each of them; never seeing one means the answers
   // are not landing where core says they do.
-  for (const name of ['wager', 'wager-correct', 'wager-wrong']) {
+  for (const name of ['wager', 'wager-correct', 'wager-correct-brief', 'wager-wrong']) {
     if (!written.has(name)) problems.push(`${name}.png was never reached`)
   }
 
@@ -485,6 +580,14 @@ async function main() {
   for (const name of ['report-round1', 'report-round3']) {
     if (!written.has(name)) problems.push(`${name}.png was never reached`)
   }
+
+  // All five coach captions and the ? summary (GDD 12-2 ①). They are the tutorial
+  // a booth participant starts on unaided, so a step that stopped appearing is the
+  // one failure here that nobody would notice from a test.
+  for (const step of ['wager', 'hand', 'board', 'limit', 'target']) {
+    if (!written.has(`coach-${step}`)) problems.push(`coach-${step}.png was never reached`)
+  }
+  if (!written.has('help')) problems.push('help.png was never reached')
 
   // Two PNGs the same length to the byte are the same PNG under two names, which
   // is what a run against an error page produces.

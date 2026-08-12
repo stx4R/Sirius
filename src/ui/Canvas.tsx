@@ -49,7 +49,13 @@ export const LAYOUT = {
   /** Shifted 24px right of the original 560 to clear the 2×2 card grid. */
   settlement: { x: 584, y: 90, w: 516, h: 150 },
   equation: { right: 1096, y: 258 },
-  roundTotal: { centre: 842, y: 330 },
+  /**
+   * `h` is the component's measured footprint — the "이번 라운드 누적" label, the
+   * 44px figure, the progress bar and the target line under it. It is here so the
+   * coach caption that points up at this can be held clear of it
+   * (`tests/canvas.test.ts`); nothing else reads it.
+   */
+  roundTotal: { centre: 842, y: 330, h: 100 },
 
   bubble: { x: 700, y: 470, w: 250, h: 90 },
   orion: { x: 980, y: 474, w: 120, h: 156 },
@@ -110,6 +116,51 @@ export const LAYOUT = {
    * sized against.
    */
   report: { x: 80, y: 75, w: 960, h: 480, row: 28, series: 22 },
+
+  /**
+   * The ? button (GDD 12-2 ①), always there. Left of the dev toggle at x=1050 so
+   * the two never sit on each other in a development build; in a production one
+   * `DEV_TOOLS` is compiled out and this is the only thing in the corner.
+   */
+  help: { x: 1012, y: 12, size: 28 },
+
+  /**
+   * The one-page summary the ? button opens — the five coach lines at rest, for a
+   * player who lost the thread rather than one taking their first turn. A modal,
+   * so it is outside the pairwise check like the other four.
+   */
+  helpCard: { x: 280, y: 155, w: 560, h: 320 },
+
+  /**
+   * The first-round coach marks (GDD 12-2 ①, BOOTH-6b).
+   *
+   * Each step is a caption with a caret, sitting beside the thing it points at.
+   * Overlays, so they are outside the pairwise check for the reason the modals
+   * are — each one covers a corner of what it is about, and it is gone the moment
+   * the action it asks for happens. They are `pointer-events-none`, so a player
+   * who ignores them entirely plays a normal game.
+   *
+   * `wager` sits under the wager modal (which ends at y=495) and points up at it;
+   * `board` sits above the 5×5 chart; `hand` and `limit` share a slot above the
+   * fan, because both are about the chips in it and the counter under it — they
+   * never appear together, so it reads as one caption changing its line rather
+   * than two panels. `target` points up at the round total.
+   *
+   * ★ These were measured on screenshots, not derived. `limit` first sat over the
+   * end-turn button and covered a STAR-CHART row doing it, and `target` sat on the
+   * "목표 490" line it was naming. A caption that hides its own subject is worse
+   * than none. `tests/canvas.test.ts` now holds each one clear of what it points at.
+   */
+  coach: {
+    h: 40,
+    steps: {
+      wager: { x: 360, y: 503, w: 400, caret: 'up' },
+      hand: { x: 20, y: 450, w: 400, caret: 'down' },
+      board: { x: 24, y: 62, w: 400, caret: 'down' },
+      limit: { x: 20, y: 450, w: 400, caret: 'down' },
+      target: { x: 700, y: 444, w: 280, caret: 'up' },
+    },
+  },
 } as const
 
 /** GDD 3-3: four neighbours is ₄C₃ = 4 readings, and nothing produces more. */

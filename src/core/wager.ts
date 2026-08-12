@@ -20,9 +20,19 @@
 // never empty — unplaced chips return before the next wager (GDD 4-2) — but a
 // deck that supports no clear proposition still gets an answerable question
 // back, see `choose`.
+//
+// ★ An explanation is two sentences and no more (GDD 8-2, BOOTH-6b): the counts
+// and probabilities the answer was computed from, then the misconception the
+// wrong side stands for. A booth run reads fifteen of these and BOOTH-6a measured
+// them at 44% of the whole 20-minute budget, so anything a third sentence would
+// add is paid for fifteen times. What went: the deck counts as a sentence of
+// their own, restatements of what the question already says, and the qualitative
+// tails ("그만큼 많다"). What stayed is what a student can check and what tells
+// them which mistake they made.
 
 import {
   HAND_SIZE,
+  SUIT_STAR_NAMES,
   WAGER_COMPLEMENT_THRESHOLDS,
   WAGER_MIN_GAP,
   WAGER_TIER_BY_ROUND,
@@ -32,15 +42,10 @@ import type { Rng } from './rng'
 import { SUIT_ORDER } from './types'
 import type { Chip, SuitId, WagerQuestion, WagerTier } from './types'
 
-/** GDD 3-1. `칩` after the star name keeps every Korean particle in the templates regular. */
-const SUIT_NAME: Readonly<Record<SuitId, string>> = {
-  GAC: 'Gacrux',
-  IMA: 'Imai',
-  GIN: 'Ginan',
-  MIM: 'Mimosa',
-  ACR: 'Acrux',
-}
+/** GDD 3-1. Shared with STAR-CHART so the question and the panel agree (GDD 8-1). */
+const SUIT_NAME = SUIT_STAR_NAMES
 
+/** `칩` after the star name keeps every Korean particle in the templates regular. */
 function chip(suit: SuitId): string {
   return `${SUIT_NAME[suit]} 칩`
 }
@@ -84,10 +89,18 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
   const chance = drawChances(deck, handSize)
   const out: Proposition[] = []
 
-  const standing = (a: SuitId, b: SuitId): string =>
-    count[a] === count[b]
-      ? `지금 덱 ${size}장 가운데 ${chip(a)}과 ${chip(b)}은 각각 ${count[a]}장으로 같다.`
-      : `지금 덱 ${size}장 가운데 ${chip(a)}은 ${count[a]}장, ${chip(b)}은 ${count[b]}장이다.`
+  /**
+   * The counts the answer was computed from, each with the chance it produces
+   * (GDD 8-2, BOOTH-6b). It does not repeat "8장 안에 1장 이상 나올 가능성" — the
+   * question says that and stays on screen beside the explanation.
+   *
+   * Count and chance are bracketed together per suit rather than listed as two
+   * separate series. Ⅱ-1's whole claim is that the one follows from the other, and
+   * paired it is read in a glance instead of by cross-referencing two lists in
+   * order — which also happens to be the shorter of the two layouts.
+   */
+  const basis = (a: SuitId, b: SuitId): string =>
+    `덱 ${size}장에 ${SUIT_NAME[a]} ${count[a]}장(${percent(chance[a])}), ${SUIT_NAME[b]} ${count[b]}장(${percent(chance[b])}).`
 
   // "크거나 같을까" rather than "클까" (BOOTH-3b). A tie used to answer NO, which
   // is correct and still splits students who understand the deck equally well:
@@ -98,15 +111,15 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
     const tied = count[a] === count[b]
     const answer = chance[a] >= chance[b]
     const rebuttal = !answer
-      ? `YES를 고르면 남은 장수가 적은 ${chip(a)}이 더 잘 나온다고 본 것이다.`
+      ? `YES를 고르면 장수가 적은 쪽을 더 유리하게 본 것이다.`
       : tied
-        ? `NO를 고르면 두 값이 같은 경우를 '크거나 같다'에서 빼놓은 것이다.`
-        : `NO를 고르면 남은 장수가 많은 쪽이 뽑히기도 쉽다는 관계를 뒤집어 본 것이다.`
+        ? `NO를 고르면 '크거나 같다'에서 같은 경우를 빼놓은 것이다.`
+        : `NO를 고르면 많은 쪽이 잘 나온다는 관계를 뒤집은 것이다.`
 
     out.push({
       text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성이 ${chip(b)}보다 크거나 같을까?`,
       answer,
-      explanation: `${standing(a, b)} ${handSize}장 안에 1장 이상 들어갈 가능성은 ${chip(a)} ${percent(chance[a])}, ${chip(b)} ${percent(chance[b])}다. ${rebuttal}`,
+      explanation: `${basis(a, b)} ${rebuttal}`,
       gap,
       clear: tied || gap >= WAGER_MIN_GAP,
     })
@@ -116,14 +129,14 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
     const gap = Math.abs(chance[a] - chance[b])
     const tied = count[a] === count[b]
     const same = chance[a] === chance[b]
-    const standings = `${standing(a, b)} ${handSize}장 안에 1장 이상 들어갈 가능성은 ${chip(a)} ${percent(chance[a])}, ${chip(b)} ${percent(chance[b])}다.`
+    const standings = basis(a, b)
 
     out.push({
       text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성과 ${chip(b)}이 1장 이상 나올 가능성이 정확히 같을까?`,
       answer: same,
       explanation: same
-        ? `${standings} NO를 고르면 남은 장수가 같은데도 가능성이 다르다고 본 것이다.`
-        : `${standings} YES를 고르면 남은 장수가 다른데도 가능성이 같다고 본 것이다.`,
+        ? `${standings} NO를 고르면 장수가 같은데도 가능성이 다르다고 본 것이다.`
+        : `${standings} YES를 고르면 장수가 다른데도 가능성이 같다고 본 것이다.`,
       gap,
       clear: tied || gap >= WAGER_MIN_GAP,
     })
@@ -136,8 +149,8 @@ function comparisons(deck: readonly Chip[], handSize: number): Proposition[] {
       text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(a)}이 1장 이상 나올 가능성과 ${chip(b)}이 1장 이상 나올 가능성이 서로 다를까?`,
       answer: !same,
       explanation: same
-        ? `${standings} YES를 고르면 남은 장수가 같은데도 가능성이 다르다고 본 것이다.`
-        : `${standings} NO를 고르면 남은 장수가 다른데도 가능성이 같다고 본 것이다.`,
+        ? `${standings} YES를 고르면 장수가 같은데도 가능성이 다르다고 본 것이다.`
+        : `${standings} NO를 고르면 장수가 다른데도 가능성이 같다고 본 것이다.`,
       gap,
       clear: tied || gap >= WAGER_MIN_GAP,
     })
@@ -157,12 +170,16 @@ function complements(deck: readonly Chip[], handSize: number): Proposition[] {
 
   for (const suit of SUIT_ORDER) {
     const none = 1 - chance[suit]
+    // The two probabilities side by side are the 여사건 (GDD 8-2, BOOTH-6b): they
+    // sum to 100, which is the whole of what Ⅱ-2 asks a student to see. Saying so
+    // in a clause of its own was the longest thing in the old explanation and it
+    // restated what the pair already shows.
     const fact =
       count[suit] === 0
-        ? `지금 덱 ${size}장에 ${chip(suit)}이 1장도 없으므로, ${handSize}장이 모두 다른 칩으로 채워질 확률은 100%다.`
+        ? `덱 ${size}장에 ${SUIT_NAME[suit]} 칩이 없다. 1장도 안 나올 확률은 100%다.`
         : none === 0
-          ? `지금 덱 ${size}장 가운데 ${chip(suit)}은 ${count[suit]}장이라 나머지가 ${size - count[suit]}장뿐이고, 이것만으로는 ${handSize}장을 채울 수 없다. ${chip(suit)}이 1장도 안 나올 확률은 0%다.`
-          : `지금 덱 ${size}장 가운데 ${chip(suit)}은 ${count[suit]}장이라, ${handSize}장이 모두 다른 칩으로 채워질 확률은 ${percent(none)}다. 이것은 1장 이상 나올 확률 ${percent(chance[suit])}의 여사건이다.`
+          ? `덱 ${size}장에 ${SUIT_NAME[suit]} ${count[suit]}장, 나머지가 ${size - count[suit]}장뿐이라 ${handSize}장을 채울 수 없다. 1장도 안 나올 확률은 0%다.`
+          : `덱 ${size}장에 ${SUIT_NAME[suit]} ${count[suit]}장. 1장도 안 나올 확률 ${percent(none)}, 1장 이상은 ${percent(chance[suit])}.`
 
     for (const threshold of WAGER_COMPLEMENT_THRESHOLDS) {
       const label = threshold === 0.5 ? `절반(50%)` : percent(threshold)
@@ -172,8 +189,8 @@ function complements(deck: readonly Chip[], handSize: number): Proposition[] {
         text: `지금 덱 상태에서, ${handSize}장을 뽑을 때 ${chip(suit)}이 1장도 안 나올 확률이 ${label}를 넘을까?`,
         answer,
         explanation: answer
-          ? `${fact} NO를 고르면 그 확률을 기준 ${label}보다 작게 본 것이다. ${chip(suit)}을 비켜 ${handSize}장을 채울 방법이 그만큼 많다.`
-          : `${fact} YES를 고르면 그 확률을 기준 ${label}보다 크게 본 것이다. ${chip(suit)}을 비켜 ${handSize}장을 채우기가 그만큼 어렵다.`,
+          ? `${fact} NO를 고르면 확률을 ${label}보다 작게 본 것이다.`
+          : `${fact} YES를 고르면 확률을 ${label}보다 크게 본 것이다.`,
         gap: Math.abs(none - threshold),
         clear: Math.abs(none - threshold) >= WAGER_MIN_GAP,
       })
@@ -219,17 +236,20 @@ function conditionals(deck: readonly Chip[]): Proposition[] {
     // A condition nothing in the deck can satisfy is not a question to ask.
     const clear = union > 0 && (half || gap >= WAGER_MIN_GAP)
     const condition = `지금 덱에서 1장을 뽑는다. 그 1장이 ${chip(a)}이나 ${chip(b)}이라는 조건이 주어질 때, 그것이 ${chip(a)}일 가능성이`
-    const fact = `지금 덱 ${size}장 가운데 ${chip(a)}은 ${count[a]}장, ${chip(b)}은 ${count[b]}장이고, 둘 중 하나로 판정되는 칩은 ${union}장이다. 조건이 범위를 이 ${union}장으로 좁히므로 ${chip(a)}일 가능성은 ${percent(share)}다.`
+    // The deck total is not in the basis (GDD 8-2, BOOTH-6b): the condition took it
+    // out of the arithmetic, and `share` is count[a] / union. It appears in the
+    // first rebuttal instead, which is exactly the mistake of ignoring the condition.
+    const fact = `조건이 남긴 칩은 ${union}장(${SUIT_NAME[a]} ${count[a]}장, ${SUIT_NAME[b]} ${count[b]}장). ${SUIT_NAME[a]}의 몫은 ${percent(share)}다.`
 
     out.push({
       text: `${condition} 절반보다 클까?`,
       answer: share > 0.5,
       explanation:
         share > 0.5
-          ? `${fact} NO를 고르면 조건을 빼고 덱 ${size}장 전체에서 ${chip(a)}이 차지하는 몫만 따진 것이다.`
+          ? `${fact} NO를 고르면 조건을 빼고 덱 ${size}장 전체에서 ${SUIT_NAME[a]}의 몫만 따진 것이다.`
           : half
             ? `${fact} YES를 고르면 절반과 같은 것을 절반보다 큰 것으로 본 것이다.`
-            : `${fact} YES를 고르면 조건이 남긴 ${union}장 안에서 ${chip(a)}이 절반에 못 미친다는 점을 놓친 것이다.`,
+            : `${fact} YES를 고르면 그 몫이 절반에 못 미친 것을 놓친 것이다.`,
       gap,
       clear,
     })
@@ -238,8 +258,8 @@ function conditionals(deck: readonly Chip[]): Proposition[] {
       text: `${condition} 정확히 절반일까?`,
       answer: half,
       explanation: half
-        ? `${fact} NO를 고르면 조건이 남긴 ${union}장이 두 문양으로 반씩 갈린다는 점을 놓친 것이다.`
-        : `${fact} YES를 고르면 조건이 남긴 ${union}장 안에서 ${chip(a)}이 차지하는 몫을 절반으로 본 것이다.`,
+        ? `${fact} NO를 고르면 남은 ${union}장이 두 문양으로 반씩 갈린 것을 놓친 것이다.`
+        : `${fact} YES를 고르면 그 몫을 절반으로 본 것이다.`,
       gap,
       clear,
     })

@@ -281,6 +281,32 @@ describe('generateWager (GDD 8-2)', () => {
           expect(/YES를 고르|NO를 고르/.test(question.explanation)).toBe(true)
         }
       })
+
+      // BOOTH-6b: a booth run reads fifteen of these and BOOTH-6a measured them at
+      // 44% of the whole 20-minute budget, so the length is a budget line and not
+      // a matter of taste.
+      //
+      // The cap is per tier because the conditional carries a third count — the
+      // size of the range the condition leaves — that the other two do not, and
+      // GDD 8-2 puts it in rounds 6-8, which a booth run never reaches.
+      it('stays inside its character budget', () => {
+        const cap = tier === 'conditional' ? 110 : 90
+
+        for (const { question } of cases) {
+          expect(question.explanation.length, question.explanation).toBeLessThanOrEqual(cap)
+        }
+      })
+
+      // The shape the budget was cut to: the basis first, then the misconception
+      // the wrong side stands for, and nothing after it. The qualitative tails
+      // that used to follow the rebuttal are what went.
+      it('ends on the misconception it is rebutting', () => {
+        for (const { question } of cases) {
+          const last = question.explanation.trim().split('. ').at(-1) ?? ''
+
+          expect(last, question.explanation).toMatch(/^(YES|NO)를 고르면/)
+        }
+      })
     })
   }
 

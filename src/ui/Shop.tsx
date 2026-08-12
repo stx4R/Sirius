@@ -21,6 +21,7 @@ import {
   MODE_PRESETS,
   OWNED_CONSTELLATION_LIMIT,
   SHOP_PRICES,
+  SUIT_STAR_NAMES,
 } from '../core/config'
 import { countDeck, drawChances, observedChances } from '../core/deck'
 import { priceOf, rerollPrice } from '../core/shop'
@@ -244,6 +245,16 @@ function CompanionEntry({
 const BAR_TRACK = 52
 
 /**
+ * STAR-CHART's suit column, wide enough for the three-letter code over the full
+ * star name (GDD 8-1, BOOTH-6b). 54 is the longest name — Gacrux and Mimosa are
+ * six glyphs — at the 9px face the second line uses.
+ *
+ * It went from 36 to 54 out of the row's own slack; `tests/canvas.test.ts` holds
+ * the sum of the fixed columns against the 440px panel.
+ */
+export const DECK_NAME_COLUMN = 54
+
+/**
  * STAR-CHART's bar (GDD 8-1): how much of the deck this suit is.
  *
  * Rounded to whole pixels, and floored at 1 while any of the suit is left — a
@@ -331,8 +342,19 @@ function DeckPanel({
           <div key={suit} className="flex items-center gap-1" style={{ height: 32 }}>
             <PixelSprite pixels={basicChip(suit)} scale={1} alt="" />
 
-            <span className="w-9 text-[11px] font-bold" style={{ color: SUIT_INK[suit] }}>
-              {suit}
+            {/* GDD 8-1: code over full star name, because ORION'S WAGER writes
+                its questions with the name and every panel printed only the code
+                (BOOTH-6a). Both screens' STAR-CHART carries both from here. */}
+            <span
+              className="flex flex-col leading-tight"
+              style={{ width: DECK_NAME_COLUMN }}
+            >
+              <span className="text-[11px] font-bold" style={{ color: SUIT_INK[suit] }}>
+                {suit}
+              </span>
+              <span className="text-[9px]" style={{ color: PALETTE.starLink }}>
+                {SUIT_STAR_NAMES[suit]}
+              </span>
             </span>
 
             <span

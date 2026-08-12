@@ -6,11 +6,16 @@
 // which will not hold that row at any font size. So the two screens share the
 // arithmetic — `drawChances` in core, as CLAUDE.md §5 requires — and nothing else.
 //
-// What the shop shows and this does not: the educational sentence, the romanised
-// star names, the observed column, and the buy buttons. None of them fit in 108px,
-// and the shop is where a purchase is being weighed anyway.
+// What the shop shows and this does not: the educational sentence, the observed
+// column, and the buy buttons. None of them fit in 108px, and the shop is where a
+// purchase is being weighed anyway.
+//
+// The full star name is on both from BOOTH-6b (GDD 8-1). It is the one thing the
+// two panels had to stop disagreeing about: the wager writes its questions with
+// it and neither panel carried it, so the question named something the screen did
+// not (BOOTH-6a).
 
-import { HAND_SIZE } from '../core/config'
+import { HAND_SIZE, SUIT_STAR_NAMES } from '../core/config'
 import { countDeck, drawChances } from '../core/deck'
 import { SUIT_ORDER } from '../core/types'
 import type { Chip } from '../core/types'
@@ -78,6 +83,13 @@ export function StarChart({
               <div className="flex flex-col leading-tight">
                 <span className="text-[11px] font-bold" style={{ color: SUIT_INK[suit] }}>
                   {suit}
+                </span>
+                {/* GDD 8-1: the full star name, because ORION'S WAGER asks its
+                    questions with it and nothing else on this screen carries it
+                    (BOOTH-6a). At 9px the longest of the five is 54px, which is
+                    what `tests/canvas.test.ts` checks the 108px column against. */}
+                <span className="text-[9px]" style={{ color: PALETTE.starLink }}>
+                  {SUIT_STAR_NAMES[suit]}
                 </span>
                 <span className="text-[9px] tabular-nums" style={{ color: PALETTE.starGlow }}>
                   {held}

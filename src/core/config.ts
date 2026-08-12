@@ -33,6 +33,23 @@ export const INITIAL_DECK: Readonly<Record<SuitId, number>> = {
   ACR: 10,
 }
 
+/**
+ * The stars the five suits are named after (GDD 3-1), in full.
+ *
+ * ★ One table, because two drifted. ORION'S WAGER wrote its questions with the
+ * full name ("Ginan 칩") while every panel printed the three-letter code ("GIN"),
+ * and nothing on screen joined them — a booth participant had no way to know the
+ * question was about a row they were looking at (BOOTH-6a). GDD 8-1 now puts the
+ * full name on STAR-CHART on both screens, and this is what all of them read.
+ */
+export const SUIT_STAR_NAMES: Readonly<Record<SuitId, string>> = {
+  GAC: 'Gacrux',
+  IMA: 'Imai',
+  GIN: 'Ginan',
+  MIM: 'Mimosa',
+  ACR: 'Acrux',
+}
+
 export const BASE_CHIP_SCORE = 10
 
 /**

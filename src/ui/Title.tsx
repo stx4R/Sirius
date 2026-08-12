@@ -33,9 +33,18 @@ const MODE_ORDER = ['booth', 'full'] as const satisfies readonly GameMode[]
  * The name and the wall-clock estimate — the two things about a mode that are
  * not derivable from its preset. Everything numeric on the card comes from
  * MODE_PRESETS instead, so a retuned curve cannot leave stale figures here.
+ *
+ * ★ The booth figure is measured, not the round count times a guess (GDD 12-1,
+ * BOOTH-6b). It used to say 20, which was 12-1's *총 체류 시간* — a figure that
+ * includes the rule explanation and the seat change — printed where a player reads
+ * it as how long they will be playing. BOOTH-6a measured a student's play at
+ * 32.4분; BOOTH-6b's cuts brought it to 27.6분, which is what 28 rounds to.
+ *
+ * The full version's 40 is untouched: nobody has measured it, and inventing a
+ * figure here is the mistake this comment exists to record.
  */
 const MODE_TEXT: Readonly<Record<GameMode, { readonly name: string; readonly minutes: number }>> = {
-  booth: { name: '부스판', minutes: 20 },
+  booth: { name: '부스판', minutes: 28 },
   full: { name: '풀버전', minutes: 40 },
 }
 

@@ -17,6 +17,8 @@ import {
 } from './config'
 import type { MultiplierStackMode } from './config'
 import { createInitialDeck, drawFromDeck, returnToDeck } from './deck'
+import { generateOracle } from './oracle'
+import type { OracleQuestion } from './oracle'
 import { shuffle } from './rng'
 import type { Rng } from './rng'
 import { randomDrifterChooser, scoreBoard } from './scoring'
@@ -62,6 +64,18 @@ export interface Game extends GameState {
    * takes it away; the hand is not dealt in between.
    */
   readonly pendingWager: WagerQuestion | null
+  /**
+   * The oracle waiting to be answered before the board settles (GDD 8-3), or
+   * null when there is none. `askOracle` puts one here and `resolveOracle` takes
+   * it away; the settlement does not run in between.
+   */
+  readonly pendingOracle: OracleQuestion | null
+  /**
+   * Whether this turn's oracle was answered correctly. `awardOracle` sets it and
+   * `endTurn` reads it, because the bonus is a share of what the drifter turns
+   * out to score and that is not known until the board is settled (GDD 8-3).
+   */
+  readonly oracleCorrect: boolean
   /**
    * The target curve in force, one entry per round. Defaults to the mode preset;
    * P2 injects candidate curves so a new one can be measured without editing
@@ -147,6 +161,8 @@ export function fromLoadout(
     rerollsUsed: 0,
     stock: null,
     pendingWager: null,
+    pendingOracle: null,
+    oracleCorrect: false,
     round: 1,
     turn: 1,
     roundScore: 0,
@@ -222,6 +238,9 @@ export function endTurn(game: Game): Game {
     hand: [],
     roundScore: game.roundScore + turnScore,
     turn: lastTurn ? game.turn : game.turn + 1,
+    // The verdict is spent: the next turn asks its own question, and a turn with
+    // no drifter on the board must not inherit this one's answer.
+    oracleCorrect: false,
     phase: lastTurn ? 'roundEnd' : 'draw',
   }
 }
@@ -345,12 +364,52 @@ export function resolveWager(game: Game, choice: WagerChoice): Game {
 }
 
 /**
- * GDD 9-1 — the stardust half only. The score half of DRIFT ORACLE (GDD 8-3)
- * pays a fraction of what the drifter scored, which `ScoreResult.byCell` can now
- * answer (GDD 5-1); wiring it is still to come.
+ * GDD 9-1: the reward on its own, with no question attached — the path the
+ * Monte Carlo simulator drives, where the oracle is a coin weighted to the
+ * accuracy being measured and no table is ever built.
+ *
+ * Only the stardust half is paid. GDD 8-3 also gives a share of what the drifter
+ * *scores*, and that half is not wired: it moves every figure GDD 13-6 measured,
+ * so it waits on the re-measurement in GDD 13 #14. The verdict is recorded here
+ * regardless, which is what the screen shows and what that half will read.
  */
 export function awardOracle(game: Game, correct: boolean): Game {
-  return correct ? { ...game, stardust: game.stardust + STARDUST_REWARDS.oracleCorrect } : game
+  return {
+    ...game,
+    stardust: correct ? game.stardust + STARDUST_REWARDS.oracleCorrect : game.stardust,
+    oracleCorrect: correct,
+  }
+}
+
+/**
+ * GDD 8-3: the oracle is put *after* the chips are placed and *before* the board
+ * settles, because it asks what the drifter about to be read is worth.
+ *
+ * Building the table spends one draw of `rng` on the order of the three choices,
+ * so — exactly as with `askWager` — this is not called from `playRound` below.
+ * The simulator answers with `options.answerOracle` and never sees a table,
+ * which is what keeps every recorded baseline replaying draw for draw.
+ *
+ * Returns the game unchanged when there is nothing to ask: no drifter on the
+ * board, or a drifter with no neighbour to read (GDD 3-3).
+ */
+export function askOracle(game: Game): Game {
+  if (game.pendingOracle !== null) return game
+
+  const question = generateOracle(
+    game.board,
+    { owned: game.ownedConstellations, stackMode: game.stackMode },
+    game.rng,
+  )
+  return question === null ? game : { ...game, pendingOracle: question }
+}
+
+/** GDD 8-3 and 9-1: score the answer and pay for a hit. */
+export function resolveOracle(game: Game, choice: number): Game {
+  const question = game.pendingOracle
+  if (question === null) return game
+
+  return { ...awardOracle(game, choice === question.answer), pendingOracle: null }
 }
 
 // ----------------------------------------------------- headless driver (sim)

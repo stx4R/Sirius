@@ -82,7 +82,24 @@ export const LAYOUT = {
    * with the button under them. `tests/canvas.test.ts` holds the sum.
    */
   wager: { x: 200, y: 135, w: 720, h: 360 },
+
+  /**
+   * DRIFT ORACLE (GDD 8-3), on the same terms as the wager: a modal over the
+   * board, so it is outside the pairwise overlap check.
+   *
+   * 80px taller than the wager because it carries a table the wager does not.
+   * The tallest state is the one after an answer — question, the four rows of
+   * GDD 8-3's table, the verdict and the reason, and the button under them, all
+   * at once, because the table is what the reason is about and taking it away to
+   * make room would leave the explanation talking about numbers that had gone.
+   * ₄C₃ = 4 is the most rows there can ever be (GDD 3-3); `tests/canvas.test.ts`
+   * holds the sum.
+   */
+  oracle: { x: 200, y: 95, w: 720, h: 440, row: 22 },
 } as const
+
+/** GDD 3-3: four neighbours is ₄C₃ = 4 readings, and nothing produces more. */
+export const ORACLE_MAX_ROWS = 4
 
 /**
  * The shop (GDD 9-3), on the same plane and by the same rules. A second table

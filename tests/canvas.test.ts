@@ -4,6 +4,7 @@ import {
   CANVAS_WIDTH,
   LAYOUT,
   NEBULA_SCALE,
+  ORACLE_MAX_ROWS,
   SHOP_LAYOUT,
   TITLE_LAYOUT,
   canvasScale,
@@ -199,6 +200,67 @@ describe('canvas layout (GDD 11-10)', () => {
 
   it('places the wager on whole pixels', () => {
     for (const value of Object.values(LAYOUT.wager)) {
+      expect(Number.isInteger(value)).toBe(true)
+    }
+  })
+
+  // BOOTH-4b: DRIFT ORACLE (GDD 8-3) is the second modal on this screen, so it
+  // is out of `boxes` for the same reason the wager is, and gets the same two
+  // checks — on the plane, and its content inside it.
+  it('centres the oracle on the plane and keeps it inside', () => {
+    const panel = LAYOUT.oracle
+
+    expect(panel.x + panel.w / 2).toBe(CANVAS_WIDTH / 2)
+    expect(panel.y + panel.h / 2).toBe(CANVAS_HEIGHT / 2)
+    expect(panel.x).toBeGreaterThanOrEqual(0)
+    expect(panel.y).toBeGreaterThanOrEqual(0)
+    expect(panel.x + panel.w).toBeLessThanOrEqual(CANVAS_WIDTH)
+    expect(panel.y + panel.h).toBeLessThanOrEqual(CANVAS_HEIGHT)
+  })
+
+  // The worst case is the state after an answer, and it is the worst case
+  // because the table does not go away to make room for the explanation — the
+  // reason is about the numbers in it. ₄C₃ = 4 is the most rows GDD 3-3 can
+  // produce, so this is the whole panel at its tallest.
+  it('holds the question, the four-row table, the verdict and the reason at once', () => {
+    const panel = LAYOUT.oracle
+    const PADDING = 20 * 2
+    const GAPS = 12 * 5
+    const HEADER = 14
+    const QUESTION = 23 * 2
+    const TABLE = 18 + panel.row * ORACLE_MAX_ROWS
+    const VERDICT = 26
+    const EXPLANATION = 18 * 5
+    const BUTTON = 40
+
+    expect(
+      HEADER + QUESTION + TABLE + VERDICT + EXPLANATION + BUTTON + GAPS + PADDING,
+    ).toBeLessThanOrEqual(panel.h)
+  })
+
+  // The widest row is a drifter reading three special chips: five suit codes in
+  // the middle column, with the direction, score and probability columns fixed
+  // around it (GDD 3-3).
+  it('fits the widest table row a drifter can produce', () => {
+    const panel = LAYOUT.oracle
+    const PADDING = 20 * 2
+    const FIXED = 92 + 64 + 72
+    // 'GAC, IMA, GIN, MIM, ACR' — 23 characters, and an 11px Galmuri glyph is
+    // 11px wide for a Latin capital at this size.
+    const WIDEST_SUITS = 23 * 11
+
+    expect(FIXED + WIDEST_SUITS).toBeLessThanOrEqual(panel.w - PADDING)
+  })
+
+  // The oracle is taller than the wager and they are both centred, so it is the
+  // one that decides how much of the plane a modal covers.
+  it('is taller than the wager and still leaves the plane a margin', () => {
+    expect(LAYOUT.oracle.h).toBeGreaterThan(LAYOUT.wager.h)
+    expect(LAYOUT.oracle.y).toBeGreaterThan(0)
+  })
+
+  it('places the oracle on whole pixels', () => {
+    for (const value of Object.values(LAYOUT.oracle)) {
       expect(Number.isInteger(value)).toBe(true)
     }
   })

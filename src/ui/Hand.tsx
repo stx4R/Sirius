@@ -82,6 +82,11 @@ export function Hand({
             <motion.button
               key={chip.id}
               type="button"
+              // `npm run shot` reaches for the drifter by this: DRIFT ORACLE only
+              // opens once one is on the board (GDD 8-3), and a tool that took
+              // whichever chip came first would photograph it about half the time
+              // (tools/screenshot.mjs).
+              data-kind={chip.kind}
               disabled={disabled}
               onClick={() => onSelect(chip)}
               onHoverStart={() => !disabled && setHovered(i)}

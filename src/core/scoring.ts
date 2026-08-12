@@ -117,7 +117,8 @@ function ownSuits(chip: Chip): readonly SuitId[] {
   }
 }
 
-function occupiedNeighbours(board: Board, pos: Position): Position[] {
+/** The four orthogonal cells that hold a chip, in up-down-left-right order. */
+export function occupiedNeighbours(board: Board, pos: Position): Position[] {
   return ORTHOGONAL.map(([dr, dc]) => [pos.row + dr, pos.col + dc] as const)
     .filter(([row, col]) => inBounds(row, col) && board[row][col] !== null)
     .map(([row, col]) => position(row, col))

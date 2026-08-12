@@ -20,6 +20,7 @@ import {
 } from '../core/config'
 import type { MultiplierStackMode } from '../core/config'
 import {
+  askOracle,
   askWager,
   buy,
   drawHand,
@@ -29,10 +30,12 @@ import {
   openShop,
   placeChips,
   reroll,
+  resolveOracle,
   resolveWager,
   startRound,
 } from '../core/game'
 import type { Game, Placement } from '../core/game'
+import type { OracleRecord } from '../core/oracle'
 import { mulberry32 } from '../core/rng'
 import { scoreBoard } from '../core/scoring'
 import type { ScoreResult } from '../core/scoring'
@@ -137,6 +140,12 @@ interface GameStore {
    */
   wagerResult: WagerRecord | null
   /**
+   * The oracle just answered, held so its table and explanation stay up while
+   * they are read (GDD 8-3). Core scored it; this pairs its verdict back with
+   * the question it was asked about, and the settlement waits behind it.
+   */
+  oracleResult: OracleRecord | null
+  /**
    * The seed this run was built from. ORION's lines are drawn from a generator
    * of their own, seeded off this one (CLAUDE.md §8) — taking them from
    * `game.rng` would spend draws the deck and the drifter are counting on, and a
@@ -161,6 +170,10 @@ interface GameStore {
   answerWager: (choice: WagerChoice) => void
   /** Closes the explanation. The turn is already under way behind it. */
   dismissWager: () => void
+  /** GDD 8-3. Core scores it; the board has not settled yet. */
+  answerOracle: (choice: number) => void
+  /** Closes the explanation, which is what lets the settlement run. */
+  dismissOracle: () => void
   /** GDD 9-2. Core decides whether the purse reaches and what leaves the shelf. */
   buyItem: (purchase: Purchase) => void
   rerollStock: () => void
@@ -168,6 +181,36 @@ interface GameStore {
   leaveShop: () => void
   /** Dev only. Replaces core state wholesale; never call from game UI. */
   devSet: (patch: (game: Game) => Game) => void
+}
+
+/**
+ * The settlement half of a turn. Split out because GDD 8-3 puts the oracle
+ * between the end-turn button and the score: when a drifter is on the board the
+ * turn stops on the question and this runs on the way out of it instead.
+ */
+function settleTurn(game: Game) {
+  const result = scoreBoard(game.board, {
+    owned: game.ownedConstellations,
+    stackMode: game.stackMode,
+    chooseDrifterDirections: displayChooser,
+  })
+
+  const settled = endTurn(game)
+  const awarded = settled.roundScore - game.roundScore
+
+  return {
+    game: settled,
+    staged: [],
+    selected: null,
+    settlement: {
+      result,
+      board: game.board,
+      awarded,
+      exact: result.total === awarded,
+      turn: game.turn,
+      roundScoreBefore: game.roundScore,
+    },
+  }
 }
 
 /**
@@ -188,6 +231,7 @@ export const useGame = create<GameStore>((set, get) => ({
   selected: null,
   settlement: null,
   wagerResult: null,
+  oracleResult: null,
   seed: 1,
   setup: PLACEHOLDER_SETUP,
   started: false,
@@ -201,6 +245,7 @@ export const useGame = create<GameStore>((set, get) => ({
       selected: null,
       settlement: null,
       wagerResult: null,
+      oracleResult: null,
       seed,
       setup,
       started: true,
@@ -218,6 +263,7 @@ export const useGame = create<GameStore>((set, get) => ({
       selected: null,
       settlement: null,
       wagerResult: null,
+      oracleResult: null,
       seed,
     })
   },
@@ -238,30 +284,15 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ game: replayed, staged: next, selected: null })
   },
 
+  // GDD 8-3: with a drifter on the board the turn stops here for the oracle, and
+  // the settlement runs from `dismissOracle` instead. Core decides whether there
+  // is anything to ask — `askOracle` hands the game back unchanged when there is
+  // not (no drifter, or one with nothing adjacent to read).
   commitTurn: () => {
-    const { game } = get()
-    const result = scoreBoard(game.board, {
-      owned: game.ownedConstellations,
-      stackMode: game.stackMode,
-      chooseDrifterDirections: displayChooser,
-    })
+    const asked = askOracle(get().game)
+    if (asked.pendingOracle !== null) return set({ game: asked })
 
-    const settled = endTurn(game)
-    const awarded = settled.roundScore - game.roundScore
-
-    set({
-      game: settled,
-      staged: [],
-      selected: null,
-      settlement: {
-        result,
-        board: game.board,
-        awarded,
-        exact: result.total === awarded,
-        turn: game.turn,
-        roundScoreBefore: game.roundScore,
-      },
-    })
+    set(settleTurn(asked))
   },
 
   dismissSettlement: () => {
@@ -303,6 +334,25 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ game: drawn, turnStart: drawn, staged: [], selected: null, wagerResult: null })
   },
 
+  answerOracle: (choice) => {
+    const { game } = get()
+    const question = game.pendingOracle
+    if (question === null) return
+
+    const scored = resolveOracle(game, choice)
+    set({ game: scored, oracleResult: { question, choice, correct: scored.oracleCorrect } })
+  },
+
+  // The board settles here rather than on the answer, so the table and the
+  // reason are read in full before the score they were about lands — the same
+  // ordering `dismissWager` uses for the draw.
+  dismissOracle: () => {
+    const { game, oracleResult } = get()
+    if (oracleResult === null) return
+
+    set({ ...settleTurn(game), oracleResult: null })
+  },
+
   buyItem: (purchase) => {
     const game = buy(get().game, purchase)
     set({ game, turnStart: game })
@@ -316,7 +366,15 @@ export const useGame = create<GameStore>((set, get) => ({
   leaveShop: () => {
     if (get().game.phase !== 'shop') return
     const game = askWager(startRound(get().game))
-    set({ game, turnStart: game, staged: [], selected: null, settlement: null, wagerResult: null })
+    set({
+      game,
+      turnStart: game,
+      staged: [],
+      selected: null,
+      settlement: null,
+      wagerResult: null,
+      oracleResult: null,
+    })
   },
 
   devSet: (patch) => {

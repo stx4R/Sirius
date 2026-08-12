@@ -11,6 +11,7 @@ import {
   OWNED_CONSTELLATION_LIMIT,
   SHOP_PRICES,
   SHOP_SLOTS,
+  STARDUST_REWARDS,
   STARTING_CONSTELLATION_CHOICES,
   TURNS_PER_ROUND,
 } from '../src/core/config'
@@ -18,6 +19,7 @@ import { ALL_CONSTELLATIONS } from '../src/core/shop'
 import type { ConstellationId, Position } from '../src/core/types'
 import { useGame } from '../src/store/gameStore'
 import { stepsOf } from '../src/ui/Settlement'
+import { boardFrom } from './helpers'
 
 const store = () => useGame.getState()
 
@@ -455,5 +457,93 @@ describe('the title screen starts the run (GDD 12-3, 13-5)', () => {
     expect(store().game.status).toBe('playing')
     expect(store().game.phase).toBe('shop')
     expect(store().game.round).toBe(booth + 1)
+  })
+})
+
+// BOOTH-4b: GDD 8-3 puts DRIFT ORACLE between the end-turn button and the
+// score, so the store has one more thing that can hold a settlement back. These
+// are the same checks the wager modal gets: core decides whether to ask, and
+// nothing is scored until the answer has been read.
+describe('DRIFT ORACLE (GDD 8-3)', () => {
+  const EMPTY = '.   .   .   .   .'
+
+  /** Puts a fixed board under the turn in progress, as the dev panel would. */
+  function withBoard(rows: readonly string[]): void {
+    store().devSet((game) => ({ ...game, board: boardFrom(rows) }))
+  }
+
+  const drifterBoard = ['.   GAC .   .   .', 'IMA *   MIM .   .', '.   GAC .   .   .', EMPTY, EMPTY]
+
+  it('stops the turn on the question instead of settling it', () => {
+    newGame(7)
+    withBoard(drifterBoard)
+    store().commitTurn()
+
+    expect(store().game.pendingOracle).not.toBeNull()
+    expect(store().settlement).toBeNull()
+    expect(store().game.roundScore).toBe(0)
+  })
+
+  it('settles only once the explanation has been read', () => {
+    newGame(7)
+    withBoard(drifterBoard)
+    store().commitTurn()
+    store().answerOracle(store().game.pendingOracle!.answer)
+
+    // Answered, but the board has still not been scored.
+    expect(store().game.pendingOracle).toBeNull()
+    expect(store().oracleResult).not.toBeNull()
+    expect(store().settlement).toBeNull()
+
+    store().dismissOracle()
+
+    expect(store().settlement).not.toBeNull()
+    expect(store().oracleResult).toBeNull()
+    expect(store().game.roundScore).toBeGreaterThan(0)
+  })
+
+  it('pays the stardust for a right answer and nothing for a wrong one', () => {
+    newGame(7)
+    withBoard(drifterBoard)
+    store().commitTurn()
+
+    const before = store().game.stardust
+    const question = store().game.pendingOracle!
+    const wrong = question.choices.find((choice) => choice !== question.answer)!
+
+    store().answerOracle(wrong)
+    expect(store().oracleResult!.correct).toBe(false)
+    expect(store().game.stardust).toBe(before)
+
+    store().dismissOracle()
+
+    // And again, answering correctly this time.
+    newGame(7)
+    withBoard(drifterBoard)
+    store().commitTurn()
+    store().answerOracle(store().game.pendingOracle!.answer)
+
+    expect(store().oracleResult!.correct).toBe(true)
+    expect(store().game.stardust).toBe(before + STARDUST_REWARDS.oracleCorrect)
+  })
+
+  it('asks nothing, and settles straight away, when no drifter is on the board', () => {
+    newGame(7)
+    withBoard(['GAC GAC GAC .   .', EMPTY, EMPTY, EMPTY, EMPTY])
+    store().commitTurn()
+
+    expect(store().game.pendingOracle).toBeNull()
+    expect(store().settlement).not.toBeNull()
+  })
+
+  // GDD 3-3: a drifter with nothing adjacent takes no suit and scores nothing,
+  // so there is no expectation to ask about.
+  it('asks nothing when the drifter has no neighbour', () => {
+    newGame(7)
+    withBoard(['*   .   .   .   .', EMPTY, '.   .   GAC .   .', EMPTY, EMPTY])
+    store().commitTurn()
+
+    expect(store().game.pendingOracle).toBeNull()
+    expect(store().settlement).not.toBeNull()
   })
 })

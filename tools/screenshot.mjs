@@ -103,15 +103,37 @@ window.__wait = (ms) => new Promise(r => setTimeout(r, ms));
 window.__t = (s) => [...document.querySelectorAll('button')].find(b => b.textContent.trim().includes(s));
 window.__cells = () => [...document.querySelectorAll('div.grid > button')];
 window.__hand = () => [...document.querySelectorAll('button.absolute.top-0.rounded')];
+// An occupied cell carries the landed chip's span; the hover ghost is a
+// different one, so this reads the board without a chip having to be held.
+window.__filled = () => window.__cells().map(c => c.querySelector('span.relative') !== null);
+// (2,2) and its four orthogonal cells. The centre is kept empty for the drifter
+// so that when one turns up it reads four neighbours — GDD 3-3's ₄C₃ case, which
+// is DRIFT ORACLE's four-row table and the widest thing the panel has to hold.
+window.__TARGET = 12;
+window.__RING = [7, 17, 11, 13];
 window.__playTurn = async () => {
   let placed = 0;
-  for (let i = 0; i < 4; i++) {
-    const chip = window.__hand()[0];
-    if (!chip) break;
+  for (let step = 0; step < 4; step++) {
+    const hand = window.__hand();
+    if (!hand.length) break;
+    const filled = window.__filled();
+    const drifter = hand.find(c => c.dataset.kind === 'drifter');
+    const seated = window.__RING.every(i => filled[i]) && !filled[window.__TARGET];
+
+    let chip = drifter;
+    let want = window.__TARGET;
+    if (!drifter || !seated) {
+      chip = hand.find(c => c.dataset.kind !== 'drifter');
+      if (!chip) break;
+      const gap = window.__RING.find(i => !filled[i]);
+      want = gap === undefined ? filled.findIndex((f, i) => !f && i !== window.__TARGET) : gap;
+    }
+    if (want === undefined || want < 0) break;
+
     chip.click();
     await window.__wait(140);
-    const cell = window.__cells().find(c => !c.disabled);
-    if (!cell) break;
+    const cell = window.__cells()[want];
+    if (!cell || cell.disabled) break;
     cell.click();
     await window.__wait(140);
     placed++;
@@ -164,6 +186,58 @@ async function answerWager(ws) {
   await sleep(900)
 }
 
+/**
+ * DRIFT ORACLE (GDD 8-3) stands between the end-turn button and the score, so
+ * from BOOTH-4b the tool has a second modal to get past. It only appears once a
+ * drifter is on the board, which is why `__playTurn` reaches for one.
+ *
+ * Which button it presses alternates on purpose. The three choices are the
+ * expectation between the best and the worst case (core/oracle.ts), so the
+ * middle value by size is usually the right one and the largest usually is not —
+ * enough to reach both explanations within a round rather than hoping the
+ * shuffle obliges. The shot is still named after the verdict that actually came
+ * back, never after the one that was aimed at.
+ */
+let oraclesAnswered = 0
+
+async function answerOracle(ws) {
+  const present = await evaluate(ws, `!!document.querySelector('[data-panel="oracle"]')`)
+  if (!present) return
+
+  const fit = await evaluate(
+    ws,
+    `(() => {
+       const el = document.querySelector('[data-panel="oracle"]');
+       return el === null ? null : { scroll: el.scrollHeight, client: el.clientHeight };
+     })()`,
+  )
+  if (fit === null) problems.push('the oracle panel has no box to measure')
+  else if (fit.scroll > fit.client) {
+    problems.push(`the oracle panel clips its own content: ${fit.scroll} > ${fit.client}`)
+  }
+
+  if (!written.has('oracle')) await shot(ws, 'oracle')
+
+  const aimHigh = oraclesAnswered % 2 === 1
+  oraclesAnswered++
+  await evaluate(
+    ws,
+    `(() => {
+       const buttons = [...document.querySelectorAll('[data-panel="oracle"] button')];
+       const sorted = buttons.slice().sort((a, b) => Number(a.textContent) - Number(b.textContent));
+       (${aimHigh} ? sorted[sorted.length - 1] : sorted[1])?.click();
+     })()`,
+  )
+  await sleep(400)
+
+  const missed = await evaluate(ws, `document.body.innerText.includes('오답')`)
+  const name = missed ? 'oracle-wrong' : 'oracle-correct'
+  if (!written.has(name)) await shot(ws, name)
+
+  await evaluate(ws, `window.__t('정산으로')?.click()`)
+  await sleep(600)
+}
+
 async function playRound(ws) {
   for (let turn = 0; turn < 5; turn++) {
     await sleep(700)
@@ -172,6 +246,7 @@ async function playRound(ws) {
     await sleep(350)
     await evaluate(ws, `window.__t('턴 종료')?.click()`)
     await sleep(700)
+    await answerOracle(ws)
     await evaluate(ws, `(window.__t('건너뛰기') ?? window.__t('다음 턴'))?.click()`)
     await sleep(300)
     await evaluate(ws, `window.__t('다음 턴')?.click()`)
@@ -317,6 +392,14 @@ async function main() {
   // even odds should produce each of them; never seeing one means the answers
   // are not landing where core says they do.
   for (const name of ['wager', 'wager-correct', 'wager-wrong']) {
+    if (!written.has(name)) problems.push(`${name}.png was never reached`)
+  }
+
+  // The oracle is round 2 or later — the drifter is handed over at the first
+  // shop (GDD 13-4) — and `__playTurn` keeps (2,2) free for it, so on the pinned
+  // seed all three states are reached. Missing one means the drifter stopped
+  // getting placed or the modal stopped opening.
+  for (const name of ['oracle', 'oracle-correct', 'oracle-wrong']) {
     if (!written.has(name)) problems.push(`${name}.png was never reached`)
   }
 

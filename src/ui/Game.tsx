@@ -21,6 +21,7 @@ import { DEV_TOOLS, DevPanel } from './DevPanel'
 import { RoundTurn, Stardust, StatusLine } from './HUD'
 import type { Status } from './HUD'
 import { Hand, HandCount } from './Hand'
+import { OraclePanel } from './Oracle'
 import { OrionBubble, OrionSprite, useOrion } from './Orion'
 import { StarChart } from './StarChart'
 import { WagerPanel } from './Wager'
@@ -71,6 +72,7 @@ export function Game() {
   const selected = useGame((state) => state.selected)
   const settlement = useGame((state) => state.settlement)
   const wagerResult = useGame((state) => state.wagerResult)
+  const oracleResult = useGame((state) => state.oracleResult)
   const seed = useGame((state) => state.seed)
   const {
     select,
@@ -79,6 +81,8 @@ export function Game() {
     dismissSettlement,
     answerWager,
     dismissWager,
+    answerOracle,
+    dismissOracle,
     newGame,
     toTitle,
   } = useGame.getState()
@@ -102,6 +106,10 @@ export function Game() {
   // The wager stands between a turn and its hand (GDD 8-2), so nothing behind it
   // is happening yet.
   const wagering = game.pendingWager !== null || wagerResult !== null
+
+  // The oracle stands between the end-turn button and the settlement (GDD 8-3):
+  // the score it asks about has not been rolled yet either.
+  const asking = game.pendingOracle !== null || oracleResult !== null
 
   // A new hand means the deck was just reshuffled (GDD 4-2). Core does that in
   // one call, so the beat that makes it legible is added here. It waits for the
@@ -346,6 +354,35 @@ export function Game() {
               height={LAYOUT.wager.h}
               onAnswer={answerWager}
               onDismiss={dismissWager}
+            />
+          </At>
+        </>
+      )}
+
+      {/* GDD 8-3: the expected value is asked after the chips are down and
+          before the board settles, so it is a modal over the board it is about —
+          the score does not exist until it has been answered and read. */}
+      {asking && (
+        <>
+          <At x={0} y={0} w={CANVAS_WIDTH} h={CANVAS_HEIGHT} z={50}>
+            <div className="h-full w-full" style={{ background: `${PALETTE.void}D8` }} />
+          </At>
+          <At
+            x={LAYOUT.oracle.x}
+            y={LAYOUT.oracle.y}
+            w={LAYOUT.oracle.w}
+            h={LAYOUT.oracle.h}
+            z={51}
+          >
+            <OraclePanel
+              question={game.pendingOracle}
+              result={oracleResult}
+              reduced={reduced}
+              width={LAYOUT.oracle.w}
+              height={LAYOUT.oracle.h}
+              row={LAYOUT.oracle.row}
+              onAnswer={answerOracle}
+              onDismiss={dismissOracle}
             />
           </At>
         </>

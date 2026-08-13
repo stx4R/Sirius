@@ -73,7 +73,7 @@ function Basis({ basis }: { readonly basis: WagerBasis }) {
         남은 장수
       </span>
       <span className="tabular-nums" style={{ color: PALETTE.starGlow }}>
-        덱 {basis.deckSize}장
+        공허 {basis.deckSize}장
       </span>
       {basis.counts.map(({ suit, count }) => (
         <span key={suit} className="flex items-center gap-1">
@@ -105,7 +105,7 @@ function Verdict({ record }: { readonly record: WagerRecord }) {
       </span>
       <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
         {record.correct
-          ? `스타더스트 +${STARDUST_REWARDS.wagerCorrect}`
+          ? `St4RDu3t +${STARDUST_REWARDS.wagerCorrect}`
           : `정답은 ${record.question.answer ? 'YES' : 'NO'}`}
       </span>
     </div>
@@ -202,7 +202,7 @@ export function WagerPanel({
           <p className="text-[9px]" style={{ color: PALETTE.starGlow }}>
             {forced
               ? `처음 ${FORCED_WAGER_COUNT}번은 튜토리얼이라 기권할 수 없습니다.`
-              : `맞히면 스타더스트 +${STARDUST_REWARDS.wagerCorrect}, 틀려도 잃는 것은 없습니다.`}
+              : `맞히면 St4RDu3t +${STARDUST_REWARDS.wagerCorrect}, 틀려도 잃는 것은 없습니다.`}
           </p>
         </div>
       ) : (

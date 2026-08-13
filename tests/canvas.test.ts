@@ -12,7 +12,7 @@ import {
 import { COACH_ORDER } from '../src/ui/Coach'
 import { RESET_CONFIRM } from '../src/ui/Reset'
 import { DECK_NAME_COLUMN } from '../src/ui/Shop'
-import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH } from '../src/assets/pixels'
+import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH, SIRIUS_SIZE } from '../src/assets/pixels'
 import {
   MODE_PRESETS,
   OWNED_CONSTELLATION_LIMIT,
@@ -720,12 +720,22 @@ describe('shop layout (GDD 9-3, 11-10)', () => {
 // same rules (GDD 11-10). Nothing here is a modal, so every box is in the
 // pairwise check — unlike the shop, which exempts `replace`.
 describe('title layout (GDD 11-10, 12-2)', () => {
+  // BOOTH-9a split the one `title` box into the logo sheet's vertical lockup — the
+  // symbol sprite, the wordmark and the tagline under it (GDD 11-10). The symbol is
+  // centred on the plane rather than placed from its left edge, so its box is
+  // derived the way the component derives it.
   const boxes = {
-    title: {
-      x: TITLE_LAYOUT.title.x,
-      y: TITLE_LAYOUT.title.y,
-      w: TITLE_LAYOUT.title.w,
-      h: TITLE_LAYOUT.title.h,
+    symbol: {
+      x: (CANVAS_WIDTH - TITLE_LAYOUT.symbol.size) / 2,
+      y: TITLE_LAYOUT.symbol.y,
+      w: TITLE_LAYOUT.symbol.size,
+      h: TITLE_LAYOUT.symbol.size,
+    },
+    wordmark: {
+      x: TITLE_LAYOUT.wordmark.x,
+      y: TITLE_LAYOUT.wordmark.y,
+      w: TITLE_LAYOUT.wordmark.w,
+      h: TITLE_LAYOUT.wordmark.h,
     },
     mode: { x: TITLE_LAYOUT.mode.x, y: TITLE_LAYOUT.mode.y, w: TITLE_LAYOUT.mode.w, h: TITLE_LAYOUT.mode.h },
     starting: {
@@ -769,13 +779,43 @@ describe('title layout (GDD 11-10, 12-2)', () => {
   // the decisions are made in — name, then mode, then constellation, then start.
   it('stacks the screen in the order the choices are made', () => {
     const tops = [
-      TITLE_LAYOUT.title.y,
+      TITLE_LAYOUT.symbol.y,
+      TITLE_LAYOUT.wordmark.y,
+      TITLE_LAYOUT.tagline.y,
       TITLE_LAYOUT.mode.y,
       TITLE_LAYOUT.starting.y,
       TITLE_LAYOUT.start.y,
     ]
 
     for (let i = 1; i < tops.length; i++) expect(tops[i]).toBeGreaterThan(tops[i - 1])
+  })
+
+  // GDD 11-10: the lockup is symbol over wordmark over tagline, and the whole of it
+  // has to clear the mode label — which is what the 36px shift down the rest of the
+  // screen took bought. A tagline running into that label is the failure this holds.
+  it('keeps the logo lockup clear of the first choice row', () => {
+    expect(TITLE_LAYOUT.symbol.y + TITLE_LAYOUT.symbol.size).toBeLessThanOrEqual(
+      TITLE_LAYOUT.wordmark.y,
+    )
+    expect(TITLE_LAYOUT.wordmark.y + TITLE_LAYOUT.wordmark.h).toBeLessThanOrEqual(
+      TITLE_LAYOUT.tagline.y,
+    )
+    // The tagline is one 11px line, the size class the component sets it in.
+    expect(TITLE_LAYOUT.tagline.y + 11).toBeLessThanOrEqual(TITLE_LAYOUT.mode.label.y)
+  })
+
+  // The wordmark is type, not a sprite, and 42px is Galmuri14 at 3× — the face the
+  // logo sheet builds the wordmark on. 44px would land on Galmuri11 (index.css maps
+  // size to face), which is a different wordmark, so the box has to hold 42 and the
+  // line height it needs.
+  it('gives the wordmark room for a 42px line', () => {
+    expect(TITLE_LAYOUT.wordmark.h).toBeGreaterThanOrEqual(42)
+  })
+
+  // CLAUDE.md §7: the sprite is shown at a whole multiple of its own map, and the
+  // map is square, so the box it is given has to be the map's size exactly.
+  it('shows the symbol at its own size', () => {
+    expect(TITLE_LAYOUT.symbol.size).toBe(SIRIUS_SIZE)
   })
 
   it('fits both options of each choice row inside it', () => {
@@ -804,8 +844,14 @@ describe('title layout (GDD 11-10, 12-2)', () => {
     expect(TITLE_LAYOUT.mode.w).toBe(TITLE_LAYOUT.starting.w)
   })
 
-  it('centres the title, the choice rows and the start button on the plane', () => {
-    for (const box of [TITLE_LAYOUT.title, TITLE_LAYOUT.mode, TITLE_LAYOUT.starting, TITLE_LAYOUT.start]) {
+  it('centres the logo, the choice rows and the start button on the plane', () => {
+    for (const box of [
+      boxes.symbol,
+      TITLE_LAYOUT.wordmark,
+      TITLE_LAYOUT.mode,
+      TITLE_LAYOUT.starting,
+      TITLE_LAYOUT.start,
+    ]) {
       expect(box.x + box.w / 2).toBe(CANVAS_WIDTH / 2)
     }
   })

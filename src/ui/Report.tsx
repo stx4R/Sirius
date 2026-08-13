@@ -18,6 +18,7 @@ import { motion } from 'framer-motion'
 import { WAGER_GUESS_RATE } from '../core/config'
 import type { ConvergencePoint, RoundReport, SuitTally, Tally } from '../core/report'
 import { PALETTE, SUIT_INK } from '../assets/palette'
+import { withPixelWords } from './PixelWord'
 
 const percent = (value: number): string => `${Math.round(value * 100)}%`
 /** One decimal, since an expectation is rarely a whole number of cards. */
@@ -115,7 +116,7 @@ function Series({ points, height }: {
   return (
     <div className="flex flex-col">
       <div className="flex text-[9px]" style={{ color: PALETTE.starGlow, height: 16 }}>
-        <span className="w-8">라운드</span>
+        <span className="w-8">주기</span>
         <span className="w-14 text-right">표본</span>
         <span className="flex-1 pl-3">비율 차이 · 띠는 흔한 차이</span>
       </div>
@@ -168,16 +169,28 @@ function Wager({ tally }: { readonly tally: Tally['wager'] }) {
         ORION&apos;S WAGER — 누적
       </span>
 
+      {/* ★ Two mechanisms for one word, and the difference is measured rather than
+          arbitrary (`tools/font-fallback.mjs`). The 11px line below renders in
+          Galmuri11, which has every letter of πειρασμός, so it is typed and comes out
+          as dots. The 14px line renders it as a sprite: `text-[14px]` is not in
+          index.css's size→face map, so the face is whatever it inherits, and a
+          sprite is the only form that cannot fall back whichever way that resolves.
+          At 2× its x-height is 10px, which is exactly a 14px line's. */}
       {tally.rate === null ? (
         <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
-          답한 문항이 없습니다. 기권 {tally.abstained}회.
+          답한 πειρασμός가 없습니다. 기권 {tally.abstained}회.
         </span>
       ) : (
         <>
           {/* The count first and the rate after it: a rate with no sample size
-              behind it is the thing this screen is trying to stop being read. */}
+              behind it is the thing this screen is trying to stop being read.
+
+              ★ 'πειρασμός {n}개 중 {m}개' rather than BOOTH-9a's literal swap of
+              문항 → πειρασμός, which would have put the word in twice — two 53px
+              sprites in one 14px line, for a phrase that only names the thing once. */}
           <span className="text-[14px]" style={{ color: PALETTE.starWhite }}>
-            {tally.answered}문항 중 {tally.correct}문항
+            {withPixelWords('πειρασμός', PALETTE.starWhite)} {tally.answered}개 중{' '}
+            {tally.correct}개
             <span style={{ color: beating ? PALETTE.nebulaTeal : PALETTE.starGlow }}>
               {' '}
               ({percent(tally.rate)})
@@ -238,7 +251,7 @@ export function ReportPanel({
           CONSTELLATION LOG
         </span>
         <span className="text-[9px]" style={{ color: PALETTE.starGlow }}>
-          라운드 {report.round} 기록
+          주기 {report.round} 기록
         </span>
       </div>
 
@@ -247,7 +260,7 @@ export function ReportPanel({
         <div className="flex w-[360px] flex-col gap-4">
           <div className="flex flex-col gap-1">
             <span className="text-[9px]" style={{ color: PALETTE.starGlow }}>
-              이번 라운드
+              이번 주기
             </span>
             <span className="text-[22px] font-bold" style={{ color: PALETTE.starWhite }}>
               {report.score.toLocaleString('ko-KR')}점
@@ -265,9 +278,13 @@ export function ReportPanel({
               here narrates one draw following another — the third line is about
               how big the sample is, not about what happened when. */}
           <div className="mt-auto flex flex-col gap-2">
+            {/* 공허's one 한자 (BOOTH-9a). This is the sentence that says what 공허
+                *is* — the population the round drew from — so the 병기 belongs on it
+                rather than on the coach caption, which BOOTH-6a caps at 30 characters
+                and which 병기 would push to 35. Every other mention is 한글 only. */}
             <p className="text-[9px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
-              <b style={{ color: PALETTE.starWhite }}>모집단과 표본.</b> 덱 {population.size}장
-              전체가 모집단이고, 거기서 뽑은 카드가 표본입니다.
+              <b style={{ color: PALETTE.starWhite }}>모집단과 표본.</b> 공허(空虛){' '}
+              {population.size}장 전체가 모집단이고, 거기서 뽑은 카드가 표본입니다.
             </p>
             <p className="text-[9px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
               <b style={{ color: PALETTE.starWhite }}>차이는 정상입니다.</b> 실제가 기댓값과 딱

@@ -15,15 +15,15 @@ const STATUS_TEXT: Readonly<Record<Status, string>> = {
   shuffling: '칩을 섞는 중…',
   choosing: '칩을 고르세요',
   placing: '원하는 위치에 놓으세요',
-  settling: '정산 중입니다',
-  settled: '정산 완료',
+  settling: '융합 중입니다',
+  settled: '융합 완료',
 }
 
 export function Stardust({ value }: { readonly value: number }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[11px] tracking-wide" style={{ color: PALETTE.starGlow }}>
-        스타더스트
+        St4RDu3t
       </span>
       <span
         className="text-[22px] font-bold leading-none tabular-nums"
@@ -47,7 +47,7 @@ export function RoundTurn({ game, turn }: { readonly game: Game; readonly turn: 
   return (
     <div className="flex items-baseline justify-center gap-4 whitespace-nowrap text-sm font-bold tabular-nums">
       <span style={{ color: PALETTE.starWhite }}>
-        라운드 {game.round}
+        주기 {game.round}
         <span style={{ color: PALETTE.starLink }}> / {total}</span>
       </span>
       <span style={{ color: PALETTE.starWhite }}>

@@ -263,6 +263,407 @@ export const NEBULA_NAME: Mask = mask([
   '#...#...###.####...###....###..##.#',
 ])
 
+// ------------------------------------------------------- the Sirius symbol
+// GDD 11-10. The mark on the title screen: Sirius is a binary, so the symbol is a
+// large four-pointed star with a small companion off its lower right — Sirius A and
+// the white dwarf B, which is the one fact about the star the name is taken from
+// that a symbol can actually carry.
+//
+// ★ DRAWN IN CODE, NOT CUT OUT OF THE SHEET. `docs/brand/SIRIUS-LOGO-SHEET.png` is
+// the design, and the obvious move is to crop its 56×56 cell and ship the PNG. GDD
+// 11-1 forbids it in the first line of the art pipeline — 이미지 파일을 만들지
+// 않는다 — and the reason applies here as much as to the chips: a cropped bitmap has
+// its five colours baked in, so it cannot follow the palette, and at any scale but
+// the one it was cut at it needs resampling, which is the end of the dot look
+// (CLAUDE.md §7). Geometry gives the same star at any whole multiple in any colour.
+//
+// Built from a superellipse rather than a hand-drawn map, like the chip. With the
+// exponent under 1 the sides go concave and a diamond becomes a four-pointed star:
+//
+//     s(dx, dy) = (|dx| / r)^k + (|dy| / r)^k        inside where s ≤ 1
+//
+// k = 1 is a plain diamond; the smaller it gets the thinner and sharper the arms.
+// Everything else here — which tone a pixel takes, where the companion sits — is
+// read off `s`, so the whole mark is one expression evaluated twice.
+
+/** The reference size — the sheet's ④ 56×56 원본, and what the title screen shows. */
+export const SIRIUS_SIZE = 56
+
+/** The favicon sizes GDD 11-10 asks for, largest first (`index.html`). */
+export const SIRIUS_ICON_SIZES = [32, 16] as const
+
+export type SiriusLayer = 'outside' | 'core' | 'pale' | 'mid' | 'shade'
+
+/**
+ * Both stars, as fractions of the box rather than pixel counts.
+ *
+ * ★ Fractions, because the mark is needed at 56 for the title and at 32 and 16 for
+ * the favicon, and 56/16 is 3.5 — there is no whole multiple joining them. Stated as
+ * ratios, the same expression draws the shape at any size and the three are the same
+ * mark by construction; stated in pixels, the favicon would have to be a second
+ * drawing, which is the drift the whole procedural pipeline exists to avoid (11-2).
+ *
+ * A sits a little up and left of centre, which is what leaves the lower-right
+ * diagonal clear for B — a concave star has empty diagonals by construction, and
+ * that is the gap the companion is placed *in* rather than beside. At 17/56 out on
+ * both axes B lands at s ≈ 1.74 on A's field, so the two never merge and no
+ * clearance has to be maintained by hand.
+ */
+const SIRIUS_A = { cx: 26 / 56, cy: 24 / 56, r: 22 / 56, k: 0.55 }
+const SIRIUS_B = { cx: 43 / 56, cy: 41 / 56, r: 6 / 56, k: 0.6 }
+
+/** Tone boundaries on `s`. Four bands, brightest first (GDD 11-7's logo ramp). */
+const SIRIUS_BANDS = { core: 0.34, pale: 0.62, mid: 0.85 } as const
+
+/**
+ * How much of the outermost band goes to shade.
+ *
+ * The star is lit from the upper left, so the arms falling away from that carry the
+ * darkest tone. Without it the mark is a flat silhouette: four identical arms in one
+ * colour read as a compass rose, and what makes it a *star* is that the light has a
+ * direction. Measured along the down-right diagonal, so it darkens the two arms the
+ * companion sits between and leaves the top and left arms bright.
+ */
+const SIRIUS_SHADE_FROM = 0.45
+
+const siriusField = (x: number, y: number, star: typeof SIRIUS_A, size: number) =>
+  (Math.abs(x - star.cx * size) / (star.r * size)) ** star.k +
+  (Math.abs(y - star.cy * size) / (star.r * size)) ** star.k
+
+/** GDD 11-10: one grid of tone bands, from the two fields above and nothing else. */
+export function siriusLayers(size: number = SIRIUS_SIZE): SiriusLayer[][] {
+  return Array.from({ length: size }, (_, y) =>
+    Array.from({ length: size }, (_, x): SiriusLayer => {
+      const b = siriusField(x, y, SIRIUS_B, size)
+      if (b <= 1) {
+        // The companion is six pixels across at the reference size, so it gets two
+        // tones and not four — a four-band ramp over three pixels of radius is
+        // noise, not shading. At 16 it comes out as the single dot the sheet shows.
+        return b <= 0.5 ? 'core' : 'mid'
+      }
+
+      const s = siriusField(x, y, SIRIUS_A, size)
+      if (s > 1) return 'outside'
+      if (s <= SIRIUS_BANDS.core) return 'core'
+      if (s <= SIRIUS_BANDS.pale) return 'pale'
+      if (s <= SIRIUS_BANDS.mid) return 'mid'
+
+      // Outermost band: split by direction so the lit side keeps the mid tone.
+      const away = (x - SIRIUS_A.cx * size + (y - SIRIUS_A.cy * size)) / (2 * SIRIUS_A.r * size)
+      return away > SIRIUS_SHADE_FROM ? 'shade' : 'mid'
+    }),
+  )
+}
+
+// --------------------------------------- γένεσις · πειρασμός · MЦLГЦS
+//
+// GDD 11-9 established that a name spelled out of Greek and Cyrillic cannot be
+// typed on these screens. BOOTH-9a's terminology brings three more such words
+// into the UI — γένεσις for a placement, πειρασμός for a wager question and
+// MЦLГЦS for the special chips — so they take the same treatment.
+//
+// ★ WHY, precisely. The reason is not that Galmuri has no Greek or Cyrillic: the
+// woff2 cmaps say Galmuri9 and Galmuri11 both cover every letter in all three
+// words. It is that **Galmuri14 and Galmuri11-Bold do not** (12,695 glyphs against
+// Galmuri11's 20,965), and index.css maps `text-sm` — the body face every bubble,
+// caption and explanation is set in — onto Galmuri14, while every bold heading
+// lands on Galmuri11-Bold. So a typed γένεσις is dot text at 11px and antialiased
+// system text at 14px and in bold: the same word in two mediums depending on where
+// it is written. Drawing it makes it one word everywhere.
+//
+// Per glyph rather than per word, unlike NEBULA_NAME's single 35×7 map: ε, σ, ς, ι
+// and α appear in more than one of the three words, and a letter drawn twice is a
+// letter that drifts.
+//
+// ------------------------------------------------------------- the metric
+//
+// 5×9 per cell, composed on a 1px gap, and the row zones are what make it sit on
+// the same baseline as the Galmuri text beside it:
+//
+//     row  0     capital top only
+//     row  1     accent (the acute of έ and ό) · capital
+//     rows 2–6   x-height                      · capital
+//     ───────────  baseline
+//     rows 7–8   descender          (γ ρ μ ς, and Ц's tail)
+//
+// Two rows below the baseline is the whole difference from NEBULA_NAME, which has
+// no descender and so ends flush on it. Greek has four descenders in these words,
+// and dropping them would put γ and ρ on stilts next to the Hangul.
+//
+// ★ THE ZONES ARE MEASURED, NOT PICKED. These words are set at 2× in 14px body
+// text, so every row is worth two screen pixels, and what they have to agree with
+// is Galmuri14 at 14px — rasterised and measured off the ink:
+//
+//     feature      Galmuri14 @14px    this table @2×    rows
+//     x-height          10px              10px           5     exact
+//     cap height        13px              14px           7     +1px
+//     descender          3px               4px           2     +1px
+//     accent top        11px              12px           1     +1px
+//
+// x-height is the one that had to be exact, and is: it is the feature the eye reads
+// a mismatch off, because every lowercase letter in a line shares it. The other
+// three are one pixel over and cannot be less — an integer scale only produces even
+// heights (CLAUDE.md §7) and 13, 3 and 11 are all odd. The accent was two rows in
+// the first draft, which put it 14px up, taller than the capitals and the Hangul
+// beside it; one row is the fix.
+//
+// Ц is the glyph that proves the zones are real: a capital *with* a descender, so it
+// is the only one that touches every zone at once.
+//
+// Stroke weight is 1px everywhere (CLAUDE.md §7).
+
+export const PIXEL_GLYPH_WIDTH = 5
+export const PIXEL_GLYPH_HEIGHT = 9
+export const PIXEL_GLYPH_GAP = 1
+/** Rows from the top of a cell down to the baseline. The descender is what is left. */
+export const PIXEL_GLYPH_BASELINE = 7
+
+/**
+ * One 5×9 cell per character. Keyed by the character itself, so the table is read
+ * against the words it spells rather than against a list of names.
+ *
+ * α is lifted verbatim from NEBULA_NAME — she already has one, and two alphas
+ * drawn by hand is the drift this table exists to prevent.
+ */
+export const PIXEL_GLYPHS: Readonly<Record<string, Mask>> = {
+  // --- Greek lowercase (γένεσις, πειρασμός)
+  γ: mask([
+    '.....',
+    '.....',
+    '#...#',
+    '#...#',
+    '.#.#.',
+    '..#..',
+    '..#..',
+    '..#..',
+    '##...',
+  ]),
+  // ★ The acute sits on row 1, not on rows 0–1 as a diagonal. Measured against the
+  // face it has to live beside: Galmuri14 at 14px puts its cap height 13px above the
+  // baseline and its accented Greek 11px, while rows 0–1 at 2× would reach 14px — an
+  // accent standing taller than the capitals and the Hangul around it. One row lands
+  // at 12px, which is the closest an even scale can get to 11.
+  έ: mask([
+    '.....',
+    '..##.',
+    '.###.',
+    '#....',
+    '.##..',
+    '#....',
+    '.###.',
+    '.....',
+    '.....',
+  ]),
+  ν: mask([
+    '.....',
+    '.....',
+    '#...#',
+    '#...#',
+    '.#.#.',
+    '.#.#.',
+    '..#..',
+    '.....',
+    '.....',
+  ]),
+  ε: mask([
+    '.....',
+    '.....',
+    '.###.',
+    '#....',
+    '.##..',
+    '#....',
+    '.###.',
+    '.....',
+    '.....',
+  ]),
+  σ: mask([
+    '.....',
+    '.....',
+    '.####',
+    '#..#.',
+    '#..#.',
+    '#..#.',
+    '.##..',
+    '.....',
+    '.....',
+  ]),
+  ι: mask([
+    '.....',
+    '.....',
+    '..#..',
+    '..#..',
+    '..#..',
+    '..#..',
+    '..##.',
+    '.....',
+    '.....',
+  ]),
+  // Final sigma: the bowl of ε's family with a hook falling off its right foot.
+  ς: mask([
+    '.....',
+    '.....',
+    '.####',
+    '#....',
+    '#....',
+    '#....',
+    '.###.',
+    '...#.',
+    '.##..',
+  ]),
+  π: mask([
+    '.....',
+    '.....',
+    '#####',
+    '.#.#.',
+    '.#.#.',
+    '.#.#.',
+    '.#.#.',
+    '.....',
+    '.....',
+  ]),
+  // ρ and μ share a skeleton — a bowl over a stem that falls below the baseline.
+  // What separates them is the top row: ρ closes it, μ leaves it open.
+  ρ: mask([
+    '.....',
+    '.....',
+    '.###.',
+    '#...#',
+    '#...#',
+    '#...#',
+    '####.',
+    '#....',
+    '#....',
+  ]),
+  μ: mask([
+    '.....',
+    '.....',
+    '#...#',
+    '#...#',
+    '#...#',
+    '#...#',
+    '####.',
+    '#....',
+    '#....',
+  ]),
+  α: mask([
+    '.....',
+    '.....',
+    '.###.',
+    '#...#',
+    '#...#',
+    '#..##',
+    '.##.#',
+    '.....',
+    '.....',
+  ]),
+  ό: mask([
+    '.....',
+    '..##.',
+    '.###.',
+    '#...#',
+    '#...#',
+    '#...#',
+    '.###.',
+    '.....',
+    '.....',
+  ]),
+
+  // --- capitals (MЦLГЦS). Rows 0–6, except Ц's tail.
+  M: mask([
+    '#...#',
+    '##.##',
+    '#.#.#',
+    '#.#.#',
+    '#...#',
+    '#...#',
+    '#...#',
+    '.....',
+    '.....',
+  ]),
+  // Tse. A capital with a descender — the one glyph that uses all three zones.
+  Ц: mask([
+    '#...#',
+    '#...#',
+    '#...#',
+    '#...#',
+    '#...#',
+    '#...#',
+    '#####',
+    '....#',
+    '....#',
+  ]),
+  L: mask([
+    '#....',
+    '#....',
+    '#....',
+    '#....',
+    '#....',
+    '#....',
+    '#####',
+    '.....',
+    '.....',
+  ]),
+  Г: mask([
+    '#####',
+    '#....',
+    '#....',
+    '#....',
+    '#....',
+    '#....',
+    '#....',
+    '.....',
+    '.....',
+  ]),
+  S: mask([
+    '.###.',
+    '#...#',
+    '#....',
+    '.###.',
+    '....#',
+    '#...#',
+    '.###.',
+    '.....',
+    '.....',
+  ]),
+}
+
+/**
+ * GDD 11-9's spellings, and the only place these literals are written.
+ *
+ * The strings stay the real characters — the substitution happens at render, so
+ * `dialogue.ts` and the question generators stay plain readable data (CLAUDE.md §11)
+ * and a copy-paste out of the screen still yields the word.
+ */
+export const PIXEL_WORDS = ['γένεσις', 'πειρασμός', 'MЦLГЦS'] as const
+
+export type PixelWord = (typeof PIXEL_WORDS)[number]
+
+/**
+ * A word laid out from the table above: cells side by side on a 1px gap.
+ *
+ * Throws on an unknown character rather than dropping it. A missing glyph would
+ * otherwise render as a hole in the middle of a word and read as a rendering bug
+ * of unknown origin; `tests/assets.test.ts` holds the table against PIXEL_WORDS
+ * so this cannot fire at a booth.
+ */
+export function pixelWord(word: string): Mask {
+  const glyphs = [...word].map((character) => {
+    const glyph = PIXEL_GLYPHS[character]
+    if (glyph === undefined) throw new Error(`no pixel glyph for "${character}" in "${word}"`)
+    return glyph
+  })
+
+  const width = glyphs.length * (PIXEL_GLYPH_WIDTH + PIXEL_GLYPH_GAP) - PIXEL_GLYPH_GAP
+
+  return Array.from({ length: PIXEL_GLYPH_HEIGHT }, (_, row) =>
+    Array.from({ length: width }, (_, col) => {
+      const cell = Math.floor(col / (PIXEL_GLYPH_WIDTH + PIXEL_GLYPH_GAP))
+      const within = col % (PIXEL_GLYPH_WIDTH + PIXEL_GLYPH_GAP)
+      return within < PIXEL_GLYPH_WIDTH && glyphs[cell][row][within]
+    }),
+  )
+}
+
 // ------------------------------------------------------------------ иєвυℓα
 // GDD 11-9. Built from geometry rather than a hand-drawn map, like the chip —
 // 60×78 is 4,680 cells and the shape is a silhouette, not a portrait.

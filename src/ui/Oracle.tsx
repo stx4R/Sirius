@@ -65,7 +65,7 @@ function Verdict({ record }: { readonly record: OracleRecord }) {
       </span>
       <span className="text-[9px]" style={{ color: PALETTE.starGlow }}>
         {record.correct
-          ? `스타더스트 +${STARDUST_REWARDS.oracleCorrect}`
+          ? `St4RDu3t +${STARDUST_REWARDS.oracleCorrect}`
           : `${record.choice}${particleFor(record.choice, '를', '을')} 골랐습니다. 정답은 ${record.question.answer}입니다.`}
       </span>
     </div>
@@ -145,7 +145,7 @@ export function OraclePanel({
             ))}
           </div>
           <p className="text-[9px]" style={{ color: PALETTE.starGlow }}>
-            맞히면 스타더스트 +{STARDUST_REWARDS.oracleCorrect}, 틀려도 잃는 것은 없습니다.
+            맞히면 St4RDu3t +{STARDUST_REWARDS.oracleCorrect}, 틀려도 잃는 것은 없습니다.
           </p>
         </div>
       ) : (
@@ -160,7 +160,7 @@ export function OraclePanel({
             className="mt-auto self-end rounded px-6 py-3 text-[11px] font-bold"
             style={{ background: PALETTE.nebulaAmber, color: PALETTE.void }}
           >
-            정산으로
+            융합으로
           </button>
         </div>
       )}

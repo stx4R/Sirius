@@ -3,12 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Empty on purpose. Without any icon declared the browser asks for
-         /favicon.ico by itself and logs a 404 on every load, and a booth machine
-         left running all day should have a clean console to read a real error
-         out of. There is no tab icon to draw yet. -->
+    <!-- A placeholder, replaced at load by `src/ui/favicon.ts` with the Sirius mark
+         at 32 and 16 (GDD 11-10). It stays here rather than being deleted for the
+         reason it was added at P0: with no icon declared at all, the browser asks
+         for /favicon.ico by itself and logs a 404 on every load, and a booth machine
+         left running all day should have a clean console to read a real error out of.
+         The mark is not a file — GDD 11-1 makes no image files, so it is painted
+         from the same geometry the title screen draws. -->
     <link rel="icon" href="data:," />
-    <title>STA-mble</title>
+    <title>Sirius</title>
   </head>
   <body>
     <div id="root"></div>

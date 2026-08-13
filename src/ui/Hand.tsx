@@ -148,7 +148,7 @@ export function HandCount({
     <div className="flex items-center gap-3 whitespace-nowrap text-[11px]">
       <span style={{ color: PALETTE.starGlow }}>손패 {hand.length}장</span>
       <span style={{ color: full ? PALETTE.nebulaAmber : PALETTE.starGlow }}>
-        이번 턴 배치 {placedThisTurn} / {MAX_PLACEMENTS_PER_TURN}
+        이번 턴 γένεσις {placedThisTurn} / {MAX_PLACEMENTS_PER_TURN}
         {full && ' — 턴을 종료하세요'}
       </span>
     </div>

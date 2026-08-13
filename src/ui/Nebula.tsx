@@ -11,12 +11,12 @@
 // counting on, and the same seed would stop replaying the same run.
 
 import { motion } from 'framer-motion'
-import { Fragment, useCallback, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { mulberry32 } from '../core/rng'
-import { nebulaName, nebulaSprite } from '../assets/compose'
+import { nebulaSprite } from '../assets/compose'
 import { NEBULA_INK, PALETTE, mix } from '../assets/palette'
 import type { NebulaMood } from '../assets/palette'
+import { NebulaNameSprite, withPixelWords } from './PixelWord'
 import { PixelSprite } from './PixelSprite'
 import { shopLineFor } from './dialogue'
 import type { ShopBeat } from './dialogue'
@@ -105,7 +105,10 @@ export function NebulaBubble({
         className="flex h-full w-full items-center justify-center rounded-lg px-4 text-center text-sm leading-relaxed"
         style={{ background: PALETTE.panel, outline: `1px solid ${edge}`, color: PALETTE.starWhite }}
       >
-        {line}
+        {/* Her own lines name the drawn words too — the gift line explains a chip
+            that goes into the 공허, and BOOTH-9a's terminology puts MЦLГЦS on her
+            shelf. Typed, those would be the one run of smooth text on her screen. */}
+        {withPixelWords(line, PALETTE.starWhite)}
       </motion.p>
 
       <span
@@ -143,56 +146,19 @@ export function NebulaSprite({
 }
 
 /**
- * Her name, drawn rather than typed (GDD 11-9). Galmuri has no glyph for any of
- * и є в υ ℓ α, so the browser falls back per character and the name renders in a
- * smooth system font beside the dot Hangul it is written into.
+ * Her name, drawn rather than typed (GDD 11-9).
  *
- * It is an inline sprite standing in for a run of text, so it takes the colour of
- * the line it sits in and is nudged onto that line's baseline — the map has no
- * descender, and without the nudge it rides high against the Hangul beside it.
- * `alt` keeps the real spelling in the accessibility tree and in a copy-paste.
+ * BOOTH-9a moved the drawing to `PixelWord.tsx`, which now does the same job for
+ * γένεσις, πειρασμός and MЦLГЦS — four words on one mechanism rather than one
+ * mechanism each, and one place where the baseline correction is worked out. This
+ * is kept as the name GDD 11-9 gives the component.
  */
-/** GDD 11-9 fixes the spelling; this is the one place the literal is written. */
-const NEBULA_NAME_TEXT = 'иєвυℓα'
-
 export function NebulaName({
   colour,
-  scale = 2,
+  scale,
 }: {
   readonly colour: string
   readonly scale?: number
 }) {
-  const pixels = useMemo(() => nebulaName(colour), [colour])
-  return (
-    // The name is on the wrapper, not the image, so a screen reader announces
-    // "иєвυℓα" once rather than once per node. The map is the whole word.
-    <span
-      role="img"
-      aria-label={NEBULA_NAME_TEXT}
-      className="inline-block align-baseline"
-      style={{ transform: 'translateY(1px)' }}
-    >
-      <PixelSprite pixels={pixels} scale={scale} />
-    </span>
-  )
-}
-
-/**
- * Renders a line of dialogue with her name drawn instead of typed.
- *
- * ORION says it too (`dialogue.ts`), and a speech bubble is a plain string, so
- * the substitution happens at render rather than by turning the dialogue table
- * into JSX — the tables stay data, which is what lets them be read and edited as
- * text (CLAUDE.md §11).
- */
-export function withNebulaName(line: string, colour: string): ReactNode {
-  const parts = line.split(NEBULA_NAME_TEXT)
-  if (parts.length === 1) return line
-
-  return parts.map((part, i) => (
-    <Fragment key={i}>
-      {i > 0 && <NebulaName colour={colour} />}
-      {part}
-    </Fragment>
-  ))
+  return <NebulaNameSprite colour={colour} scale={scale} />
 }

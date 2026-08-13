@@ -544,11 +544,11 @@ export function Game() {
       {over && (
         <At x={CANVAS_WIDTH / 2} y={220} centre z={30}>
           <Banner
-            title={cleared ? '전 라운드 클리어' : '게임 오버'}
+            title={cleared ? '전 주기 클리어' : '게임 오버'}
             note={
               cleared
-                ? `${MODE_PRESETS[game.mode].TOTAL_ROUNDS}라운드를 모두 넘겼습니다.`
-                : `라운드 ${game.round}에서 목표 ${game.targetScore.toLocaleString('ko-KR')}점에 ` +
+                ? `${MODE_PRESETS[game.mode].TOTAL_ROUNDS}주기를 모두 넘겼습니다.`
+                : `주기 ${game.round}에서 목표 ${game.targetScore.toLocaleString('ko-KR')}점에 ` +
                   `${game.roundScore.toLocaleString('ko-KR')}점으로 미달했습니다.`
             }
             vote={cleared ? VOTE_NOTE.cleared : VOTE_NOTE.gameOver}

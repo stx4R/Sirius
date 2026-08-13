@@ -14,7 +14,14 @@ interface Props {
   readonly alt?: string
 }
 
-function toDataUrl(pixels: PixelMap): string {
+/**
+ * A pixel map as a PNG data URL, one canvas pixel per map pixel.
+ *
+ * Exported because the favicon needs the same conversion and must not have a second
+ * one: GDD 11-1 makes no image files, so the tab icon is this map painted at load
+ * (`favicon.ts`) rather than a .ico checked in beside it.
+ */
+export function toDataUrl(pixels: PixelMap): string {
   const height = pixels.length
   const width = height === 0 ? 0 : pixels[0].length
   const canvas = document.createElement('canvas')

@@ -198,8 +198,8 @@ export function generateOracle(
   // wear the four-case face — so the sentence says outright that one case is
   // certain, and the reason it is.
   const text = forced
-    ? `인접한 칩이 ${neighbours.length}개뿐이라 방향을 고를 여지가 없다. 이 판정 하나가 확률 1로 일어난다. 떠돌이 조각이 이번 정산에서 낼 점수의 기댓값은?`
-    : '떠돌이 조각이 이번 정산에서 낼 점수의 기댓값에 가장 가까운 값은?'
+    ? `인접한 칩이 ${neighbours.length}개뿐이라 방향을 고를 여지가 없다. 이 판정 하나가 확률 1로 일어난다. 떠돌이 조각이 이번 융합에서 낼 점수의 기댓값은?`
+    : '떠돌이 조각이 이번 융합에서 낼 점수의 기댓값에 가장 가까운 값은?'
 
   const best = Math.max(...scores)
   const worst = Math.min(...scores)

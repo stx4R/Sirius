@@ -42,6 +42,7 @@ import { ConstellationCard } from './ConstellationCard'
 import { Stardust } from './HUD'
 import { NebulaBubble, NebulaName, NebulaSprite, useNebula } from './Nebula'
 import { PixelSprite } from './PixelSprite'
+import { withPixelWords } from './PixelWord'
 import { ResetButton, ResetConfirm } from './Reset'
 import { usePrefersReducedMotion } from './motion'
 
@@ -59,11 +60,23 @@ const pairLabel = (pair: SuitPair) => `${pair[0]}&${pair[1]}`
 
 // ------------------------------------------------------------------- pieces
 
+/**
+ * ★ The label goes through `withPixelWords` because this one is **bold**, and bold at
+ * 11px is Galmuri11-Bold (index.css) — the one Galmuri face with no Greek or Cyrillic
+ * at all, so a typed 'MЦLГЦS 조각' falls back on three of its six characters
+ * (`tools/font-fallback.mjs`). The plain-weight labels elsewhere in this file need no
+ * such help; Galmuri11 has the letters.
+ *
+ * The known cost: the sprite is 2× and its x-height is 10px against this face's 8px,
+ * so the drawn word sits a quarter larger than the Hangul beside it. There is no
+ * integer scale that fits 8 (CLAUDE.md §7 allows no other kind), so the choice was
+ * this, dropping the bold, or letting three characters render in a system font.
+ */
 function GroupLabel({ text, note }: { readonly text: string; readonly note?: string }) {
   return (
     <div className="flex items-baseline gap-2 whitespace-nowrap">
       <span className="text-[11px] font-bold tracking-wide" style={{ color: PALETTE.starWhite }}>
-        {text}
+        {withPixelWords(text, PALETTE.starWhite)}
       </span>
       {note !== undefined && (
         <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
@@ -501,7 +514,7 @@ function InventoryPanel({
         {drifterOwned && <PixelSprite pixels={drifterChip()} scale={1} alt="떠돌이" />}
         {held.size === 0 && !drifterOwned && (
           <span className="text-[11px]" style={{ color: PALETTE.starLink }}>
-            아직 특수 조각이 없습니다
+            아직 MЦLГЦS 조각이 없습니다
           </span>
         )}
       </div>
@@ -667,7 +680,7 @@ export function Shop() {
 
       <At x={CANVAS_WIDTH / 2} y={layout.note.y} centre>
         <span className="whitespace-nowrap text-[11px]" style={{ color: PALETTE.starGlow }}>
-          다음은 라운드 {game.round} / {MODE_PRESETS[game.mode].TOTAL_ROUNDS} · 목표{' '}
+          다음은 주기 {game.round} / {MODE_PRESETS[game.mode].TOTAL_ROUNDS} · 목표{' '}
           {nextTarget.toLocaleString('ko-KR')}점
         </span>
       </At>
@@ -675,7 +688,7 @@ export function Shop() {
       {/* ------------------------------------------------------------ shelf */}
 
       <At x={layout.specials.label.x} y={layout.specials.label.y}>
-        <GroupLabel text="특수 조각" note={`두 문양으로 모두 판정됩니다 · ${stock?.specials.length ?? 0}종`} />
+        <GroupLabel text="MЦLГЦS 조각" note={`두 문양으로 모두 판정됩니다 · ${stock?.specials.length ?? 0}종`} />
       </At>
       <At x={layout.specials.x} y={layout.specials.y} w={layout.specials.w} h={layout.specials.h}>
         <div className="flex" style={{ gap: layout.specials.gap }}>
@@ -822,7 +835,7 @@ export function Shop() {
           className="h-full w-full rounded text-[11px] font-bold"
           style={{ background: PALETTE.nebulaAmber, color: PALETTE.void }}
         >
-          라운드 {game.round} 시작
+          주기 {game.round} 시작
         </button>
       </At>
 

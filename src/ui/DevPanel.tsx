@@ -104,7 +104,7 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
         </div>
       </Row>
 
-      <Row label="덱에 조각 추가">
+      <Row label="공허에 조각 추가">
         <div className="flex flex-wrap gap-1">
           {SPECIAL_SUIT_PAIRS.slice(0, 4).map(([left, right]) => (
             <button
@@ -144,7 +144,7 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
         </div>
       </Row>
 
-      <Row label="라운드 이동">
+      <Row label="주기 이동">
         <div className="flex flex-wrap gap-1">
           {MODE_PRESETS[game.mode].TARGET_SCORES.map((target, i) => (
             <button
@@ -177,7 +177,7 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
         </span>
       </Row>
 
-      <Row label="현재 보드 정산 미리보기">
+      <Row label="현재 성도 융합 미리보기">
         <span className="text-[22px] font-bold tabular-nums" style={{ color: PALETTE.nebulaTeal }}>
           {preview.total.toLocaleString('ko-KR')}점
         </span>

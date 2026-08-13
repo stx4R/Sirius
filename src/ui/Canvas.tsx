@@ -50,7 +50,7 @@ export const LAYOUT = {
   settlement: { x: 584, y: 90, w: 516, h: 150 },
   equation: { right: 1096, y: 258 },
   /**
-   * `h` is the component's measured footprint — the "이번 라운드 누적" label, the
+   * `h` is the component's measured footprint — the "이번 주기 누적" label, the
    * 44px figure, the progress bar and the target line under it. It is here so the
    * coach caption that points up at this can be held clear of it
    * (`tests/canvas.test.ts`); nothing else reads it.
@@ -290,19 +290,64 @@ export const NEBULA_SCALE = 3
  * question looks like a continuation of the first rather than a new screen.
  * `entry` is one option's footprint and `w` holds two of them plus the gap.
  */
+/**
+ * ★ The lower block sits 36px further down than it did before BOOTH-9a, and the
+ * title block above it is 126px tall rather than 78.
+ *
+ * The text `Sirius` became the logo sheet's vertical lockup (GDD 11-10) — the symbol
+ * over the wordmark, with the tagline under it — and three stacked elements do not
+ * fit in the space one line of type occupied. The 36px came out of the bottom
+ * margin, which was 68px of nothing below the hint; it is now 32px, and every box
+ * below the title moved by the same amount so the column's own spacing is untouched.
+ */
+const TITLE_SHIFT = 36
+
 export const TITLE_LAYOUT = {
-  title: { x: 360, y: 48, w: 400, h: 64 },
-  mode: { x: 228, y: 148, w: 664, h: 76, entry: 320, gap: 24, label: { x: 228, y: 126 } },
+  /**
+   * The vertical lockup (GDD 11-10, sheet ①). Three boxes rather than one, because
+   * the symbol is a sprite, the wordmark is type and the tagline is a third size —
+   * and a sprite cannot be centred on a text baseline by guessing.
+   *
+   * `symbol` is the 56×56 map at 1×: a whole multiple (CLAUDE.md §7), and the
+   * largest one that leaves the wordmark room above the mode row.
+   *
+   * `wordmark` is 42px — Galmuri14 at 3×, which is what the sheet says the wordmark
+   * *is* ("워드마크: Galmuri14"). It is not drawn: Sirius is six Latin letters and
+   * Galmuri has all of them, so type at a whole multiple of the face's own grid
+   * reproduces the sheet exactly, and drawing it would be a second copy to keep in
+   * step. 44px would land on Galmuri11 instead (index.css maps size → face).
+   */
+  symbol: { y: 34, size: 56 },
+  wordmark: { x: 260, y: 94, w: 600, h: 44 },
+  tagline: { y: 146 },
+
+  mode: {
+    x: 228,
+    y: 148 + TITLE_SHIFT,
+    w: 664,
+    h: 76,
+    entry: 320,
+    gap: 24,
+    label: { x: 228, y: 126 + TITLE_SHIFT },
+  },
   /**
    * Taller than the mode row because GDD 11-5 will not let a constellation card
    * appear without its name, condition and multiplier — and this screen adds a
    * plain-language line on top of those, since it is where a player who has
    * never seen the game decides between an axis they have no way to judge yet.
    */
-  starting: { x: 228, y: 268, w: 664, h: 184, entry: 320, gap: 24, label: { x: 228, y: 246 } },
-  start: { x: 440, y: 476, w: 240, h: 56 },
+  starting: {
+    x: 228,
+    y: 268 + TITLE_SHIFT,
+    w: 664,
+    h: 184,
+    entry: 320,
+    gap: 24,
+    label: { x: 228, y: 246 + TITLE_SHIFT },
+  },
+  start: { x: 440, y: 476 + TITLE_SHIFT, w: 240, h: 56 },
   /** The line under the button saying why it will not press yet. */
-  hint: { y: 548 },
+  hint: { y: 548 + TITLE_SHIFT },
 } as const
 
 /**

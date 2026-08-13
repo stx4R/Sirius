@@ -200,8 +200,13 @@ export function SettlementPanel({
       }}
     >
       <header className="flex items-center justify-between">
+        {/* 융합's one 한자 (BOOTH-9a). This panel is where the word is defined by
+            demonstration — it is the thing the player watches happen — so it is the
+            heading that carries it, and every other mention of 융합 is 한글 only.
+            Unlike the coach's two, this heading returns each turn; there is no
+            once-only surface that names 융합 at all. */}
         <h2 className="text-[11px] font-bold" style={{ color: PALETTE.starWhite }}>
-          정산
+          융합(融合)
         </h2>
 
         <div className="flex items-center gap-1">
@@ -318,7 +323,7 @@ export function RoundTotal({
   return (
     <div className="flex w-64 flex-col items-center gap-1">
       <span className="text-[11px] tracking-wide" style={{ color: PALETTE.starGlow }}>
-        이번 라운드 누적
+        이번 주기 누적
       </span>
       <CountUp
         value={value}
@@ -350,7 +355,7 @@ export function RoundTotal({
 export function DrifterNote({ data }: { readonly data: SettlementData }) {
   return (
     <p className="text-[11px] leading-snug" style={{ color: PALETTE.nebulaAmber }}>
-      떠돌이 조각은 정산 순간 인접 3방향을 굴려 정합니다(GDD 3-3). 위 분해는 한 가지 결과이고,
+      떠돌이 조각은 융합 순간 인접 3방향을 굴려 정합니다(GDD 3-3). 위 분해는 한 가지 결과이고,
       실제 획득은 {data.awarded.toLocaleString('ko-KR')}점입니다.
     </p>
   )

@@ -204,14 +204,14 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '클로버 초거성',
     tier: 'legendary',
     price: COMPANION_TIER_PRICES.legendary,
-    description: '보드 상하좌우 끝이 연결되어(토러스), 반대편 칩과도 별자리가 이어진다',
+    description: '성도 상하좌우 끝이 연결되어(토러스), 반대편 칩과도 별자리가 이어진다',
   },
   lawOfLargeNumbersSupergiant: {
     id: 'lawOfLargeNumbersSupergiant',
     name: '큰수의법칙 초거성',
     tier: 'legendary',
     price: COMPANION_TIER_PRICES.legendary,
-    description: '라운드가 끝날 때마다 모든 배율이 +0.1 영구 누적된다',
+    description: '주기가 끝날 때마다 모든 배율이 +0.1 영구 누적된다',
   },
 
   // 🌟 Mythic — 주계열성
@@ -234,7 +234,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '초신성 주계열성',
     tier: 'mythic',
     price: COMPANION_TIER_PRICES.mythic,
-    description: '라운드 마지막 턴 점수가 ×2가 된다',
+    description: '주기 마지막 턴 점수가 ×2가 된다',
   },
   binaryMainSequence: {
     id: 'binaryMainSequence',
@@ -271,7 +271,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '조건부 원시별',
     tier: 'epic',
     price: COMPANION_TIER_PRICES.epic,
-    description: '덱에 가장 적게 남은 문양의 칩 점수가 ×2가 된다',
+    description: '공허에 가장 적게 남은 문양의 칩 점수가 ×2가 된다',
   },
   redProtostar: {
     id: 'redProtostar',
@@ -285,7 +285,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '암흑 원시별',
     tier: 'epic',
     price: COMPANION_TIER_PRICES.epic,
-    description: '배치하지 않은 조각 1장당 스타더스트 +1',
+    description: 'γένεσις하지 않은 조각 1장당 St4RDu3t +1',
   },
 
   // ✨ Super Rare — 성운
@@ -301,7 +301,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '비복원 성운',
     tier: 'superRare',
     price: COMPANION_TIER_PRICES.superRare,
-    description: '배치한 칩이 덱으로 돌아오지 않는다 (덱 확률이 급격히 변한다)',
+    description: 'γένεσις한 칩이 공허로 돌아오지 않는다 (공허 확률이 급격히 변한다)',
   },
   independentTrialNebula: {
     id: 'independentTrialNebula',
@@ -329,7 +329,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '거울 성운',
     tier: 'superRare',
     price: COMPANION_TIER_PRICES.superRare,
-    description: '보드 좌우 대칭 위치에 같은 칩이 있으면 둘 다 +50%',
+    description: '성도 좌우 대칭 위치에 같은 칩이 있으면 둘 다 +50%',
   },
   magneticNebula: {
     id: 'magneticNebula',
@@ -343,7 +343,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '적운 성운',
     tier: 'superRare',
     price: COMPANION_TIER_PRICES.superRare,
-    description: '특수 조각의 두 판정이 모두 라인에 포함되면 +30%',
+    description: 'MЦLГЦS 조각의 두 판정이 모두 라인에 포함되면 +30%',
   },
 
   // 🔹 Rare — 가스
@@ -352,14 +352,14 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '표본크기 가스',
     tier: 'rare',
     price: COMPANION_TIER_PRICES.rare,
-    description: '라운드마다 덱에 무작위 칩 2장이 추가된다',
+    description: '주기마다 공허에 무작위 칩 2장이 추가된다',
   },
   relativeFrequencyGas: {
     id: 'relativeFrequencyGas',
     name: '상대도수 가스',
     tier: 'rare',
     price: COMPANION_TIER_PRICES.rare,
-    description: '이번 라운드에 가장 많이 배치한 문양이 개당 +15점',
+    description: '이번 주기에 가장 많이 γένεσις한 문양이 개당 +15점',
   },
   dustGas: {
     id: 'dustGas',
@@ -401,21 +401,21 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '행성상 가스',
     tier: 'rare',
     price: COMPANION_TIER_PRICES.rare,
-    description: '보드 네 모서리에 배치된 칩이 ×1.5',
+    description: '성도 네 모서리에 γένεσις된 칩이 ×1.5',
   },
   coreGas: {
     id: 'coreGas',
     name: '중심핵 가스',
     tier: 'rare',
     price: COMPANION_TIER_PRICES.rare,
-    description: '보드 정중앙 칸의 칩이 ×2.5',
+    description: '성도 정중앙 칸의 칩이 ×2.5',
   },
   cometGas: {
     id: 'cometGas',
     name: '혜성 가스',
     tier: 'rare',
     price: COMPANION_TIER_PRICES.rare,
-    description: '라운드 첫 턴 점수가 ×1.5',
+    description: '주기 첫 턴 점수가 ×1.5',
   },
 }
 
@@ -556,13 +556,15 @@ export const MODE_PRESETS: Readonly<Record<GameMode, ModePreset>> = {
     TOTAL_ROUNDS: 8,
     TARGET_SCORES: [490, 630, 640, 880, 1080, 1250, 1330, 1530],
   },
-  // GDD 12-4: full's rounds 1–3 verbatim. The rule these must not break is the
-  // clear rate — 70% or better — not any individual figure. R2 rose from 500 to
-  // 630 precisely because the old number was below the floor score and eliminated
-  // nobody; what matters is difficulty, which GDD 12-4 spells out.
+  // ★ No longer full's rounds 1–3. BOOTH-9a raised the booth curve to
+  // [600, 900, 2000] on the strength of the designer playing it — the back-solved
+  // figures were read off a bot's score distribution, and a person who reads
+  // STAR-CHART and plans two turns ahead out-scores `smart` by enough that the old
+  // R3 of 640 was cleared on the way past. GDD 12-4 still governs: the rule is the
+  // clear rate, not any individual figure, and 13-6 records what these measure.
   booth: {
     TOTAL_ROUNDS: 3,
-    TARGET_SCORES: [490, 630, 640],
+    TARGET_SCORES: [600, 900, 2000],
   },
 }
 

@@ -6,6 +6,7 @@ import { Game } from './ui/Game'
 import { Shop } from './ui/Shop'
 import { SpriteGallery } from './ui/SpriteGallery'
 import { Title } from './ui/Title'
+import { installFavicon } from './ui/favicon'
 
 const subscribe = (onChange: () => void) => {
   window.addEventListener('hashchange', onChange)
@@ -41,6 +42,11 @@ function Root() {
   const hash = useSyncExternalStore(subscribe, () => window.location.hash)
   return hash === '#gallery' ? <SpriteGallery /> : <Play />
 }
+
+// Before the first render, so the tab carries the mark while the game is still
+// mounting (GDD 11-10). It touches only `document.head`, so it is independent of
+// which screen `Play` decides to put up.
+installFavicon()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

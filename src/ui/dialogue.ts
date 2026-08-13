@@ -28,7 +28,10 @@ export type Beat =
 export const ORION_LINES: Readonly<Record<Beat, readonly string[]>> = {
   turnStart: [
     '이번엔 어떤 별을 놓을 건가',
-    '성도가 기다리고 있다',
+    // 성도's one 한자 (BOOTH-9a): ORION naming the board, in fiction, on the turn the
+    // player first looks at it. Every other mention — his own '성도가 닫혔다', the
+    // cards, the companion text — is 한글 only.
+    '성도(星團)가 기다리고 있다',
     '자리는 스물다섯, 손패는 여덟이다',
     '천천히 봐도 된다',
     '고르는 건 자네 몫이다',
@@ -41,7 +44,7 @@ export const ORION_LINES: Readonly<Record<Beat, readonly string[]>> = {
     '그렇게 두는군',
   ],
   settling: ['계산해 보지', '세어 보겠다', '빛이 모이는 중이다', '잠깐 기다리게'],
-  bigScore: ['제법이군', '그 줄이 컸다', '잘 봤다', '나쁘지 않은 배치였다'],
+  bigScore: ['제법이군', '그 줄이 컸다', '잘 봤다', '나쁘지 않은 γένεσις였다'],
   nearTarget: ['조금만 더', '목표가 가깝다', '손이 닿는 거리다'],
   roundClear: ['다음 성역으로', '넘었군', 'иєвυℓα가 기다린다'],
   gameOver: ['여기까지인가', '성도가 닫혔다', '별은 다시 뜬다'],
@@ -110,7 +113,7 @@ export const NEBULA_LINES: Readonly<Record<ShopBeat, readonly string[]>> = {
     '떠돌이 하나 얹어 주지. 옆에 놓인 칩의 문양을 따라가는 녀석일세',
     '떠돌이는 값을 안 받겠네. 붙여 놓는 문양대로 판정되는 조각일세',
     '선물이야, 놀랐나. 제 문양이 없어서 옆자리를 빌려 쓰는 떠돌이라네',
-    '덱에 떠돌이를 한 장 넣어 뒀네. 인접한 칩의 문양으로 판정되지',
+    '공허에 떠돌이를 한 장 넣어 뒀네. 인접한 칩의 문양으로 판정되지',
   ],
   bought: [
     '좋은 눈이야',
@@ -126,7 +129,7 @@ export const NEBULA_LINES: Readonly<Record<ShopBeat, readonly string[]>> = {
     '별은 얼마든지 있다네',
   ],
   broke: [
-    '스타더스트가 모자라는군',
+    'St4RDu3t가 모자라는군',
     '외상은 안 되네. 규칙이야',
     '다음에 오게. 물건은 도망가지 않아',
     '더 벌어 오면 그때 이야기하지',

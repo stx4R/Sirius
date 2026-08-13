@@ -278,7 +278,7 @@ async function answerOracle(ws) {
   const name = missed ? 'oracle-wrong' : 'oracle-correct'
   if (!written.has(name)) await shot(ws, name)
 
-  await evaluate(ws, `window.__t('정산으로')?.click()`)
+  await evaluate(ws, `window.__t('융합으로')?.click()`)
   await sleep(600)
 }
 
@@ -524,9 +524,21 @@ async function playToSecondShop(ws) {
   await evaluate(ws, HELPERS)
   await shot(ws, 'title')
 
-  // The app opens on the title now, so there is no game to photograph until it
-  // has been answered. The mode defaults to booth and is left alone — its first
-  // two rounds are full's (GDD 12-4), which is what the shop shots play through.
+  // ★ FULL MODE, and BOOTH-9a is why. This used to leave the default booth mode
+  // alone, on the stated grounds that its first rounds *were* full's. That stopped
+  // being true when the booth curve became [600, 900, 2000]: this tool places every
+  // chip in the first free cell, which scored 641 against the new round-2 target of
+  // 900, so the run ended before the shop and every screenshot after `report-round1`
+  // was lost. Full's curve is untouched at [490, 630, 640, …], so clicking it here
+  // restores exactly the run these shots were framed against.
+  //
+  // What it costs: the HUD reads "주기 1 / 8" rather than "/ 3". The alternative was
+  // photographing nothing past round 1.
+  await evaluate(
+    ws,
+    `[...document.querySelectorAll('[data-choice="mode"]')].at(-1)?.click()`,
+  )
+  await sleep(300)
   // The starting constellation has no default by design (GDD 13-5), so it is the
   // one thing that must be clicked.
   await evaluate(ws, `document.querySelector('[data-choice="starting"]')?.click()`)
@@ -631,7 +643,7 @@ async function playToSecondShop(ws) {
 
   // A constellation costs 10 and round 1 pays 6–11, so a second round is what
   // makes the purchase — and therefore the prompt — affordable.
-  await evaluate(ws, `window.__t('라운드 2 시작')?.click()`)
+  await evaluate(ws, `window.__t('주기 2 시작')?.click()`)
   await sleep(1500)
   if (!(await playRound(ws))) problems.push('round 2 did not end in the shop')
 }
@@ -682,19 +694,16 @@ async function main() {
   // window it was being derived from, and the difference cropped her head off.
   await closeUp(ws, 'иєвυℓα', 'nebula', 'иєвυℓα is not on the shop screen')
 
-  // The booth run is three rounds (GDD 12-3), so this is the last report there
-  // is — and the only one with a convergence list long enough to read as one.
-  // The constellation was cancelled out of above, so the purse is still full.
+  // The third report, and the only one with a convergence list long enough to read
+  // as one. The constellation was cancelled out of above, so the purse is still full.
   await buySpecials(ws)
-  await evaluate(ws, `window.__t('라운드 3 시작')?.click()`)
+  await evaluate(ws, `window.__t('주기 3 시작')?.click()`)
   await sleep(1500)
   await playRound(ws, 'report-round3')
 
-  // The two end screens (GDD 12-4, BOOTH-7). Both carry the vote line, which is
-  // the one thing the run says about the thing the booth is actually scored on
-  // (GDD 12-1) — and the two are worded differently, so both have to be looked at.
-  await sleep(600)
-  await endScreen(ws, 'end-cleared', '전 라운드 클리어')
+  // The game-over banner (GDD 12-4, BOOTH-7): a run given up on, which no test can
+  // photograph and a booth participant meets exactly once. It carries the vote line,
+  // the one thing the run says about what the booth is actually scored on (GDD 12-1).
   await forfeitRun(ws)
   await endScreen(ws, 'end-gameover', '게임 오버')
 
@@ -758,12 +767,26 @@ async function main() {
   }
   if (!written.has('help')) problems.push('help.png was never reached')
 
-  // BOOTH-7 (GDD 12-2 ④, 12-4, 13-4). The reset confirmation, the drifter's line
-  // on the first shop visit, and the two end banners — none of which any test can
-  // photograph, and three of which a booth participant meets exactly once.
-  for (const name of ['reset-confirm', 'shop-gift', 'end-cleared', 'end-gameover']) {
+  // BOOTH-7 (GDD 12-2 ④, 12-4, 13-4). The reset confirmation, the drifter's line on
+  // the first shop visit, and the game-over banner — none of which any test can
+  // photograph, and each of which a booth participant meets exactly once.
+  for (const name of ['reset-confirm', 'shop-gift', 'end-gameover']) {
     if (!written.has(name)) problems.push(`${name}.png was never reached`)
   }
+
+  // ★ `end-cleared` is NOT in that list, and its absence is a stated gap rather than
+  // an oversight (BOOTH-9a). The clear banner needs a run that clears every round it
+  // plays, and nothing this tool can do produces one any more: booth's curve is
+  // [600, 900, 2000] by design, full's runs to eight rounds, and a bot that fills the
+  // first free cell scores ~640 a round. It is not a defect in the game — the booth
+  // difficulty is deliberate (GDD 12-4, 13-6) — but it does mean the clear banner is
+  // now unreviewed, so it is said out loud on every run rather than left to be
+  // noticed by whoever wonders where the PNG went.
+  console.log(
+    '\nNOTE: end-cleared.png is not taken. The clear banner needs a cleared run, and\n' +
+      '      the booth curve [600, 900, 2000] is out of reach of first-free-cell play.\n' +
+      '      Reaching it again needs either a smarter placement here or a dev affordance.',
+  )
 
   // ORION's sprite and his four faces (GDD 11-8, BOOTH-6c). The sprite is the one
   // deliverable here that only an image can settle.

@@ -236,6 +236,41 @@ export const NEBULA_GLOW: Readonly<Record<NebulaMood, string>> = {
 }
 
 /**
+ * The Sirius mark (GDD 11-10, 11-7). Derived tones and existing primaries, so the
+ * palette stays at 32 — the same bargain NEBULA_INK and ORION_INK make.
+ *
+ * ★ THE LOGO SHEET'S FIVE COLOURS ARE NOT FIVE NEW COLOURS. `docs/brand/
+ * SIRIUS-LOGO-SHEET.png` publishes a ramp of #FFFFFF · #D6EEFF · #96C9F4 · #6096D2
+ * over #0A0F1F, and writing those literals here is exactly what GDD 11-7 forbids —
+ * `PALETTE` is full at 32, and a hand-written literal outside it is a 33rd colour
+ * however it is labelled.
+ *
+ * It costs nothing, because the game already owns this ramp. Sirius is a blue-white
+ * A-class star and Imai is the blue suit, so the sheet's blues and the Imai family
+ * are the same four steps of the same hue:
+ *
+ *     sheet      → palette                     Δ
+ *     #FFFFFF    → starWhite   #F2F0FF         star cores already use it (11-7)
+ *     #D6EEFF    → mix(starWhite, imaiEdge)    derived, ≈#D6E5FC
+ *     #96C9F4    → imaiEdge    #86C4F5         the same pale blue edge
+ *     #6096D2    → imai        #3F8FE0         the same mid blue
+ *     #0A0F1F    → void        #0A0A12         the canvas background already is this
+ *
+ * So the mark is drawn in colours that mean something elsewhere in the game rather
+ * than in five that mean nothing anywhere else, and the count does not move.
+ */
+export const SIRIUS_INK = {
+  /** The star's core, and the brightest thing on the title screen. */
+  core: PALETTE.starWhite,
+  /** The halo between core and arm. */
+  pale: mix(PALETTE.starWhite, PALETTE.imaiEdge, 0.26),
+  /** The arms. */
+  mid: PALETTE.imaiEdge,
+  /** The two arms facing away from the light. */
+  shade: PALETTE.imai,
+} as const
+
+/**
  * GDD 7-1: the five tier colours, claiming the slots the budget above reserved
  * for them. The shop shelf is the first thing to use them — a tier is a rarity
  * and a price, and a frame colour says both at a glance before the text does.

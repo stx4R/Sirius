@@ -114,8 +114,11 @@ body {
   font-family: 'Galmuri9', monospace;
 }
 
-/* 14px */
-.text-sm {
+/* 14 / 42 — Galmuri14 at 1× and 3×. 42 is the Sirius wordmark (GDD 11-10): the logo
+   sheet builds it on Galmuri14, so the title has to land on that face and not on the
+   Galmuri11 that 44px would pick. */
+.text-sm,
+.text-\[42px\] {
   font-family: 'Galmuri14', monospace;
 }
 

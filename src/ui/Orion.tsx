@@ -18,7 +18,7 @@ import { PALETTE } from '../assets/palette'
 import type { OrionMood } from '../assets/palette'
 import { MOOD_OF, lineFor } from './dialogue'
 import type { Beat } from './dialogue'
-import { withNebulaName } from './Nebula'
+import { withPixelWords } from './PixelWord'
 import { PixelSprite } from './PixelSprite'
 
 /**
@@ -84,10 +84,11 @@ export function OrionBubble({
           color: PALETTE.starGlow,
         }}
       >
-        {/* ORION names иєвυℓα in one of his round-clear lines, and Galmuri has no
-            glyph for any letter of it — so the name is swapped for its sprite
-            here rather than rendering in a fallback font (GDD 11-9). */}
-        {withNebulaName(line, PALETTE.starGlow)}
+        {/* ORION names иєвυℓα in one of his round-clear lines, and BOOTH-9a's
+            terminology puts γένεσις and 성도 in the rest — the bubble is `text-sm`,
+            so Galmuri14 is the face, and it has no glyph for the Greek or the
+            Cyrillic. Both are swapped for their sprites here (GDD 11-9). */}
+        {withPixelWords(line, PALETTE.starGlow)}
       </motion.p>
 
       {/* The tail, aimed at ORION on the right. */}

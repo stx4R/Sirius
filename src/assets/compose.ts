@@ -13,6 +13,7 @@ import {
   ORION_INK,
   ORION_LIFT,
   PALETTE,
+  SIRIUS_INK,
   SUIT_INK,
   luma,
   mix,
@@ -38,6 +39,8 @@ import {
   nebulaLayers,
   chipLayerAt,
   orionLayers,
+  pixelWord,
+  siriusLayers,
   skyOf,
 } from './pixels'
 import type { ChartStar, Magnitude, Mask, NebulaLayer, OrionLayer } from './pixels'
@@ -236,6 +239,34 @@ function nebulaRim(glow: string, layers: readonly (readonly NebulaLayer[])[]) {
  */
 export function nebulaName(colour: string): PixelMap {
   return NEBULA_NAME.map((row) => row.map((on) => (on ? colour : null)))
+}
+
+/**
+ * One of BOOTH-9a's words — γένεσις, πειρασμός, MЦLГЦS — set in pixels, for the
+ * reason her name is: Galmuri14 and Galmuri11-Bold have no glyph for the Greek or
+ * the Cyrillic, and those are the faces the body text and every bold heading use.
+ *
+ * The colour is passed in for the same reason as above: the word stands in for a
+ * run of text and has to take the colour of the line it lands in.
+ */
+export function pixelWordMap(word: string, colour: string): PixelMap {
+  return pixelWord(word).map((row) => row.map((on) => (on ? colour : null)))
+}
+
+/**
+ * The Sirius mark (GDD 11-10). One tone per band, all four out of `SIRIUS_INK`, so
+ * the mark cannot introduce a colour the palette does not already own (GDD 11-7).
+ *
+ * `background` fills what the star does not cover instead of leaving it transparent.
+ * The title screen wants it transparent — the canvas is already `void` behind it —
+ * but a favicon does not: a browser draws the tab strip in its own colour, which on a
+ * light theme is white, and this mark is four shades of pale blue. Transparent there
+ * would put the logo on white and all but erase it.
+ */
+export function siriusSymbol(size?: number, background: string | null = null): PixelMap {
+  return siriusLayers(size).map((row) =>
+    row.map((layer) => (layer === 'outside' ? background : SIRIUS_INK[layer])),
+  )
 }
 
 export function nebulaSprite(mood: NebulaMood = 'idle'): PixelMap {

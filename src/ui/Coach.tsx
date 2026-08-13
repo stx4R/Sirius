@@ -94,10 +94,26 @@ export function coachStep(view: CoachView): CoachStep | null {
  * Every figure is read from config, so a retuned turn length or placement cap
  * cannot leave a caption saying the old number.
  */
+/**
+ * ★ NO 한자 IN A CAPTION. BOOTH-9a writes 공허 · 주기 · 융합 · 성도 with their 한자 on
+ * first appearance, and the coach looks like the natural place for it — it is round 1
+ * and nothing else, so a term introduced here never repeats itself.
+ *
+ * It does not fit. BOOTH-6a's budget is 30 characters, because a caption that wraps
+ * past its 40px box is clipped rather than shortened, and 병기 costs four characters a
+ * term: the wager line goes to 35 and the target line to 32. Both are held by
+ * `tests/coach.test.ts`, which is what caught it. So all four 한자 live at roomier
+ * surfaces — the title screen, CONSTELLATION LOG, the settlement panel and ORION's
+ * opening line — and the captions say the terms in 한글 only.
+ *
+ * ★ The wager line was re-cut for length, not for taste. 덱 → 공허 is one character to
+ * two, which put the original at 31, and '잃는 건 없습니다' → '잃지 않습니다' is the three
+ * characters that buys back.
+ */
 export function coachLine(step: CoachStep, starting: ConstellationId | null, target: number): string {
   switch (step) {
     case 'wager':
-      return '덱에 남은 장수로 답합니다. 틀려도 잃는 건 없습니다.'
+      return '공허에 남은 장수로 답합니다. 틀려도 잃지 않습니다.'
     case 'hand':
       return '칩을 하나 골라 보세요.'
     case 'board':
@@ -107,7 +123,7 @@ export function coachLine(step: CoachStep, starting: ConstellationId | null, tar
     case 'limit':
       return `한 턴에 ${MAX_PLACEMENTS_PER_TURN}장까지. 다 놓으면 턴 종료.`
     case 'target':
-      return `${TURNS_PER_ROUND}턴 안에 목표 ${target.toLocaleString('ko-KR')}점을 넘겨야 다음 라운드입니다.`
+      return `${TURNS_PER_ROUND}턴 안에 목표 ${target.toLocaleString('ko-KR')}점을 넘겨야 다음 주기입니다.`
   }
 }
 

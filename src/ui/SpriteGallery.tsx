@@ -11,6 +11,7 @@ import { PALETTE } from '../assets/palette'
 import type { OrionMood } from '../assets/palette'
 import { ConstellationCard } from './ConstellationCard'
 import { PixelSprite } from './PixelSprite'
+import { withPixelWords } from './PixelWord'
 
 /** GDD 11-8's four, in the order the section reads them. */
 const ORION_MOODS: readonly { readonly mood: OrionMood; readonly label: string }[] = [
@@ -58,8 +59,12 @@ function Section({
   return (
     <section className="flex flex-col gap-4" id={id}>
       <header className="flex items-baseline gap-3">
+        {/* `text-sm` is Galmuri14, which has no Greek or Cyrillic at all, so a title
+            naming MЦLГЦS would render three of its six characters in a system font
+            (`tools/font-fallback.mjs`). At 2× the sprite's x-height is exactly this
+            line's. */}
         <h2 className="text-sm font-bold tracking-wide" style={{ color: PALETTE.starWhite }}>
-          {title}
+          {withPixelWords(title, PALETTE.starWhite)}
         </h2>
         {note !== undefined && (
           <span className="text-[11px]" style={{ color: PALETTE.starGlow }}>
@@ -87,7 +92,8 @@ export function SpriteGallery() {
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-10">
         <header className="flex flex-col gap-1">
-          <h1 className="text-[22px] font-bold">STA-mble — 스프라이트 갤러리</h1>
+          {/* GDD 2: the product is Sirius. This was the last user-visible STA-mble. */}
+          <h1 className="text-[22px] font-bold">Sirius — 스프라이트 갤러리</h1>
           <p className="text-[11px]" style={{ color: PALETTE.starGlow }}>
             GDD 11절 · 칩 32×32 → 64px · 별자리 카드 36×52 → 72×104px · 이미지 파일 없음
           </p>
@@ -102,7 +108,7 @@ export function SpriteGallery() {
           ))}
         </Section>
 
-        <Section title="특수 조각 10종" note="GDD 3-2 · 16열에서 잘라 합성">
+        <Section title="MЦLГЦS 조각 10종" note="GDD 3-2 · 16열에서 잘라 합성">
           {SPECIAL_SUIT_PAIRS.map(([left, right]) => (
             <Chip
               key={`${left}${right}`}

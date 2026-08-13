@@ -11,12 +11,21 @@ import {
   lockIcon,
   nebulaSprite,
   orionSprite,
+  pixelWordMap,
+  siriusSymbol,
   specialChip,
   suitGlyph,
 } from '../src/assets/compose'
 import type { PixelMap } from '../src/assets/compose'
 import type { NebulaLayer, OrionLayer } from '../src/assets/pixels'
-import { AXIS_COLOURS, CHIP_COLOURS, NEBULA_INK, PALETTE, luma } from '../src/assets/palette'
+import {
+  AXIS_COLOURS,
+  CHIP_COLOURS,
+  NEBULA_INK,
+  PALETTE,
+  SIRIUS_INK,
+  luma,
+} from '../src/assets/palette'
 import type { OrionMood } from '../src/assets/palette'
 import {
   CARD_FRAME,
@@ -34,10 +43,19 @@ import {
   ORION_HEIGHT,
   ORION_SHOULDER_Y,
   ORION_WIDTH,
+  PIXEL_GLYPHS,
+  PIXEL_GLYPH_BASELINE,
+  PIXEL_GLYPH_HEIGHT,
+  PIXEL_GLYPH_WIDTH,
+  PIXEL_WORDS,
+  SIRIUS_ICON_SIZES,
+  SIRIUS_SIZE,
   SUIT_GLYPHS,
   nebulaLayers,
   chipLayerAt,
   orionLayers,
+  pixelWord,
+  siriusLayers,
   skyOf,
 } from '../src/assets/pixels'
 import type { Mask } from '../src/assets/pixels'
@@ -818,5 +836,153 @@ describe('the shop shelf draws what its label says (GDD 3-2, 9-3)', () => {
 
       expect(new Set(drawn).size).toBe(drawn.length)
     }
+  })
+})
+
+// ---------------------------------------------------------------- BOOTH-9a
+
+// The three words GDD 11-9's treatment was extended to. What matters here is not
+// how they look — `tools/glyph-proof.mjs` is for that — but that the table can spell
+// every one of them and that the metric the whole thing rests on holds.
+describe('pixel words (GDD 11-9, BOOTH-9a)', () => {
+  it('has a glyph for every character of every word', () => {
+    const missing = PIXEL_WORDS.flatMap((word) =>
+      [...word].filter((c) => PIXEL_GLYPHS[c] === undefined).map((c) => `${word}: ${c}`),
+    )
+    expect(missing).toEqual([])
+  })
+
+  it('draws every glyph on the same 5×9 cell', () => {
+    for (const [character, glyph] of Object.entries(PIXEL_GLYPHS)) {
+      expect(glyph, character).toHaveLength(PIXEL_GLYPH_HEIGHT)
+      for (const row of glyph) expect(row, character).toHaveLength(PIXEL_GLYPH_WIDTH)
+    }
+  })
+
+  // ★ The metric that makes these sit on the Galmuri baseline: five rows of x-height
+  // from row 2 to the baseline at row 7, which at 2× is the 10px Galmuri14 measures.
+  // Every lowercase letter has to reach the x-height line and stop at the baseline;
+  // one that stopped a row short would ride visibly high in a line of them.
+  it('sets every lowercase letter on the x-height, from row 2 to the baseline', () => {
+    const lower = Object.entries(PIXEL_GLYPHS).filter(([c]) => c === c.toLowerCase())
+
+    for (const [character, glyph] of lower) {
+      expect(glyph[2].some(Boolean), `${character} does not reach the x-height`).toBe(true)
+      expect(
+        glyph[PIXEL_GLYPH_BASELINE - 1].some(Boolean),
+        `${character} does not reach the baseline`,
+      ).toBe(true)
+    }
+  })
+
+  // Only these four hang below the baseline. Anything else doing so is a stray pixel,
+  // and it would push the whole word up by two rows at every call site.
+  it('lets only γ ρ μ ς and Ц below the baseline', () => {
+    const descending = Object.entries(PIXEL_GLYPHS)
+      .filter(([, glyph]) => glyph.slice(PIXEL_GLYPH_BASELINE).some((row) => row.some(Boolean)))
+      .map(([c]) => c)
+
+    expect(new Set(descending)).toEqual(new Set(['γ', 'ρ', 'μ', 'ς', 'Ц']))
+  })
+
+  // The accent zone is one row, not two. Two put the acute 14px above the baseline —
+  // taller than Galmuri14's capitals and the Hangul beside it (`pixels.ts`).
+  it('keeps the accents of έ and ό off the top row', () => {
+    for (const character of ['έ', 'ό']) {
+      expect(PIXEL_GLYPHS[character][0].some(Boolean), `${character} uses row 0`).toBe(false)
+      expect(PIXEL_GLYPHS[character][1].some(Boolean), `${character} has no accent`).toBe(true)
+    }
+  })
+
+  it('composes a word at one cell per character plus a 1px gap', () => {
+    for (const word of PIXEL_WORDS) {
+      const map = pixelWord(word)
+      const letters = [...word].length
+      expect(map).toHaveLength(PIXEL_GLYPH_HEIGHT)
+      expect(map[0]).toHaveLength(letters * (PIXEL_GLYPH_WIDTH + 1) - 1)
+      // Every gap column is empty, or the letters would touch.
+      for (let i = 1; i < letters; i++) {
+        const gap = i * (PIXEL_GLYPH_WIDTH + 1) - 1
+        expect(map.every((row) => !row[gap]), `${word}: gap ${i} is not clear`).toBe(true)
+      }
+    }
+  })
+
+  it('refuses a character it has no glyph for rather than dropping it', () => {
+    expect(() => pixelWord('γx')).toThrow()
+  })
+
+  it('inks a word in the colour it is handed, and nothing else', () => {
+    const map = pixelWordMap('γένεσις', PALETTE.starWhite)
+    const inks = new Set(map.flat().filter((c): c is string => c !== null))
+    expect(inks).toEqual(new Set([PALETTE.starWhite]))
+  })
+})
+
+// The Sirius mark (GDD 11-10). Drawn from geometry rather than cut out of
+// `docs/brand/SIRIUS-LOGO-SHEET.png`, because GDD 11-1 makes no image files — so the
+// things worth holding are the ones a cropped PNG would have given for free.
+describe('Sirius mark (GDD 11-10)', () => {
+  it('is a square 56×56 at its reference size', () => {
+    const map = siriusSymbol()
+    expect(map).toHaveLength(SIRIUS_SIZE)
+    for (const row of map) expect(row).toHaveLength(SIRIUS_SIZE)
+  })
+
+  // ★ The favicon is the same geometry re-evaluated, not the 56 resampled. 56/32 and
+  // 56/16 are not whole numbers, so a downscale would land the arms between pixels
+  // (CLAUDE.md §7) — this is what makes the three sizes one mark.
+  it('draws itself at every favicon size without resampling', () => {
+    for (const size of SIRIUS_ICON_SIZES) {
+      const map = siriusSymbol(size, PALETTE.void)
+      expect(map).toHaveLength(size)
+      for (const row of map) expect(row).toHaveLength(size)
+      // A filled background means no cell is transparent — a tab strip is the
+      // browser's colour and four pale blues on white is an invisible icon.
+      expect(map.flat().every((c) => c !== null)).toBe(true)
+    }
+  })
+
+  it('spends no colour the palette does not already own (GDD 11-7)', () => {
+    const inks = new Set(siriusSymbol().flat().filter((c): c is string => c !== null))
+    expect(inks).toEqual(new Set(Object.values(SIRIUS_INK)))
+    // Three of the four are palette primaries outright; `pale` is a derived tone,
+    // which GDD 11-7 explicitly does not count against the 32.
+    expect(SIRIUS_INK.core).toBe(PALETTE.starWhite)
+    expect(SIRIUS_INK.mid).toBe(PALETTE.imaiEdge)
+    expect(SIRIUS_INK.shade).toBe(PALETTE.imai)
+  })
+
+  // Sirius is a binary, which is the whole idea of the mark: a large star with a
+  // small companion off its lower right, and clear space between the two.
+  it('puts a separate companion off the lower right of the main star', () => {
+    const layers = siriusLayers()
+    const lit = (x: number, y: number) => layers[y][x] !== 'outside'
+
+    // Something in the lower-right quadrant, away from the centre.
+    const companion: [number, number][] = []
+    for (let y = 0; y < SIRIUS_SIZE; y++) {
+      for (let x = 0; x < SIRIUS_SIZE; x++) {
+        if (lit(x, y) && x > 36 && y > 34) companion.push([x, y])
+      }
+    }
+    expect(companion.length).toBeGreaterThan(0)
+
+    // And a gap between it and the main star, along the diagonal joining them.
+    let gap = 0
+    for (let step = 1; step < 14; step++) {
+      const x = Math.round(26 + step)
+      const y = Math.round(24 + step)
+      if (!lit(x, y)) gap++
+    }
+    expect(gap, 'the companion is fused to the main star').toBeGreaterThan(2)
+  })
+
+  // Lit from the upper left, so the two arms facing away carry the darkest tone. A
+  // mark with four identical arms reads as a compass rose rather than as a star.
+  it('shades the arms that face away from the light', () => {
+    const layers = siriusLayers().flat()
+    expect(layers.filter((l) => l === 'shade').length).toBeGreaterThan(0)
+    expect(layers.filter((l) => l === 'core').length).toBeGreaterThan(0)
   })
 })

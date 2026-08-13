@@ -22,6 +22,16 @@ import { PALETTE } from '../assets/palette'
 import { useGame } from '../store/gameStore'
 import { At, CANVAS_WIDTH, Canvas, TITLE_LAYOUT } from './Canvas'
 import { ConstellationCard } from './ConstellationCard'
+import { SiriusSymbol } from './Sirius'
+
+/**
+ * The tagline under the wordmark (GDD 2, 11-10).
+ *
+ * 'STAR' is in Latin capitals and stays that way: it is the game's own word for a
+ * constellation piece, and the quotes are what make it read as a name rather than as
+ * the English noun.
+ */
+const TAGLINE = "당신의 운명을 'STAR'로 결정하세요."
 
 /**
  * Which modes this build offers, and in what order (GDD 12-2 ③).
@@ -92,7 +102,7 @@ const AXIS_BLURB: Readonly<Record<LineAxis, string>> = {
   diagonal: '↘ 대각형. 같은 문양을 비스듬히 이어 놓으면 배율이 터집니다.',
   shape_A: 'ㅅ자형. 꼭짓점에서 양쪽으로 뻗어 나가게 놓으면 배율이 터집니다.',
   shape_T: 'ㅗ자형. 가로 줄 가운데에서 위로 뻗어 나가게 놓으면 배율이 터집니다.',
-  global: '보드에 가장 많이 놓인 문양 전체에 배율이 붙습니다.',
+  global: '성도에 가장 많이 놓인 문양 전체에 배율이 붙습니다.',
 }
 
 /** The frame around one option, lit when it is the one chosen. */
@@ -122,13 +132,30 @@ export function Title() {
 
   return (
     <Canvas>
-      <At x={TITLE_LAYOUT.title.x} y={TITLE_LAYOUT.title.y} w={TITLE_LAYOUT.title.w}>
+      {/* The vertical lockup (GDD 11-10, logo sheet ①): symbol, wordmark, tagline.
+          The symbol is drawn from geometry rather than cut out of the sheet — GDD
+          11-1's first rule is that no image files are made, and `siriusSymbol`
+          takes its four tones from the palette instead of baking them in. */}
+      <At x={CANVAS_WIDTH / 2} y={TITLE_LAYOUT.symbol.y} centre>
+        <SiriusSymbol />
+      </At>
+
+      <At x={TITLE_LAYOUT.wordmark.x} y={TITLE_LAYOUT.wordmark.y} w={TITLE_LAYOUT.wordmark.w}>
+        {/* 42px = Galmuri14 at 3×, which is the face the sheet's wordmark is built
+            on. Not bold: Galmuri14 ships no bold and `font-synthesis: none`
+            (index.css) means asking for one changes nothing. */}
         <h1
-          className="text-center text-[44px] font-bold leading-none tracking-[0.2em]"
+          className="text-center text-[42px] leading-none tracking-[0.18em]"
           style={{ color: PALETTE.starWhite }}
         >
           Sirius
         </h1>
+      </At>
+
+      <At x={CANVAS_WIDTH / 2} y={TITLE_LAYOUT.tagline.y} centre>
+        <span className="whitespace-nowrap text-[11px]" style={{ color: PALETTE.starGlow }}>
+          {TAGLINE}
+        </span>
       </At>
 
       <At x={modes.label.x} y={modes.label.y}>
@@ -166,7 +193,7 @@ export function Title() {
                   className="text-sm font-bold"
                   style={{ color: chosen ? PALETTE.nebulaTeal : PALETTE.starWhite }}
                 >
-                  {text.name} · {preset.TOTAL_ROUNDS}라운드
+                  {text.name} · {preset.TOTAL_ROUNDS}주기
                 </span>
                 <span className="text-[11px] tabular-nums" style={{ color: PALETTE.starGlow }}>
                   최종 목표 {finalTarget.toLocaleString('ko-KR')}점 · 약 {text.minutes}분
@@ -178,7 +205,12 @@ export function Title() {
       </At>
 
       <At x={choices.label.x} y={choices.label.y}>
-        <Label text="시작 별자리를 고르세요 — 첫 라운드부터 이 배율로 점수가 붙습니다" />
+        {/* 주기's one 한자 (BOOTH-9a). The title screen is the only surface every
+            player passes exactly once, and this is its only single-instance line —
+            the mode cards would print it twice whenever both modes are offered. The
+            coach caption that also says 주기 cannot carry it: BOOTH-6a caps a caption
+            at 30 characters and 병기 costs four. */}
+        <Label text="시작 별자리를 고르세요 — 첫 주기(週期)부터 이 배율로 점수가 붙습니다" />
       </At>
 
       <At x={choices.x} y={choices.y} w={choices.w} h={choices.h}>

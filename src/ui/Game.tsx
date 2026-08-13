@@ -21,7 +21,7 @@ import { PALETTE } from '../assets/palette'
 import { useGame } from '../store/gameStore'
 import { Board } from './Board'
 import { At, CANVAS_HEIGHT, CANVAS_WIDTH, Canvas, LAYOUT } from './Canvas'
-import { CoachTip, HelpCard, coachLine, coachStep } from './Coach'
+import { CoachTip, coachLine, coachStep } from './Coach'
 import { ConstellationCard } from './ConstellationCard'
 import { DEV_TOOLS, DevPanel } from './DevPanel'
 import { RoundTurn, Stardust, StatusLine } from './HUD'
@@ -29,11 +29,12 @@ import type { Status } from './HUD'
 import { Hand, HandCount } from './Hand'
 import { OraclePanel } from './Oracle'
 import { OrionBubble, OrionSprite, useOrion } from './Orion'
+import { PauseWindow } from './Pause'
+import type { PausePage } from './Pause'
 import { ReportPanel } from './Report'
-import { ResetConfirm } from './Reset'
 import { StarChart } from './StarChart'
 import { WagerPanel } from './Wager'
-import { usePrefersReducedMotion } from './motion'
+import { useReducedMotion } from './motion'
 import {
   DrifterNote,
   RoundTotal,
@@ -137,13 +138,14 @@ export function Game() {
   } = useGame.getState()
   const devSet = useGame((state) => state.devSet)
 
-  const reduced = usePrefersReducedMotion()
+  const reduced = useReducedMotion()
   const orion = useOrion(seed)
 
   const [step, setStep] = useState(0)
   const [shuffling, setShuffling] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(false)
-  const [resetOpen, setResetOpen] = useState(false)
+  /** Which page of the ESC pause window is up, or null when it is closed. */
+  const [pause, setPause] = useState<PausePage | null>(null)
+  const paused = pause !== null
 
   const steps = useMemo(() => (settlement === null ? [] : stepsOf(settlement)), [settlement])
   const lit = useMemo(() => litCells(steps[step]), [steps, step])
@@ -189,15 +191,16 @@ export function Game() {
    * a future reordering of those transitions cannot silently start a timer behind a
    * modal; leaving them out would make this correct by coincidence.
    *
-   * The other two are real today. `helpOpen` and `resetOpen` are opened by the
-   * player, at any moment, including the middle of a settlement — and BOOTH-9c is
-   * about to add an ESC pause that is exactly the same shape. Advancing the turn
-   * behind an open modal would take the settlement away from a player who is
-   * reading the thing that explains it.
+   * The fourth is real today. The ESC pause window is opened by the player at any
+   * moment, including the middle of a settlement, and it is opaque — so a turn
+   * advancing behind it would take the settlement away from somebody who cannot
+   * even see that it is happening. It replaces BOOTH-9b's `helpOpen` and
+   * `resetOpen`, which are pages of it now (`Pause.tsx`). The suit-by-suit walk is
+   * held by the same boolean, one level down in `SettlementPanel`.
    *
-   * Because `modalUp` is a dependency, opening a modal tears the timer down and
-   * closing it starts a fresh full-length one — a paused settlement resumes with
-   * the whole hold rather than with whatever was left of it.
+   * Because the pause is a dependency, opening it tears the timer down and closing
+   * it starts a fresh full-length one — a paused settlement resumes with the whole
+   * hold rather than with whatever was left of it.
    *
    * The last turn needs no special case here. `endTurn` sets `phase` to 'roundEnd'
    * on turn 5 (GDD 4-1) and `dismissSettlement` reads the phase, so the same call
@@ -211,8 +214,7 @@ export function Game() {
     wagerOpen: wagering,
     oracleOpen: asking,
     reportOpen: report !== null,
-    helpOpen,
-    resetOpen,
+    pauseOpen: paused,
   })
 
   useEffect(() => {
@@ -222,40 +224,48 @@ export function Game() {
   }, [advancing, dismissSettlement])
 
   /**
-   * ★ TEMPORARY, AND THE REASON IT EXISTS IS A GAP (BOOTH-9b → 9c).
+   * ESC, and nothing else (BOOTH-9c). It replaces 9b's temporary pair of bindings —
+   * the ? summary and the reset confirmation are pages of the pause window now, so
+   * there is one key and one door.
    *
-   * The ? and 처음으로 buttons were at (1012, 12) and (944, 12) — where STAR-CHART
-   * now is. BOOTH-9c gives both a proper home in an ESC pause window; this binds
-   * them to the keyboard in the meantime rather than leaving the play screen with no
-   * way out at all.
+   * ★ THE PRIORITY RULE, in full: **ESC belongs to the pause window and to nothing
+   * else.**
    *
-   * It does NOT restore what was lost. GDD 12-2 ④ wants a booth participant to be
-   * able to abandon a run unaided, and GDD 12-2 ① wants a permanent way back into
-   * the tutorial — a key nobody can see satisfies neither. What it does restore is
-   * the operator's ability to reset a stuck machine without reloading the page, and
-   * the shop screen keeps its own visible 처음으로 throughout.
+   *   · closed              → open it
+   *   · open on a sub-page  → step back to the menu
+   *   · open on the menu    → close it, and the game is exactly where it was
    *
-   * Escape closes whatever is open before it offers to end the run, which is the
-   * convention everywhere else and also the safer order: the key that means "get me
-   * out of this modal" must not be the key that throws the run away.
+   * BOOTH-9b's rule was "close whatever is open first, and only offer to end the run
+   * when nothing is". That rule existed because ESC's last act was destructive; it
+   * no longer is — ESC now opens a menu whose first item is 계속하기 — so the rule it
+   * was protecting against is gone with it.
+   *
+   * ★ A GAME MODAL IS NEVER CLOSED BY THIS, AND NEVER BLOCKS IT. ORION'S WAGER,
+   * DRIFT ORACLE and CONSTELLATION LOG stay exactly as they are and the window draws
+   * over them; closing it puts the player back in front of the same question.
+   *
+   * That is what settles the forced window. GDD 8-2 makes the first
+   * `FORCED_WAGER_COUNT` questions unabstainable, so the wager is the one modal ESC
+   * *must not* be able to dismiss — and it cannot, because dismissing is not
+   * something this key does to anything. The opposite failure is the one that would
+   * have been easy to ship: ESC ignored while a modal is up would trap a confused
+   * participant inside their first three questions with no way to leave the run,
+   * which is precisely what GDD 12-2 ④ forbids. Drawing over rather than closing
+   * satisfies both at once.
+   *
+   * `over` still opts out: the banner owns the screen and already offers 타이틀로.
    */
   useEffect(() => {
     if (over) return
 
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (helpOpen) setHelpOpen(false)
-        else if (resetOpen) setResetOpen(false)
-        else setResetOpen(true)
-      } else if (event.key === '?') {
-        setResetOpen(false)
-        setHelpOpen((open) => !open)
-      }
+      if (event.key !== 'Escape') return
+      setPause((page) => (page === null ? 'menu' : page === 'menu' ? null : 'menu'))
     }
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [over, helpOpen, resetOpen])
+  }, [over])
 
   // ORION reacts to what just happened. `speak` is stable and the beats are keyed
   // off state that only moves forward, so each one fires once.
@@ -419,6 +429,7 @@ export function Game() {
           index={step}
           onIndex={setStep}
           reduced={reduced}
+          paused={paused}
           width={LAYOUT.settlement.w}
           height={LAYOUT.settlement.h}
         />
@@ -593,20 +604,23 @@ export function Game() {
         />
       )}
 
-      {helpOpen && (
-        <HelpCard
+      {/* GDD 12-2 ①④: the way back into the tutorial and the way out of the run,
+          both of which lost their button at BOOTH-9b. It covers the plane, so it is
+          rendered after everything it has to cover and before the banner — a run
+          that has ended does not open it (see the key handler above). */}
+      {pause !== null && (
+        <PauseWindow
+          page={pause}
           starting={starting}
           target={game.targetScore}
           reduced={reduced}
-          onClose={() => setHelpOpen(false)}
-        />
-      )}
-
-      {resetOpen && (
-        <ResetConfirm
-          reduced={reduced}
-          onCancel={() => setResetOpen(false)}
-          onConfirm={toTitle}
+          onPage={setPause}
+          onResume={() => setPause(null)}
+          onRestart={() => {
+            newGame()
+            setPause(null)
+          }}
+          onTitle={toTitle}
         />
       )}
 

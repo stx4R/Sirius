@@ -2,9 +2,12 @@
 //
 // Two things had to be pinned. The first is the modal rule — a timer that ran while
 // the game was asking the player to read something would answer for them, and there
-// are five modals it must wait behind. The second is the last turn: the fifth
+// are four things it must wait behind. The second is the last turn: the fifth
 // settlement of a round has no next turn to advance to, and must leave through the
 // round-end path instead.
+//
+// BOOTH-9c folded 9b's `helpOpen` and `resetOpen` into one `pauseOpen`: both of
+// those overlays are pages of the ESC pause window now, so five fields became four.
 
 import { describe, expect, it } from 'vitest'
 import { MAX_PLACEMENTS_PER_TURN, TURNS_PER_ROUND } from '../src/core/config'
@@ -24,8 +27,7 @@ const READY: AdvanceView = {
   wagerOpen: false,
   oracleOpen: false,
   reportOpen: false,
-  helpOpen: false,
-  resetOpen: false,
+  pauseOpen: false,
 }
 
 /** Every modal that must hold the timer, by the field that reports it. */
@@ -33,8 +35,7 @@ const MODALS = [
   ['wagerOpen', "ORION'S WAGER (GDD 8-2)"],
   ['oracleOpen', 'DRIFT ORACLE (GDD 8-3)'],
   ['reportOpen', 'CONSTELLATION LOG (GDD 8-4)'],
-  ['helpOpen', '? 요약 (GDD 12-2 ①)'],
-  ['resetOpen', '중도 리셋 확인 (GDD 12-2 ④)'],
+  ['pauseOpen', 'ESC 퍼즈 창 (GDD 12-2 ①④)'],
 ] as const
 
 describe('autoAdvances (BOOTH-9b)', () => {

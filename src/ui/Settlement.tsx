@@ -130,6 +130,14 @@ export interface PanelProps {
   readonly index: number
   readonly onIndex: (index: number) => void
   readonly reduced: boolean
+  /**
+   * The ESC pause window is up (BOOTH-9c), so the walk stops where it is.
+   *
+   * The hold timer in `Game.tsx` is not the only clock a settlement runs on: this
+   * panel steps itself suit by suit, and the pause window is opaque, so a walk left
+   * running behind it plays the explanation of the score to nobody.
+   */
+  readonly paused: boolean
   readonly width: number
   readonly height: number
 }
@@ -156,21 +164,21 @@ export interface AdvanceView {
   readonly oracleOpen: boolean
   /** CONSTELLATION LOG is up (GDD 8-4). */
   readonly reportOpen: boolean
-  /** The ? summary the player opened (GDD 12-2 ①). */
-  readonly helpOpen: boolean
-  /** The mid-run reset confirmation (GDD 12-2 ④). */
-  readonly resetOpen: boolean
+  /**
+   * The ESC pause window is up (GDD 12-2 ①④, BOOTH-9c) — its menu, the tutorial
+   * summary, the settings, or one of the two confirmations.
+   *
+   * It replaces the separate `helpOpen` and `resetOpen` of BOOTH-9b: both of those
+   * overlays are now pages of this one window, so there is a single field for
+   * "the player has stepped out of the game" rather than two that cannot both be
+   * true.
+   */
+  readonly pauseOpen: boolean
 }
 
 export function autoAdvances(view: AdvanceView): boolean {
   if (!view.hasSettlement || !view.walkDone || view.over) return false
-  return !(
-    view.wagerOpen ||
-    view.oracleOpen ||
-    view.reportOpen ||
-    view.helpOpen ||
-    view.resetOpen
-  )
+  return !(view.wagerOpen || view.oracleOpen || view.reportOpen || view.pauseOpen)
 }
 
 /** How far the walk has got, shared by all three pieces. */
@@ -201,27 +209,40 @@ export function SettlementPanel({
   index,
   onIndex,
   reduced,
+  paused,
   width,
   height,
 }: PanelProps) {
-  // Reduced motion still lands on the finished state in one hop — that preference
-  // is about movement, and the suit-by-suit reveal is the explanation rather than
-  // decoration on top of it. The hold in `Game.tsx` is what paces it either way.
+  // With animations off the walk still happens, it just takes no time — that
+  // setting is about movement, and the suit-by-suit reveal is the explanation
+  // rather than decoration on top of it. The hold in `Game.tsx` paces it either way.
   const ms = reduced ? 0 : SUIT_STEP_MS
   const { suits, current, running } = revealedOf(steps, index)
   const active = data !== null && running
 
+  /**
+   * ★ ONE STEP PER TIMER, INCLUDING AT ZERO. This used to short-circuit to
+   * `onIndex(steps.length)` when `ms` was 0, and that branch deadlocked the
+   * settlement — the screen stuck on 융합 중 and the turn never advanced.
+   *
+   * Why: `Game.tsx` resets the index to 0 whenever a new settlement arrives, and a
+   * child effect commits before its parent's. Setting the index synchronously here
+   * meant the parent's reset landed *after* it and put the index back to 0 — at
+   * which point none of this effect's dependencies had changed, so it never ran
+   * again. The timer never had that problem because it fires after both.
+   *
+   * It was reachable before BOOTH-9c only through `prefers-reduced-motion`, which is
+   * why nothing caught it: a booth laptop with that OS setting on would have frozen
+   * on the first settlement of every run. The pause window's animation switch made
+   * it reachable by a click, which is how it turned up.
+   *
+   * A 0ms timer per suit is five macrotasks for a full board — some 20ms, one frame.
+   */
   useEffect(() => {
-    if (data === null || !running) return
-    // '즉시' and reduced motion both land on the finished state in one hop; the
-    // suit-by-suit reveal is the animation, so there is nothing left to pace.
-    if (ms === 0) {
-      onIndex(steps.length)
-      return
-    }
+    if (data === null || !running || paused) return
     const timer = setTimeout(() => onIndex(index + 1), ms)
     return () => clearTimeout(timer)
-  }, [data, index, running, ms, steps.length, onIndex])
+  }, [data, index, running, paused, ms, onIndex])
 
   const byId = new Map(steps.map((step) => [step.suit, step]))
   const firing = [...new Set((current?.lines ?? []).flatMap((line) => line.constellations))]

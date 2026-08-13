@@ -14,7 +14,7 @@ import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { PALETTE } from '../assets/palette'
-import { usePrefersReducedMotion } from './motion'
+import { useReducedMotion } from './motion'
 
 export const CANVAS_WIDTH = 1120
 export const CANVAS_HEIGHT = 630
@@ -147,17 +147,30 @@ export const LAYOUT = {
   report: { x: 80, y: 75, w: 960, h: 480, row: 28, series: 22 },
 
   /**
-   * ★ The ? and 처음으로 buttons are gone from this screen (BOOTH-9b). They sat at
-   * (1012, 12) and (944, 12), which is where STAR-CHART now is.
+   * ★ The ESC pause window (BOOTH-9c) — GDD 12-2 ①④, and the new home of the two
+   * buttons BOOTH-9b took off this screen.
    *
-   * Neither *function* was removed — both cards below are still built, and this
-   * screen still opens them. What they lost is a button on the canvas. Until
-   * BOOTH-9c gives them an ESC pause window, `Game.tsx` binds them to the keyboard,
-   * and the shop keeps its own 처음으로 at `SHOP_LAYOUT.reset`.
+   * The whole plane, not a card. Every other overlay here is a panel over a game
+   * the player is still in the middle of; this one is the game stood down, so it
+   * covers the plane in the void colour and a star field and reads as its own
+   * screen — `docs/brand/title-screen-mock-1120x630.png`, one centred column.
    *
-   * The cards stay in this table because they are modals: they are outside the
-   * pairwise overlap check either way, and their coordinates did not change.
+   * It is a modal, so it is outside the pairwise overlap check like the other six.
+   * The two cards below are still built and are opened *from* this window rather
+   * than from the play screen, so they draw above it at their own z (Coach.tsx,
+   * Reset.tsx) and their coordinates are untouched.
+   *
+   * `menu` holds five 40px rows with 10px between them — 240px, which `settings`
+   * is given as one block so the two pages occupy the same band and the window
+   * does not change height when the player steps into the settings.
    */
+  pause: {
+    symbol: { y: 104 },
+    heading: { y: 176 },
+    menu: { x: 420, y: 232, w: 280, h: 40, gap: 10 },
+    settings: { x: 340, y: 232, w: 440, h: 240, row: 40, control: 88 },
+    hint: { y: 506 },
+  },
 
   /**
    * The confirmation the reset asks for (GDD 12-2 ④). A modal, so it is outside
@@ -170,9 +183,12 @@ export const LAYOUT = {
   resetCard: { x: 380, y: 231, w: 360, h: 168 },
 
   /**
-   * The one-page summary the ? button opens — the five coach lines at rest, for a
-   * player who lost the thread rather than one taking their first turn. A modal,
-   * so it is outside the pairwise check like the other four.
+   * The one-page summary — the five coach lines at rest, for a player who lost the
+   * thread rather than one taking their first turn. A modal, so it is outside the
+   * pairwise check like the other four.
+   *
+   * Opened from the pause window's 튜토리얼 시작 since BOOTH-9c; the ? button that
+   * used to open it went with BOOTH-9b (see `pause` above).
    */
   helpCard: { x: 280, y: 155, w: 560, h: 320 },
 
@@ -442,7 +458,7 @@ const ENTER = { opacity: 0, y: 12 }
 
 export function Canvas({ children }: { readonly children: ReactNode }) {
   const scale = useCanvasScale()
-  const reduced = usePrefersReducedMotion()
+  const reduced = useReducedMotion()
 
   return (
     // The leftover area is letterboxed in the void colour, so the canvas reads as

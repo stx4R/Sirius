@@ -10,6 +10,7 @@ import {
   canvasScale,
 } from '../src/ui/Canvas'
 import { COACH_ORDER } from '../src/ui/Coach'
+import { PAUSE_MENU, PAUSE_TEXT } from '../src/ui/Pause'
 import { RESET_CONFIRM } from '../src/ui/Reset'
 import { DECK_NAME_COLUMN } from '../src/ui/Shop'
 import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH, SIRIUS_SIZE } from '../src/assets/pixels'
@@ -578,6 +579,67 @@ describe('canvas layout (GDD 11-10)', () => {
 
     expect(COACH_ORDER).toHaveLength(5)
     expect(HEADING + LINES + BUTTON + GAPS + PADDING).toBeLessThanOrEqual(card.h)
+  })
+
+  // BOOTH-9c: the ESC pause window is the seventh overlay and the only one that is
+  // the whole plane rather than a card on it, so it is out of `boxes` like the
+  // others. What it gets instead is the column check — one centred stack, in order,
+  // inside the plane.
+  it('stacks the pause window as one centred column', () => {
+    const spot = LAYOUT.pause
+    const tops = [spot.symbol.y, spot.heading.y, spot.menu.y, spot.hint.y]
+
+    for (let i = 1; i < tops.length; i++) expect(tops[i]).toBeGreaterThan(tops[i - 1])
+
+    // The symbol is the logo sheet's mark at its own size (CLAUDE.md §7), and the
+    // heading clears it. There is no wordmark on this screen on purpose — see
+    // `Pause.tsx`.
+    expect(spot.symbol.y + SIRIUS_SIZE).toBeLessThanOrEqual(spot.heading.y)
+    // The heading is one 22px line and the menu starts under it.
+    expect(spot.heading.y + 22).toBeLessThanOrEqual(spot.menu.y)
+
+    for (const box of [spot.menu, spot.settings]) {
+      expect(box.x + box.w / 2).toBe(CANVAS_WIDTH / 2)
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.w).toBeLessThanOrEqual(CANVAS_WIDTH)
+    }
+    expect(spot.hint.y + 11).toBeLessThanOrEqual(CANVAS_HEIGHT)
+  })
+
+  // The two pages occupy the same band, so stepping into the settings and back does
+  // not move the heading above them or the hint below them.
+  it('gives the menu and the settings the same height', () => {
+    const spot = LAYOUT.pause
+    const rows = PAUSE_MENU.length
+    const menu = spot.menu.h * rows + spot.menu.gap * (rows - 1)
+
+    expect(rows).toBe(5)
+    expect(menu).toBe(spot.settings.h)
+    expect(spot.menu.y + menu).toBeLessThanOrEqual(spot.hint.y)
+  })
+
+  // Every label has to fit its row at the face it is set in — 14px for the menu,
+  // 11px for the two settings choices.
+  it('fits every label in the row it is drawn in', () => {
+    const spot = LAYOUT.pause
+
+    for (const item of PAUSE_MENU) {
+      expect(item.label.length * 14, item.label).toBeLessThanOrEqual(spot.menu.w)
+    }
+    for (const label of [PAUSE_TEXT.on, PAUSE_TEXT.off, PAUSE_TEXT.back]) {
+      expect(label.length * 11, label).toBeLessThanOrEqual(spot.settings.control)
+    }
+    // The animation row is a label on the left and the two choices on the right.
+    const CHOICES = spot.settings.control * 2 + 8
+    expect(PAUSE_TEXT.animations.length * 11 + CHOICES + 12 * 3).toBeLessThanOrEqual(
+      spot.settings.w,
+    )
+  })
+
+  it('places the pause window on whole pixels', () => {
+    const numbers = Object.values(LAYOUT.pause).flatMap((entry) => Object.values(entry))
+
+    for (const value of numbers) expect(Number.isInteger(value)).toBe(true)
   })
 })
 

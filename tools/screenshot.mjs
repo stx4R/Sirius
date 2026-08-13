@@ -144,10 +144,9 @@ const TURN_OVER = `!!window.__t('턴 종료') || !!window.__t('계속') || !!win
 /**
  * A keypress on the window, which is where `Game.tsx` listens.
  *
- * BOOTH-9b left the ? summary and the mid-run reset with no button on the play
- * screen — STAR-CHART is in their corner, and 9c gives them a pause window. Until
- * then the keyboard is the only way in, so it is the only way the tool can reach
- * them either.
+ * ESC is the play screen's only door (BOOTH-9c): the ? summary and the mid-run
+ * reset are pages of the pause window now, so this key is how the tool gets to
+ * either of them — the same way a participant does.
  */
 const KEY = (key) =>
   `window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true }))`
@@ -573,6 +572,49 @@ async function clearedRun(ws) {
   await sleep(1200)
 }
 
+/**
+ * The pause window's animation switch, worked from the play screen (BOOTH-9c).
+ *
+ * ★ A REGRESSION GUARD, not a picture. With the switch off the settlement walks at
+ * 0ms a suit, and the first version of that path deadlocked — the panel stuck on
+ * 융합 중 and the turn never advanced (see the effect in `Settlement.tsx`). Nothing
+ * in `tests/` can see it: it is an effect-ordering bug and this project has no
+ * browser test harness. So a whole round is played with animations off, and
+ * `playRound`'s own "never advanced" check is what catches it coming back.
+ *
+ * Nothing turns it back on. The setting is session state (`motion.ts`), and the
+ * next thing this file does is reload the page for `forfeitRun`.
+ */
+async function setAnimations(ws, on) {
+  const label = on ? '켜기' : '끄기'
+
+  await evaluate(ws, KEY('Escape'))
+  await sleep(400)
+  await evaluate(ws, `document.querySelector('[data-pause="설정"]')?.click()`)
+  await sleep(400)
+  await evaluate(
+    ws,
+    `[...document.querySelectorAll('[data-setting="animations"] button')]
+       .find(b => b.textContent.trim() === ${JSON.stringify(label)})?.click()`,
+  )
+  await sleep(300)
+
+  const took = await evaluate(
+    ws,
+    `[...document.querySelectorAll('[data-setting="animations"] button')].some(
+       b => b.textContent.trim() === ${JSON.stringify(label)} && b.getAttribute('aria-pressed') === 'true')`,
+  )
+  if (!took) problems.push(`the animation switch would not go to ${label}`)
+
+  await evaluate(ws, KEY('Escape'))
+  await sleep(300)
+  await evaluate(ws, KEY('Escape'))
+  await sleep(400)
+  if (await evaluate(ws, `!!document.querySelector('[data-panel="pause"]')`)) {
+    problems.push('the pause window would not close after the settings')
+  }
+}
+
 async function playRound(ws, reportShot) {
   for (let turn = 0; turn < 5; turn++) {
     await sleep(700)
@@ -667,42 +709,79 @@ async function playToSecondShop(ws) {
   await sleep(350)
   await shot(ws, 'game')
 
-  // The ? summary (GDD 12-2 ①) — the way back in for a player who lost the
-  // thread, so it is reviewed on its own rather than only in passing.
+  // The ESC pause window (GDD 12-2 ①④, BOOTH-9c) — the play screen's only way back
+  // into the tutorial and its only way out of a run, so every page of it is
+  // photographed. On a live board rather than an empty one: what the two
+  // confirmations are asking about is the run behind them.
   //
-  // BOOTH-9b took the button away: STAR-CHART has its corner now, and until 9c's
-  // pause window exists the card is opened by the '?' key. That the tool has to
-  // press a key here rather than click something is itself the evidence that the
-  // affordance is missing — see `Game.tsx`.
-  await evaluate(ws, KEY('?'))
+  // ★ Every click below is scoped to a panel rather than found by its text. The
+  // pause menu's first item and each confirmation's cancel button both say 계속하기,
+  // and `__t` returns the first match in the document — which is the menu's, behind
+  // the card. That would close the whole window instead of backing out of the card.
+  await evaluate(ws, KEY('Escape'))
   await sleep(500)
+  if (!(await evaluate(ws, `!!document.querySelector('[data-panel="pause"]')`))) {
+    problems.push('the ESC pause window did not open')
+  } else {
+    await shot(ws, 'pause')
+  }
+
+  const pauseItem = (label) => `document.querySelector('[data-pause="${label}"]')?.click()`
+
+  // 튜토리얼 시작 → the five lines at rest (GDD 12-2 ①). The same card the ? button
+  // opened before BOOTH-9b; what changed is who opens it.
+  await evaluate(ws, pauseItem('튜토리얼 시작'))
+  await sleep(400)
   if (!(await evaluate(ws, `!!document.querySelector('[data-panel="help"]')`))) {
-    problems.push('the ? summary did not open')
+    problems.push('the tutorial summary did not open from the pause window')
   } else {
     await shot(ws, 'help')
   }
   await evaluate(ws, `window.__t('닫기')?.click()`)
   await sleep(400)
 
-  // The mid-run reset (GDD 12-2 ④, BOOTH-7). Photographed on a live board rather
-  // than on an empty one, because what the confirmation is asking about is the
-  // run behind it. Backed out of afterwards — the rest of this file needs the run.
-  await evaluate(ws, KEY('Escape'))
-  await sleep(500)
-  if (!(await evaluate(ws, `!!document.querySelector('[data-panel="reset"]')`))) {
-    problems.push('the reset confirmation did not open')
-  } else {
-    await shot(ws, 'reset-confirm')
+  // The two exits, which are different actions and ask different questions
+  // (GDD 12-2-c). Both are backed out of — the rest of this file needs the run.
+  for (const [label, panel, name] of [
+    ['다시 시작', 'restart', 'pause-restart'],
+    ['처음 화면으로', 'to-title', 'pause-title'],
+  ]) {
+    await evaluate(ws, pauseItem(label))
+    await sleep(400)
+    if (!(await evaluate(ws, `!!document.querySelector('[data-panel="${panel}"]')`))) {
+      problems.push(`${label} did not ask before throwing the run away`)
+      continue
+    }
+    await shot(ws, name)
+    // The first button in the card is the cancel (`Reset.tsx`).
+    await evaluate(ws, `document.querySelector('[data-panel="${panel}"] button')?.click()`)
+    await sleep(400)
+    if (await evaluate(ws, `!!document.querySelector('[data-panel="${panel}"]')`)) {
+      problems.push(`the ${label} confirmation would not close`)
+    }
   }
-  await evaluate(ws, `window.__t('계속하기')?.click()`)
+
+  // 설정 (GDD 12-2-d). One row, because animations are the only thing the UI can
+  // honestly switch today — the page is photographed so that stays visible.
+  await evaluate(ws, pauseItem('설정'))
   await sleep(400)
-  if (await evaluate(ws, `!!document.querySelector('[data-panel="reset"]')`)) {
-    problems.push('the reset confirmation would not close')
+  if (!(await evaluate(ws, `!!document.querySelector('[data-setting="animations"]')`))) {
+    problems.push('the settings page has no animation control')
+  } else {
+    await shot(ws, 'pause-settings')
   }
-  // Backing out must leave the run exactly where it was, which is the whole
-  // reason the confirmation exists.
+  await evaluate(ws, pauseItem('돌아가기'))
+  await sleep(400)
+
+  // ESC on the menu closes the window, and the run must be exactly where it was —
+  // which is the whole promise the window makes to the game behind it.
+  await evaluate(ws, KEY('Escape'))
+  await sleep(400)
+  if (await evaluate(ws, `!!document.querySelector('[data-panel="pause"]')`)) {
+    problems.push('the pause window would not close')
+  }
   if (!(await evaluate(ws, `!!window.__t('턴 종료')`))) {
-    problems.push('cancelling the reset left the play screen')
+    problems.push('closing the pause window left the play screen')
   }
 
   // ORION at 3×, so the sprite BOOTH-6c drew is reviewable at the size the three
@@ -729,6 +808,22 @@ async function playToSecondShop(ws) {
 
   if (!(await playRound(ws, 'report-round1'))) problems.push('round 1 did not end in the shop')
   await shot(ws, 'shop')
+
+  // The shop's own 처음으로 (GDD 12-2-c). It is the last corner button on the canvas
+  // and the only caller of `RESET_CONFIRM` left, now that the play screen asks
+  // through the pause window — so this is where that wording is reviewed.
+  await evaluate(ws, `document.querySelector('[data-reset="open"]')?.click()`)
+  await sleep(400)
+  if (!(await evaluate(ws, `!!document.querySelector('[data-panel="reset"]')`))) {
+    problems.push('the shop reset confirmation did not open')
+  } else {
+    await shot(ws, 'reset-confirm')
+    await evaluate(ws, `document.querySelector('[data-panel="reset"] button')?.click()`)
+    await sleep(400)
+    if (await evaluate(ws, `!!document.querySelector('[data-panel="reset"]')`)) {
+      problems.push('the shop reset confirmation would not close')
+    }
+  }
 
   // GDD 13-4: the first shop visit is the one that hands the drifter over, and
   // BOOTH-7 gave иєвυℓα a line for it — she opens on the gift instead of on the
@@ -804,6 +899,9 @@ async function main() {
   await buySpecials(ws)
   await evaluate(ws, `window.__t('주기 3 시작')?.click()`)
   await sleep(1500)
+  // Five settlements with animations off — see `setAnimations`. The panel it
+  // photographs below is unchanged by the switch; only its entrance is.
+  await setAnimations(ws, false)
   await playRound(ws, 'report-round3')
 
   // The game-over banner (GDD 12-4, BOOTH-7): a run given up on, which no test can
@@ -870,13 +968,20 @@ async function main() {
     if (!written.has(name)) problems.push(`${name}.png was never reached`)
   }
 
-  // All five coach captions and the ? summary (GDD 12-2 ①). They are the tutorial
-  // a booth participant starts on unaided, so a step that stopped appearing is the
+  // All five coach captions and the summary (GDD 12-2 ①). They are the tutorial a
+  // booth participant starts on unaided, so a step that stopped appearing is the
   // one failure here that nobody would notice from a test.
   for (const step of ['wager', 'hand', 'board', 'limit', 'target']) {
     if (!written.has(`coach-${step}`)) problems.push(`coach-${step}.png was never reached`)
   }
   if (!written.has('help')) problems.push('help.png was never reached')
+
+  // BOOTH-9c: every page of the ESC pause window (GDD 12-2 ①④, 12-2-d). It is the
+  // play screen's only door, so a page that stopped opening is a participant with no
+  // way out — and nothing on the play screen would look any different.
+  for (const name of ['pause', 'pause-restart', 'pause-title', 'pause-settings']) {
+    if (!written.has(name)) problems.push(`${name}.png was never reached`)
+  }
 
   // BOOTH-7 (GDD 12-2 ④, 12-4, 13-4). The reset confirmation, the drifter's line on
   // the first shop visit, and the game-over banner — none of which any test can

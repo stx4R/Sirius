@@ -171,7 +171,7 @@ export function CoachTip({
 }
 
 /**
- * The ? button's page (GDD 12-2 ①). The same five lines at rest.
+ * The tutorial summary (GDD 12-2 ①). The same five lines at rest.
  *
  * It does not replay the coach marks. A player who has lost the thread wants to
  * know what to do *now*, and three of the five steps cannot be re-staged — the
@@ -244,8 +244,9 @@ export function HelpCard({
 }
 
 // The always-there ? button in the corner is gone (BOOTH-9b): its coordinate is
-// where STAR-CHART now sits. `HelpCard` above is untouched and still opened from the
-// play screen — by the keyboard until BOOTH-9c's pause window replaces it.
+// where STAR-CHART now sits. `HelpCard` above is untouched — what changed is who
+// opens it, which since BOOTH-9c is the ESC pause window's 튜토리얼 시작 (`Pause.tsx`).
 //
-// GDD 12-2 ① asks for a permanent way back in, and a key a booth participant cannot
-// see does not satisfy that. It is a gap on purpose and a short one; see `Game.tsx`.
+// GDD 12-2 ① asks for a permanent way back in. The card is permanently reachable
+// again; what it does not have is a permanently *visible* control, because the
+// plane has no room left for one — see GDD 12-2-d.

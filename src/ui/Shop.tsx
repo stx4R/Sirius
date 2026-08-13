@@ -44,7 +44,7 @@ import { NebulaBubble, NebulaName, NebulaSprite, useNebula } from './Nebula'
 import { PixelSprite } from './PixelSprite'
 import { withPixelWords } from './PixelWord'
 import { ResetButton, ResetConfirm } from './Reset'
-import { usePrefersReducedMotion } from './motion'
+import { useReducedMotion } from './motion'
 
 /** GDD 7-1's Korean tier names. UI text, so it stays out of config (CLAUDE.md §11). */
 const TIER_NAMES: Readonly<Record<CompanionTier, string>> = {
@@ -603,7 +603,7 @@ export function Shop() {
   const seed = useGame((state) => state.seed)
   const { buyItem, rerollStock, leaveShop, toTitle } = useGame.getState()
 
-  const reduced = usePrefersReducedMotion()
+  const reduced = useReducedMotion()
 
   /**
    * GDD 13-4: the drifter is handed over on the way into the *first* shop, inside

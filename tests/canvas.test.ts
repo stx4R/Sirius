@@ -74,11 +74,8 @@ describe('canvas layout (GDD 11-10)', () => {
       w: LAYOUT.constellations.cell * 2 + LAYOUT.constellations.gap,
       h: 142 * 2 + LAYOUT.constellations.gap,
     },
-    // BOOTH-6b: the ? button is always on screen (GDD 12-2 ①), so unlike the
-    // coach captions it is not an overlay and belongs in the pairwise check.
-    help: { x: LAYOUT.help.x, y: LAYOUT.help.y, w: LAYOUT.help.size, h: LAYOUT.help.size },
-    // BOOTH-7: the mid-run reset (GDD 12-2 ④), in the check for the same reason.
-    reset: { x: LAYOUT.reset.x, y: LAYOUT.reset.y, w: LAYOUT.reset.w, h: LAYOUT.reset.h },
+    // BOOTH-9b removed the ? and 처음으로 boxes: STAR-CHART is where they were. The
+    // cards they open are modals and were never in this check.
   }
 
   it('keeps every placed box on the plane', () => {
@@ -143,46 +140,96 @@ describe('canvas layout (GDD 11-10)', () => {
     }
   })
 
-  // GDD 8-1's panel sits in measured free space: 116×390 at (584, 240), taken
-  // with four constellations held. If it ever stops fitting inside that, it is
-  // overlapping something the box list above does not name.
-  it('keeps STAR-CHART inside the gap that was measured for it', () => {
-    const gap = { x: 584, y: 240, w: 116, h: 390 }
-    const panel = LAYOUT.starChart
+  // GDD 8-1's panel used to sit in a measured 116×390 gap at (584, 240) — the only
+  // hole the plane had left. BOOTH-9b freed the top right and moved it there, and
+  // that slot is now deliberately empty; the checks below measure it against its new
+  // neighbours instead.
+  it('leaves the slot the vertical STAR-CHART vacated empty', () => {
+    const vacated = { x: 588, y: 244, w: 108, h: 380 }
 
-    expect(panel.x).toBeGreaterThanOrEqual(gap.x)
-    expect(panel.y).toBeGreaterThanOrEqual(gap.y)
-    expect(panel.x + panel.w).toBeLessThanOrEqual(gap.x + gap.w)
-    expect(panel.y + panel.h).toBeLessThanOrEqual(gap.y + gap.h)
+    for (const [name, box] of Object.entries(boxes)) {
+      const apart =
+        box.x + box.w <= vacated.x ||
+        vacated.x + vacated.w <= box.x ||
+        box.y + box.h <= vacated.y ||
+        vacated.y + vacated.h <= box.y
+
+      expect(apart, `${name} reaches into the vacated STAR-CHART slot`).toBe(true)
+    }
   })
 
-  it('gives STAR-CHART room for its five suit rows and a header', () => {
+  // BOOTH-9b turned STAR-CHART from a 108px column into a 448px row across the top.
+  // The five cells have to divide the panel exactly, or the suits land between
+  // pixels (CLAUDE.md §7).
+  it('divides STAR-CHART into five whole-pixel suit cells', () => {
     const panel = LAYOUT.starChart
     const PADDING = 4 * 2
-    const HEADER = 12
 
-    expect(panel.row * 5 + HEADER + PADDING).toBeLessThanOrEqual(panel.h)
-    // The bar has to leave room for the percentage beside it.
-    expect(panel.bar).toBeLessThan(panel.w - PADDING)
+    expect(panel.cell * SUIT_ORDER.length + PADDING).toBe(panel.w)
+    expect(Number.isInteger(panel.cell)).toBe(true)
   })
 
-  // BOOTH-6b: GDD 8-1 puts the full star name on this panel too, and 108px is the
-  // reason it was not there before. The name goes under the three-letter code, in
-  // the column beside the 32px chip, at the 9px face.
-  it('fits the longest star name in the vertical STAR-CHART column', () => {
+  it('gives STAR-CHART room for a header over one row of suits', () => {
     const panel = LAYOUT.starChart
     const PADDING = 4 * 2
+    const HEADER = 13
+    // Chip (32) beside a three-line text column (11 + 9 + 9 = 29), then the bar row.
+    const SUIT_BLOCK = Math.max(32, 11 + 9 + 9) + 2 + 12
+
+    expect(HEADER + SUIT_BLOCK + PADDING).toBeLessThanOrEqual(panel.h)
+  })
+
+  // GDD 8-1 puts the full star name here as well as in the shop (BOOTH-6b), and the
+  // 108px column was the reason it nearly did not fit. Measured against the row's
+  // own cell: chip, then the text column, and the widest thing in it is the name.
+  it('fits every field of a suit inside one cell', () => {
+    const panel = LAYOUT.starChart
     const CHIP = 32
-    const GAP = 4
+    const GAP = 2
     // Galmuri9, and the canvas tests take a Latin glyph at the face's own size as
     // the conservative width (see the oracle row below). Gacrux and Mimosa are the
     // longest of the five at six glyphs.
     const longest = Math.max(...SUIT_ORDER.map((suit) => SUIT_STAR_NAMES[suit].length))
 
     expect(longest).toBe(6)
-    expect(CHIP + GAP + longest * 9).toBeLessThanOrEqual(panel.w - PADDING)
-    // Code (11) over name (9) over count (9), against the row height.
-    expect(11 + 9 + 9).toBeLessThanOrEqual(panel.row)
+    expect(CHIP + GAP + longest * 9).toBeLessThanOrEqual(panel.cell)
+
+    // ★ The bar row is measured rather than counted. The glyph-count rule above is
+    // right for Hangul, which is about square at its face's size, and roughly 1.8×
+    // too wide for Latin — Galmuri9 draws '100%' in 24px where the rule would say
+    // 36, and 'Gacrux' in 30 where it says 54. Sized by the rule, a bar wide enough
+    // to read would not fit beside its own percentage at any cell width this row
+    // could have. So the widest percentage is the measured 24px.
+    const PERCENT = 24
+
+    expect(panel.bar + 4 + PERCENT).toBeLessThanOrEqual(panel.cell)
+  })
+
+  // ★ The measurement the move was justified by: the top right really is free once
+  // the three controls are gone. Both neighbours are centred on the plane, so their
+  // right edges are half their widest width past the middle.
+  it('clears the round/turn line, the status line and the settlement panel', () => {
+    const panel = LAYOUT.starChart
+    // Measured in the browser at 14px bold: '주기 1 / 8' 69 + 16 gap + '턴 1 / 5' 55.
+    const ROUND_TURN_W = 146
+    // Measured at 11px: '원하는 위치에 놓으세요', the longest of the five states.
+    const STATUS_W = 120
+    const centre = CANVAS_WIDTH / 2
+
+    expect(panel.x).toBeGreaterThan(centre + ROUND_TURN_W / 2)
+    expect(panel.x).toBeGreaterThan(centre + STATUS_W / 2)
+    expect(panel.y + panel.h).toBeLessThanOrEqual(LAYOUT.settlement.y)
+    // The same margin off the right edge that the stardust readout has off the left.
+    expect(CANVAS_WIDTH - (panel.x + panel.w)).toBe(LAYOUT.stardust.x)
+  })
+
+  // The DEV toggle moved out of the top right to make room. It is compiled out of a
+  // booth build, but in a development one it must not sit on anything either.
+  it('parks the DEV toggle clear of the readouts it now sits between', () => {
+    // Measured: the stardust block is 57 wide from x=16.
+    expect(LAYOUT.dev.x).toBeGreaterThanOrEqual(LAYOUT.stardust.x + 57)
+    // 61px wide at 11px, against the round/turn line's left edge at its widest.
+    expect(LAYOUT.dev.x + 61).toBeLessThan(CANVAS_WIDTH / 2 - 146 / 2)
   })
 
   it('places STAR-CHART on whole pixels', () => {
@@ -460,30 +507,23 @@ describe('canvas layout (GDD 11-10)', () => {
     const numbers = [
       LAYOUT.coach.h,
       ...Object.values(LAYOUT.coach.steps).flatMap((spot) => [spot.x, spot.y, spot.w]),
-      ...Object.values(LAYOUT.help),
       ...Object.values(LAYOUT.helpCard),
-      ...Object.values(LAYOUT.reset),
       ...Object.values(LAYOUT.resetCard),
     ]
 
     for (const value of numbers) expect(Number.isInteger(value)).toBe(true)
   })
 
-  // BOOTH-7 (GDD 12-2 ④). The placement is the whole of the decision: it sits in
-  // the corner a lost participant already looks at, and a participant reaching for
-  // the ? must not land on the button that ends their run.
-  it('seats the reset beside the ? without the two touching', () => {
-    const gap = LAYOUT.help.x - (LAYOUT.reset.x + LAYOUT.reset.w)
+  // BOOTH-9b: the play screen's reset button is gone and STAR-CHART has its corner.
+  // The shop still carries one, and it is now the only one — so it is the only
+  // placement left to check, and it must stay on the plane.
+  it('leaves the shop as the only screen with a reset button', () => {
+    expect(LAYOUT).not.toHaveProperty('reset')
+    expect(LAYOUT).not.toHaveProperty('help')
 
-    expect(gap).toBeGreaterThanOrEqual(8)
-    // Same row, same height, so the corner reads as one strip of controls.
-    expect(LAYOUT.reset.y).toBe(LAYOUT.help.y)
-    expect(LAYOUT.reset.h).toBe(LAYOUT.help.size)
-    // And the same coordinate on the shop, so it does not move between screens.
-    expect({ x: SHOP_LAYOUT.reset.x, y: SHOP_LAYOUT.reset.y }).toEqual({
-      x: LAYOUT.reset.x,
-      y: LAYOUT.reset.y,
-    })
+    const reset = SHOP_LAYOUT.reset
+    expect(reset.x + reset.w).toBeLessThanOrEqual(CANVAS_WIDTH)
+    expect(reset.y + reset.h).toBeLessThanOrEqual(CANVAS_HEIGHT)
   })
 
   // The confirmation is the sixth modal, and gets the modal pair of checks.
@@ -511,8 +551,8 @@ describe('canvas layout (GDD 11-10)', () => {
     expect(RESET_CONFIRM.title.length).toBeLessThanOrEqual(perLine)
     for (const label of [RESET_CONFIRM.button, RESET_CONFIRM.cancel, RESET_CONFIRM.confirm]) {
       expect(label.length).toBeGreaterThan(0)
-      // The corner button carries `button` at the 11px face inside 60px.
-      expect(label.length * 11).toBeLessThanOrEqual(LAYOUT.reset.w)
+      // The shop's corner button carries `button` at the 11px face inside 60px.
+      expect(label.length * 11).toBeLessThanOrEqual(SHOP_LAYOUT.reset.w)
     }
   })
 

@@ -50,7 +50,7 @@ describe('BOOTH-9a terminology', () => {
     ['라운드', '주기'],
     ['덱', '공허'],
     ['정산', '융합'],
-    ['보드', '성도'],
+    ['보드', '성단'],
     ['배치', 'γένεσις'],
     ['스타더스트', 'St4RDu3t'],
     ['특수 조각', 'MЦLГЦS 조각'],
@@ -76,7 +76,7 @@ describe('BOOTH-9a terminology', () => {
     '주기(週期)': 'ui/Title.tsx',
     '공허(空虛)': 'ui/Report.tsx',
     '융합(融合)': 'ui/Settlement.tsx',
-    '성도(星團)': 'ui/dialogue.ts',
+    '성단(星團)': 'ui/dialogue.ts',
   }
 
   it('writes each 한자 exactly once, at the surface that introduces the term', () => {
@@ -90,7 +90,7 @@ describe('BOOTH-9a terminology', () => {
 
   // GDD 2 uses the Korean 星團, not the Japanese 星団. They are the same word and
   // different characters, and a proofread would not catch it.
-  it('writes 성도 with the Korean 星團 and never the Japanese 星団', () => {
+  it('writes 성단 with the Korean 星團 and never the Japanese 星団', () => {
     for (const [file, text] of CODE) {
       expect(text.includes('星団'), `${file} uses the Japanese 星団`).toBe(false)
     }

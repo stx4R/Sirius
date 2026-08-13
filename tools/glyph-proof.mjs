@@ -93,7 +93,7 @@ const wordRows = PIXEL_WORDS.map((word) => {
 // 3 · in context: the words inline in real 14px Korean body text, which is the
 //     only place the baseline claim can actually be judged.
 const CONTEXT = [
-  ['배치 → γένεσις', `조각을 골라 성도에 <W>γένεσις</W>하면 그 칸은 고정된다.`],
+  ['배치 → γένεσις', `조각을 골라 성단에 <W>γένεσις</W>하면 그 칸은 고정된다.`],
   ['문제 → πειρασμός', `<W>πειρασμός</W>를 맞히면 스타더스트를 2 받는다.`],
   ['특수 조각 → MЦLГЦS', `<W>MЦLГЦS</W> 조각은 두 문양을 동시에 판정한다.`],
   ['세 단어 한 줄에', `<W>MЦLГЦS</W> 조각을 <W>γένεσις</W>한 뒤 <W>πειρασμός</W>가 나온다.`],

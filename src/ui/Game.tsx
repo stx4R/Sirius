@@ -10,13 +10,18 @@
 // step index. Both are presentation, and the store owns no timers.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MODE_PRESETS, OWNED_CONSTELLATION_LIMIT, TURNS_PER_ROUND } from '../core/config'
+import {
+  MODE_PRESETS,
+  OWNED_CONSTELLATION_LIMIT,
+  SETTLEMENT_HOLD_MS,
+  TURNS_PER_ROUND,
+} from '../core/config'
 import { wagerIsForced } from '../core/game'
 import { PALETTE } from '../assets/palette'
 import { useGame } from '../store/gameStore'
 import { Board } from './Board'
 import { At, CANVAS_HEIGHT, CANVAS_WIDTH, Canvas, LAYOUT } from './Canvas'
-import { CoachTip, HelpButton, HelpCard, coachLine, coachStep } from './Coach'
+import { CoachTip, HelpCard, coachLine, coachStep } from './Coach'
 import { ConstellationCard } from './ConstellationCard'
 import { DEV_TOOLS, DevPanel } from './DevPanel'
 import { RoundTurn, Stardust, StatusLine } from './HUD'
@@ -25,7 +30,7 @@ import { Hand, HandCount } from './Hand'
 import { OraclePanel } from './Oracle'
 import { OrionBubble, OrionSprite, useOrion } from './Orion'
 import { ReportPanel } from './Report'
-import { ResetButton, ResetConfirm } from './Reset'
+import { ResetConfirm } from './Reset'
 import { StarChart } from './StarChart'
 import { WagerPanel } from './Wager'
 import { usePrefersReducedMotion } from './motion'
@@ -34,6 +39,7 @@ import {
   RoundTotal,
   SettlementEquation,
   SettlementPanel,
+  autoAdvances,
   litCells,
   stepsOf,
 } from './Settlement'
@@ -135,7 +141,6 @@ export function Game() {
   const orion = useOrion(seed)
 
   const [step, setStep] = useState(0)
-  const [speed, setSpeed] = useState(0)
   const [shuffling, setShuffling] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
@@ -169,6 +174,88 @@ export function Game() {
   }, [handStamp, settlement, over, wagering, reduced])
 
   useEffect(() => setStep(0), [settlement])
+
+  /**
+   * BOOTH-9b: the turn advances by itself once the walk is over.
+   *
+   * ★ EVERY MODAL HOLDS THE TIMER. The clause below is the whole of the safety
+   * argument, so it is worth being explicit about what it is defending against.
+   *
+   * Two of the four cannot in fact overlap a settlement, and are named anyway. The
+   * oracle is answered and dismissed *before* `settleTurn` runs (GDD 8-3, and
+   * `dismissOracle` in the store), and both the report and the next wager are
+   * created by `dismissSettlement` itself — which is what this timer calls, so they
+   * only exist once it has already fired. Listing them costs one boolean and means
+   * a future reordering of those transitions cannot silently start a timer behind a
+   * modal; leaving them out would make this correct by coincidence.
+   *
+   * The other two are real today. `helpOpen` and `resetOpen` are opened by the
+   * player, at any moment, including the middle of a settlement — and BOOTH-9c is
+   * about to add an ESC pause that is exactly the same shape. Advancing the turn
+   * behind an open modal would take the settlement away from a player who is
+   * reading the thing that explains it.
+   *
+   * Because `modalUp` is a dependency, opening a modal tears the timer down and
+   * closing it starts a fresh full-length one — a paused settlement resumes with
+   * the whole hold rather than with whatever was left of it.
+   *
+   * The last turn needs no special case here. `endTurn` sets `phase` to 'roundEnd'
+   * on turn 5 (GDD 4-1) and `dismissSettlement` reads the phase, so the same call
+   * that advances a turn ends a round. This must stay a call into the store: the
+   * decision of what comes next is core's (CLAUDE.md §5).
+   */
+  const advancing = autoAdvances({
+    hasSettlement: settlement !== null,
+    walkDone: step >= steps.length,
+    over,
+    wagerOpen: wagering,
+    oracleOpen: asking,
+    reportOpen: report !== null,
+    helpOpen,
+    resetOpen,
+  })
+
+  useEffect(() => {
+    if (!advancing) return
+    const timer = setTimeout(dismissSettlement, SETTLEMENT_HOLD_MS)
+    return () => clearTimeout(timer)
+  }, [advancing, dismissSettlement])
+
+  /**
+   * ★ TEMPORARY, AND THE REASON IT EXISTS IS A GAP (BOOTH-9b → 9c).
+   *
+   * The ? and 처음으로 buttons were at (1012, 12) and (944, 12) — where STAR-CHART
+   * now is. BOOTH-9c gives both a proper home in an ESC pause window; this binds
+   * them to the keyboard in the meantime rather than leaving the play screen with no
+   * way out at all.
+   *
+   * It does NOT restore what was lost. GDD 12-2 ④ wants a booth participant to be
+   * able to abandon a run unaided, and GDD 12-2 ① wants a permanent way back into
+   * the tutorial — a key nobody can see satisfies neither. What it does restore is
+   * the operator's ability to reset a stuck machine without reloading the page, and
+   * the shop screen keeps its own visible 처음으로 throughout.
+   *
+   * Escape closes whatever is open before it offers to end the run, which is the
+   * convention everywhere else and also the safer order: the key that means "get me
+   * out of this modal" must not be the key that throws the run away.
+   */
+  useEffect(() => {
+    if (over) return
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (helpOpen) setHelpOpen(false)
+        else if (resetOpen) setResetOpen(false)
+        else setResetOpen(true)
+      } else if (event.key === '?') {
+        setResetOpen(false)
+        setHelpOpen((open) => !open)
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [over, helpOpen, resetOpen])
 
   // ORION reacts to what just happened. `speak` is stable and the beats are keyed
   // off state that only moves forward, so each one fires once.
@@ -331,10 +418,7 @@ export function Game() {
           steps={steps}
           index={step}
           onIndex={setStep}
-          onDone={dismissSettlement}
           reduced={reduced}
-          speed={speed}
-          onSpeed={setSpeed}
           width={LAYOUT.settlement.w}
           height={LAYOUT.settlement.h}
         />
@@ -350,7 +434,7 @@ export function Game() {
         <RoundTotal
           value={shownTotal}
           target={game.targetScore}
-          ms={reduced || speed === 2 ? 0 : 400}
+          ms={reduced ? 0 : 400}
         />
       </At>
 
@@ -384,7 +468,10 @@ export function Game() {
       {/* GDD 8-1 asks for this to be up at all times, and the play screen is
           where the pile actually shrinks. The pool is deck plus hand: unplaced
           chips are reshuffled back (GDD 4-2), so placing is what takes a chip out
-          of the round for good. */}
+          of the round for good.
+
+          Across the top since BOOTH-9b, in the space the 처음으로 · ? · DEV cluster
+          used to hold — it is no longer squeezed into a 108px column. */}
       <At
         x={LAYOUT.starChart.x}
         y={LAYOUT.starChart.y}
@@ -395,7 +482,7 @@ export function Game() {
           pool={[...game.deck, ...game.hand]}
           width={LAYOUT.starChart.w}
           height={LAYOUT.starChart.h}
-          row={LAYOUT.starChart.row}
+          cell={LAYOUT.starChart.cell}
           bar={LAYOUT.starChart.bar}
         />
       </At>
@@ -506,12 +593,6 @@ export function Game() {
         />
       )}
 
-      {/* GDD 12-2 ①: the way back in for a player who lost the thread. Always
-          there, on every round — the coach marks are round 1 only. */}
-      <At x={LAYOUT.help.x} y={LAYOUT.help.y} z={40}>
-        <HelpButton onOpen={() => setHelpOpen(true)} />
-      </At>
-
       {helpOpen && (
         <HelpCard
           starting={starting}
@@ -519,18 +600,6 @@ export function Game() {
           reduced={reduced}
           onClose={() => setHelpOpen(false)}
         />
-      )}
-
-      {/* GDD 12-2 ④: the way out of a run that is being abandoned, so the machine
-          is ready for the next participant without the operator walking over. It
-          is beside the ? and asks before it acts (Reset.tsx). Hidden once the run
-          is over — the banner behind it already offers 타이틀로, and two buttons
-          for one action on one screen is a question the participant has to answer
-          rather than a way out. */}
-      {!over && (
-        <At x={LAYOUT.reset.x} y={LAYOUT.reset.y} z={40}>
-          <ResetButton onOpen={() => setResetOpen(true)} />
-        </At>
       )}
 
       {resetOpen && (

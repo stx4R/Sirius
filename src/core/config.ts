@@ -204,7 +204,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '클로버 초거성',
     tier: 'legendary',
     price: COMPANION_TIER_PRICES.legendary,
-    description: '성도 상하좌우 끝이 연결되어(토러스), 반대편 칩과도 별자리가 이어진다',
+    description: '성단 상하좌우 끝이 연결되어(토러스), 반대편 칩과도 별자리가 이어진다',
   },
   lawOfLargeNumbersSupergiant: {
     id: 'lawOfLargeNumbersSupergiant',
@@ -329,7 +329,7 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '거울 성운',
     tier: 'superRare',
     price: COMPANION_TIER_PRICES.superRare,
-    description: '성도 좌우 대칭 위치에 같은 칩이 있으면 둘 다 +50%',
+    description: '성단 좌우 대칭 위치에 같은 칩이 있으면 둘 다 +50%',
   },
   magneticNebula: {
     id: 'magneticNebula',
@@ -401,14 +401,14 @@ export const COMPANIONS: Readonly<Record<CompanionId, CompanionDef>> = {
     name: '행성상 가스',
     tier: 'rare',
     price: COMPANION_TIER_PRICES.rare,
-    description: '성도 네 모서리에 γένεσις된 칩이 ×1.5',
+    description: '성단 네 모서리에 γένεσις된 칩이 ×1.5',
   },
   coreGas: {
     id: 'coreGas',
     name: '중심핵 가스',
     tier: 'rare',
     price: COMPANION_TIER_PRICES.rare,
-    description: '성도 정중앙 칸의 칩이 ×2.5',
+    description: '성단 정중앙 칸의 칩이 ×2.5',
   },
   cometGas: {
     id: 'cometGas',
@@ -537,6 +537,29 @@ export const WAGER_GUESS_RATE = 0.5
  * theory, so a band that is slightly too wide fails in the safe direction.
  */
 export const REPORT_BAND_SIGMA = 2
+
+// --------------------------------------------------- settlement pacing
+// GDD 5-1, 12-1
+
+/**
+ * How long one suit's beat lasts in the settlement, and how long the finished
+ * settlement is left on screen before the turn advances by itself (BOOTH-9b).
+ *
+ * ★ These are presentation timings in a file of balance numbers, and they are here
+ * on purpose: they *are* a balance number for the booth. GDD 12-1 scores the booth
+ * on throughput, and BOOTH-9b made the settlement advance on a timer rather than on
+ * a click — so 15 settlements a run × (five suit beats + this wait) is now a fixed
+ * cost in the 28-minute budget rather than something a fast player can skip. A
+ * figure that decides how long a participant holds a seat belongs where the round
+ * count is, not buried in an animation module.
+ *
+ * The wait is measured from the end of the walk, not from its start: the walk's
+ * length varies with how many suits scored (GDD 5-1 omits the ones worth nothing),
+ * so timing from the start would give a short settlement a long tail and a long one
+ * almost none.
+ */
+export const SUIT_STEP_MS = 600
+export const SETTLEMENT_HOLD_MS = 2000
 
 // ---------------------------------------------------------------- modes
 // GDD 10, 12-3, 12-4

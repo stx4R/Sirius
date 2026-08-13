@@ -119,6 +119,40 @@ async function shot(ws, name, clip, beyond = false) {
 }
 
 /**
+ * Polls `expr` until it comes back true. Returns false if it never does.
+ *
+ * BOOTH-9b took the settlement's buttons away — the turn advances on a timer now —
+ * so the tool has to *wait* where it used to click. A poll rather than a fixed
+ * sleep: the walk's length depends on how many suits scored, so a sleep long enough
+ * for the worst case would be dead time on most turns, fifteen times a run.
+ */
+async function waitFor(ws, expr, ms = 15000, step = 250) {
+  const until = Date.now() + ms
+  while (Date.now() < until) {
+    if (await evaluate(ws, expr)) return true
+    await sleep(step)
+  }
+  return false
+}
+
+/**
+ * The settlement is over and the screen has moved on — to the next turn, to the
+ * round report, or to the end banner. One of the three is always true eventually.
+ */
+const TURN_OVER = `!!window.__t('턴 종료') || !!window.__t('계속') || !!window.__t('타이틀로')`
+
+/**
+ * A keypress on the window, which is where `Game.tsx` listens.
+ *
+ * BOOTH-9b left the ? summary and the mid-run reset with no button on the play
+ * screen — STAR-CHART is in their corner, and 9c gives them a pause window. Until
+ * then the keyboard is the only way in, so it is the only way the tool can reach
+ * them either.
+ */
+const KEY = (key) =>
+  `window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true }))`
+
+/**
  * Page-side helpers. A board cell is only enabled once a chip is held, so every
  * placement is two clicks with a re-render in between — the pauses are not
  * padding, they are what lets React catch up.
@@ -471,12 +505,72 @@ async function forfeitRun(ws) {
     await answerWager(ws)
     await evaluate(ws, `window.__t('턴 종료')?.click()`)
     await sleep(700)
-    await evaluate(ws, `(window.__t('건너뛰기') ?? window.__t('다음 턴'))?.click()`)
-    await sleep(300)
-    await evaluate(ws, `window.__t('다음 턴')?.click()`)
-    await sleep(500)
+    // BOOTH-9b: nothing to click. The settlement walks and then advances itself.
+    if (!(await waitFor(ws, TURN_OVER))) problems.push(`forfeit turn ${turn + 1} never advanced`)
   }
   await sleep(1000)
+}
+
+/**
+ * A run that clears, for the one screenshot that needs one (BOOTH-9b).
+ *
+ * ★ The score is injected through the DEV panel, and that is the whole trick. The
+ * booth curve is [600, 900, 2000] by design (GDD 10-4) and this tool scores about
+ * 640 a round, so no honest run it can play will ever clear — which is why
+ * `end-cleared.png` went missing at BOOTH-9a.
+ *
+ * Nothing about the rules is faked. The panel sets `roundScore`; `endRound` still
+ * decides the outcome on its own comparison, and the banner is the real one. What is
+ * skipped is the playing, not the judging.
+ *
+ * Jump to the last round, fill it, then end five turns. Nothing is placed: an empty
+ * board scores nothing, so each settlement has no suits to walk and is over as soon
+ * as its hold expires — five quick turns rather than five slow ones.
+ */
+async function clearedRun(ws) {
+  await evaluate(ws, `location.href = ${JSON.stringify(`${APP}?seed=${SEED}`)}`)
+  await sleep(2500)
+  await evaluate(ws, HELPERS)
+  await evaluate(ws, `document.querySelector('[data-choice="starting"]')?.click()`)
+  await sleep(300)
+  await evaluate(ws, `window.__t('시작')?.click()`)
+  await sleep(1500)
+
+  await evaluate(ws, `window.__t('DEV')?.click()`)
+  await sleep(400)
+
+  // The last round of the mode, whichever it is: the panel lists one R button per
+  // entry in the curve, so the last one is the round whose clear ends the run.
+  const jumped = await evaluate(
+    ws,
+    `(() => {
+      const rounds = [...document.querySelectorAll('button')].filter(b => /^R\\d+$/.test(b.textContent.trim()));
+      if (!rounds.length) return 0;
+      rounds[rounds.length - 1].click();
+      return rounds.length;
+    })()`,
+  )
+  if (!jumped) problems.push('end-cleared: the DEV panel had no round buttons')
+  await sleep(400)
+
+  await evaluate(ws, `window.__t('목표 채우기')?.click()`)
+  await sleep(400)
+  await evaluate(ws, `window.__t('✕')?.click()`)
+  await sleep(400)
+
+  for (let turn = 0; turn < 5; turn++) {
+    await sleep(400)
+    await answerWager(ws)
+    await evaluate(ws, `window.__t('턴 종료')?.click()`)
+    await sleep(500)
+    await answerOracle(ws)
+    if (!(await waitFor(ws, TURN_OVER))) problems.push(`cleared-run turn ${turn + 1} never advanced`)
+  }
+
+  // The last round has no shop behind it, so the report is the only thing between
+  // the fifth settlement and the banner.
+  await evaluate(ws, `window.__t('계속')?.click()`)
+  await sleep(1200)
 }
 
 async function playRound(ws, reportShot) {
@@ -497,10 +591,16 @@ async function playRound(ws, reportShot) {
       if (up) await shot(ws, 'coach-target')
     }
 
-    await evaluate(ws, `(window.__t('건너뛰기') ?? window.__t('다음 턴'))?.click()`)
-    await sleep(300)
-    await evaluate(ws, `window.__t('다음 턴')?.click()`)
-    await sleep(500)
+    // The settlement mid-walk, once per run. It is what the screen looks like for
+    // most of the five seconds a turn now ends with, and BOOTH-9b left it with no
+    // button to press — so a picture of it is the only way to review it.
+    if (!written.has('settling')) {
+      const walking = await evaluate(ws, `document.body.innerText.includes('융합 중')`)
+      if (walking) await shot(ws, 'settling')
+    }
+
+    // BOOTH-9b: nothing to click. The settlement walks and then advances itself.
+    if (!(await waitFor(ws, TURN_OVER))) problems.push(`turn ${turn + 1} never advanced`)
   }
   await sleep(1200)
   if (!(await closeReport(ws, reportShot))) return false
@@ -569,7 +669,12 @@ async function playToSecondShop(ws) {
 
   // The ? summary (GDD 12-2 ①) — the way back in for a player who lost the
   // thread, so it is reviewed on its own rather than only in passing.
-  await evaluate(ws, `document.querySelector('[data-help="open"]')?.click()`)
+  //
+  // BOOTH-9b took the button away: STAR-CHART has its corner now, and until 9c's
+  // pause window exists the card is opened by the '?' key. That the tool has to
+  // press a key here rather than click something is itself the evidence that the
+  // affordance is missing — see `Game.tsx`.
+  await evaluate(ws, KEY('?'))
   await sleep(500)
   if (!(await evaluate(ws, `!!document.querySelector('[data-panel="help"]')`))) {
     problems.push('the ? summary did not open')
@@ -582,7 +687,7 @@ async function playToSecondShop(ws) {
   // The mid-run reset (GDD 12-2 ④, BOOTH-7). Photographed on a live board rather
   // than on an empty one, because what the confirmation is asking about is the
   // run behind it. Backed out of afterwards — the rest of this file needs the run.
-  await evaluate(ws, `document.querySelector('[data-reset="open"]')?.click()`)
+  await evaluate(ws, KEY('Escape'))
   await sleep(500)
   if (!(await evaluate(ws, `!!document.querySelector('[data-panel="reset"]')`))) {
     problems.push('the reset confirmation did not open')
@@ -707,6 +812,12 @@ async function main() {
   await forfeitRun(ws)
   await endScreen(ws, 'end-gameover', '게임 오버')
 
+  // The other banner (GDD 12-4, BOOTH-7). Both carry the vote line — the one thing
+  // the run says about what the booth is actually scored on (GDD 12-1) — and they are
+  // worded differently, so both have to be looked at.
+  await clearedRun(ws)
+  await endScreen(ws, 'end-cleared', '전 주기 클리어')
+
   // GDD 11-8's four expressions, from the sprite gallery — the play screen shows one
   // at a time, so this is the only place they can be compared. Last, because loading
   // `#gallery` throws the run away.
@@ -770,23 +881,12 @@ async function main() {
   // BOOTH-7 (GDD 12-2 ④, 12-4, 13-4). The reset confirmation, the drifter's line on
   // the first shop visit, and the game-over banner — none of which any test can
   // photograph, and each of which a booth participant meets exactly once.
-  for (const name of ['reset-confirm', 'shop-gift', 'end-gameover']) {
+  // `end-cleared` is back in the list at BOOTH-9b. It fell out at 9a because the
+  // booth curve put a cleared run out of reach of first-free-cell play; the dev
+  // panel's score injection is what reaches it now (`clearedRun`).
+  for (const name of ['reset-confirm', 'shop-gift', 'end-cleared', 'end-gameover']) {
     if (!written.has(name)) problems.push(`${name}.png was never reached`)
   }
-
-  // ★ `end-cleared` is NOT in that list, and its absence is a stated gap rather than
-  // an oversight (BOOTH-9a). The clear banner needs a run that clears every round it
-  // plays, and nothing this tool can do produces one any more: booth's curve is
-  // [600, 900, 2000] by design, full's runs to eight rounds, and a bot that fills the
-  // first free cell scores ~640 a round. It is not a defect in the game — the booth
-  // difficulty is deliberate (GDD 12-4, 13-6) — but it does mean the clear banner is
-  // now unreviewed, so it is said out loud on every run rather than left to be
-  // noticed by whoever wonders where the PNG went.
-  console.log(
-    '\nNOTE: end-cleared.png is not taken. The clear banner needs a cleared run, and\n' +
-      '      the booth curve [600, 900, 2000] is out of reach of first-free-cell play.\n' +
-      '      Reaching it again needs either a smarter placement here or a dev affordance.',
-  )
 
   // ORION's sprite and his four faces (GDD 11-8, BOOTH-6c). The sprite is the one
   // deliverable here that only an image can settle.

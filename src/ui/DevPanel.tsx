@@ -75,9 +75,11 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
 
   return (
     <aside
-      // Anchored to its right edge so it opens leftwards into the canvas rather
-      // than off the plane (GDD 11-10 puts the toggle at x=1050 of 1120).
-      className="absolute right-0 top-0 flex max-h-[600px] w-64 flex-col gap-4 overflow-y-auto rounded p-4 text-[11px]"
+      // Anchored to its left edge so it opens rightwards into the canvas. It used
+      // to be the other way round, back when the toggle was at x=1050; BOOTH-9b
+      // moved the toggle to x=88 to clear the top right for STAR-CHART, and opening
+      // leftwards from there would put the panel off the plane (GDD 11-10).
+      className="absolute left-0 top-0 flex max-h-[600px] w-64 flex-col gap-4 overflow-y-auto rounded p-4 text-[11px]"
       style={{ background: PALETTE.panel, outline: `1px solid ${PALETTE.panelEdge}` }}
     >
       <header className="flex items-center justify-between">
@@ -170,6 +172,44 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
         </div>
       </Row>
 
+      {/*
+        BOOTH-9b: score injection, and the only reason it exists is that the clear
+        banner became unphotographable.
+
+        The booth curve is [600, 900, 2000] by design (GDD 10-4), and `npm run shot`
+        places every chip in the first free cell for about 640 a round — so no run
+        the tool can play ever clears, and `end-cleared.png` stopped being taken at
+        BOOTH-9a. A screen nobody can capture is a screen nobody reviews.
+
+        ★ It sets the round score and nothing else. It does not touch a target, a
+        curve or a rule — `endRound` still decides whether the round cleared, on the
+        same comparison it always made (CLAUDE.md §5). Clearing a whole run from here
+        is: jump to the last round, fill it, then play the turns out.
+      */}
+      <Row label="점수 주입">
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            onClick={() => onPatch((current) => ({ ...current, roundScore: current.targetScore }))}
+            className="rounded px-1.5 py-0.5"
+            style={{ background: PALETTE.panelEdge, color: PALETTE.starWhite }}
+          >
+            목표 채우기
+          </button>
+          <button
+            type="button"
+            onClick={() => onPatch((current) => ({ ...current, roundScore: 0 }))}
+            className="rounded px-1.5 py-0.5"
+            style={{ background: PALETTE.panelEdge, color: PALETTE.starWhite }}
+          >
+            0으로
+          </button>
+          <span className="self-center tabular-nums" style={{ color: PALETTE.starLink }}>
+            {game.roundScore.toLocaleString('ko-KR')} / {game.targetScore.toLocaleString('ko-KR')}
+          </span>
+        </div>
+      </Row>
+
       <Row label="배율 스택 모드">
         <span style={{ color: PALETTE.starWhite }}>
           {game.stackMode}
@@ -177,7 +217,7 @@ export function DevPanel({ game, onPatch, onRestart }: Props) {
         </span>
       </Row>
 
-      <Row label="현재 성도 융합 미리보기">
+      <Row label="현재 성단 융합 미리보기">
         <span className="text-[22px] font-bold tabular-nums" style={{ color: PALETTE.nebulaTeal }}>
           {preview.total.toLocaleString('ko-KR')}점
         </span>

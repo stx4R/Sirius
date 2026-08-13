@@ -95,7 +95,7 @@ export function coachStep(view: CoachView): CoachStep | null {
  * cannot leave a caption saying the old number.
  */
 /**
- * ★ NO 한자 IN A CAPTION. BOOTH-9a writes 공허 · 주기 · 융합 · 성도 with their 한자 on
+ * ★ NO 한자 IN A CAPTION. BOOTH-9a writes 공허 · 주기 · 융합 · 성단 with their 한자 on
  * first appearance, and the coach looks like the natural place for it — it is round 1
  * and nothing else, so a term introduced here never repeats itself.
  *
@@ -243,25 +243,9 @@ export function HelpCard({
   )
 }
 
-/** The always-there ? in the corner (GDD 12-2 ①). */
-export function HelpButton({ onOpen }: { readonly onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      data-help="open"
-      aria-label="이렇게 합니다"
-      onClick={onOpen}
-      className="rounded text-[11px] font-bold"
-      style={{
-        width: LAYOUT.help.size,
-        height: LAYOUT.help.size,
-        background: PALETTE.panel,
-        color: PALETTE.nebulaAmber,
-        outline: `1px solid ${PALETTE.panelEdge}`,
-        cursor: 'pointer',
-      }}
-    >
-      ?
-    </button>
-  )
-}
+// The always-there ? button in the corner is gone (BOOTH-9b): its coordinate is
+// where STAR-CHART now sits. `HelpCard` above is untouched and still opened from the
+// play screen — by the keyboard until BOOTH-9c's pause window replaces it.
+//
+// GDD 12-2 ① asks for a permanent way back in, and a key a booth participant cannot
+// see does not satisfy that. It is a gap on purpose and a short one; see `Game.tsx`.

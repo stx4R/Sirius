@@ -9,8 +9,9 @@ import { useEffect, useState } from 'react'
 /** GDD 4-2: eight chips a turn, staggered rather than dealt all at once. */
 export const DRAW_STAGGER = 0.06
 
-/** One suit's turn in the settlement. Five suits land inside three seconds. */
-export const SUIT_STEP_MS = 600
+// The settlement's own pacing moved to `core/config.ts` at BOOTH-9b — it stopped
+// being decoration when the turn began advancing on it, and now sets part of the
+// booth's time budget (GDD 12-1).
 
 export const SPRING = { type: 'spring', stiffness: 320, damping: 22 } as const
 

@@ -102,7 +102,7 @@ const AXIS_BLURB: Readonly<Record<LineAxis, string>> = {
   diagonal: '↘ 대각형. 같은 문양을 비스듬히 이어 놓으면 배율이 터집니다.',
   shape_A: 'ㅅ자형. 꼭짓점에서 양쪽으로 뻗어 나가게 놓으면 배율이 터집니다.',
   shape_T: 'ㅗ자형. 가로 줄 가운데에서 위로 뻗어 나가게 놓으면 배율이 터집니다.',
-  global: '성도에 가장 많이 놓인 문양 전체에 배율이 붙습니다.',
+  global: '성단에 가장 많이 놓인 문양 전체에 배율이 붙습니다.',
 }
 
 /** The frame around one option, lit when it is the one chosen. */

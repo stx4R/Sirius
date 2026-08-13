@@ -28,7 +28,19 @@ export const LAYOUT = {
   stardust: { x: 16, y: 12 },
   roundTurn: { y: 16 },
   status: { y: 48 },
-  dev: { x: 1050, y: 12 },
+
+  /**
+   * The DEV toggle, moved out of the top right at BOOTH-9b to make room for
+   * STAR-CHART. It sits between the stardust readout (which ends at x=73) and the
+   * round/turn line (which starts at x=487 at its widest), where nothing else has
+   * ever been placed.
+   *
+   * ★ It is deliberately NOT in the slot the vertical STAR-CHART vacated. That slot
+   * is to stay empty (BOOTH-9b), and `DEV_TOOLS` is `import.meta.env.DEV` — the
+   * panel does not exist in a booth build at all, so parking it over a reserved
+   * space would trade a real constraint for an imaginary convenience.
+   */
+  dev: { x: 88, y: 12 },
 
   /** 5×72 cells plus four 2px seams (GDD 11-4). */
   board: { x: 40, y: 106, size: 368 },
@@ -63,19 +75,25 @@ export const LAYOUT = {
   hand: { x: 20, y: 496, w: 400, h: 104, label: { x: 20, y: 606 } },
 
   /**
-   * STAR-CHART (GDD 8-1), in the only gap the plane has left.
+   * STAR-CHART (GDD 8-1), across the top right (BOOTH-9b).
    *
-   * Measured, not guessed: with four constellations held — the GDD 6 limit, and
-   * so the screen at its most crowded — the largest empty rectangle is 116×390 at
-   * (584, 240). This sits inside it with 4px of air on every side that has a
-   * neighbour: the 2×2 card grid ends at x=584, the settlement panel ends at
-   * y=240, and the big round total starts at x≈700.
+   * ★ It used to be a 108×380 column at (588, 244), and it was a column only
+   * because 108px was the widest gap the plane had left. Removing the 처음으로 · ?
+   * · DEV cluster freed the whole top right, so it is a row now and no longer has
+   * to compress: all six of GDD 8-1's fields fit (see `StarChart.tsx`).
    *
-   * That is why it is a column and not the shop's 440×214 panel — 108px will not
-   * hold the shop's row, so the two screens draw the same numbers differently and
-   * share only `drawChances`.
+   * Measured against the neighbours it actually has, at their worst case:
+   *   · the round/turn line is centred on 560 and 146 wide at its widest → ends 634
+   *   · the status line is centred on 560 and 120 wide at its widest → ends 620
+   *   · the settlement panel starts at y=90
+   * So the free rectangle is x 634…1120, y 0…90. This takes 656…1104 × 8…84 —
+   * 22px clear of the round/turn line, 6px clear of the settlement panel, and the
+   * same 16px margin off the right edge that the stardust readout has off the left.
+   *
+   * `cell` × 5 + the 8px of padding is exactly `w`, so every suit lands on whole
+   * pixels (CLAUDE.md §7). The slot at (588, 244) is now empty and stays empty.
    */
-  starChart: { x: 588, y: 244, w: 108, h: 380, row: 70, bar: 60 },
+  starChart: { x: 656, y: 8, w: 448, h: 76, cell: 88, bar: 56 },
 
   /**
    * ORION'S WAGER (GDD 8-2), centred over the play screen. A modal, so it is
@@ -129,27 +147,17 @@ export const LAYOUT = {
   report: { x: 80, y: 75, w: 960, h: 480, row: 28, series: 22 },
 
   /**
-   * The ? button (GDD 12-2 ①), always there. Left of the dev toggle at x=1050 so
-   * the two never sit on each other in a development build; in a production one
-   * `DEV_TOOLS` is compiled out and this is the only thing in the corner.
-   */
-  help: { x: 1012, y: 12, size: 28 },
-
-  /**
-   * The mid-run reset (GDD 12-2 ④, BOOTH-7). Left of the ? button, on the same
-   * baseline and the same height, so the corner reads as one row of controls
-   * rather than as a button that wandered in.
+   * ★ The ? and 처음으로 buttons are gone from this screen (BOOTH-9b). They sat at
+   * (1012, 12) and (944, 12), which is where STAR-CHART now is.
    *
-   * ★ The 8px gap to the ? is the whole of the placement decision, and it was
-   * measured rather than picked: 944 + 60 = 1004 against the ? at 1012. Any wider
-   * a label and the two touch; `tests/canvas.test.ts` holds the sum, and the box
-   * is in the pairwise check because — like the ? — it is always on screen.
+   * Neither *function* was removed — both cards below are still built, and this
+   * screen still opens them. What they lost is a button on the canvas. Until
+   * BOOTH-9c gives them an ESC pause window, `Game.tsx` binds them to the keyboard,
+   * and the shop keeps its own 처음으로 at `SHOP_LAYOUT.reset`.
    *
-   * The shop carries the same control at the same coordinate (`SHOP_LAYOUT.reset`),
-   * so a participant who wants out does not have to find a different corner
-   * depending on which screen they are stranded on.
+   * The cards stay in this table because they are modals: they are outside the
+   * pairwise overlap check either way, and their coordinates did not change.
    */
-  reset: { x: 944, y: 12, w: 60, h: 28 },
 
   /**
    * The confirmation the reset asks for (GDD 12-2 ④). A modal, so it is outside

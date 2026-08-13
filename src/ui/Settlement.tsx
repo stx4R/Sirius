@@ -16,22 +16,14 @@
 
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion'
 import { useEffect } from 'react'
-import { CONSTELLATION_NAMES } from '../core/config'
+import { CONSTELLATION_NAMES, SUIT_STEP_MS } from '../core/config'
 import type { SuitBreakdown } from '../core/scoring'
 import { SUIT_ORDER } from '../core/types'
 import type { SuitId } from '../core/types'
 import { suitGlyph } from '../assets/compose'
 import { PALETTE, SUIT_INK } from '../assets/palette'
-import { SUIT_STEP_MS } from './motion'
 import { PixelSprite } from './PixelSprite'
 import type { Settlement as SettlementData } from '../store/gameStore'
-
-/** GDD 5-1 runs five suits; at 1× the whole settlement lands inside three seconds. */
-const SPEEDS = [
-  { label: '1×', ms: SUIT_STEP_MS },
-  { label: '2×', ms: SUIT_STEP_MS / 2 },
-  { label: '즉시', ms: 0 },
-] as const
 
 /** The suits that scored, in order. Core omits the ones worth nothing. */
 export const stepsOf = (data: SettlementData): readonly SuitBreakdown[] => data.result.bySuit
@@ -137,12 +129,48 @@ export interface PanelProps {
   readonly steps: readonly SuitBreakdown[]
   readonly index: number
   readonly onIndex: (index: number) => void
-  readonly onDone: () => void
   readonly reduced: boolean
-  readonly speed: number
-  readonly onSpeed: (speed: number) => void
   readonly width: number
   readonly height: number
+}
+
+/**
+ * What decides whether the finished settlement may start its hold timer
+ * (BOOTH-9b). Every field is already on the play screen for its own reasons —
+ * nothing was added to the store for this, the way `coachStep` takes its view.
+ *
+ * It is a function rather than a condition inlined in the effect so that the modal
+ * rule can be enumerated in a test. That rule is the whole risk of making the turn
+ * advance on a timer: a modal is the game asking the player to read something, and
+ * a timer running behind it takes the answer away from them.
+ */
+export interface AdvanceView {
+  readonly hasSettlement: boolean
+  /** The suit-by-suit walk has reached its end. */
+  readonly walkDone: boolean
+  /** The run is over; the banner owns the screen. */
+  readonly over: boolean
+  /** ORION'S WAGER is up — question or explanation (GDD 8-2). */
+  readonly wagerOpen: boolean
+  /** DRIFT ORACLE is up (GDD 8-3). */
+  readonly oracleOpen: boolean
+  /** CONSTELLATION LOG is up (GDD 8-4). */
+  readonly reportOpen: boolean
+  /** The ? summary the player opened (GDD 12-2 ①). */
+  readonly helpOpen: boolean
+  /** The mid-run reset confirmation (GDD 12-2 ④). */
+  readonly resetOpen: boolean
+}
+
+export function autoAdvances(view: AdvanceView): boolean {
+  if (!view.hasSettlement || !view.walkDone || view.over) return false
+  return !(
+    view.wagerOpen ||
+    view.oracleOpen ||
+    view.reportOpen ||
+    view.helpOpen ||
+    view.resetOpen
+  )
 }
 
 /** How far the walk has got, shared by all three pieces. */
@@ -157,19 +185,29 @@ export function revealedOf(steps: readonly SuitBreakdown[], index: number) {
   }
 }
 
+/**
+ * ★ No speed control and no 다음 턴 button (BOOTH-9b). The walk runs at one fixed
+ * pace and `Game.tsx` advances the turn on a timer once it finishes.
+ *
+ * The buttons were not removed for tidiness. A booth participant meets this panel
+ * fifteen times in a run (GDD 12-1) and every one of them was a decision — pick a
+ * speed, then press a button — about a screen whose whole job is to be *watched*.
+ * Taking the controls away is what makes the settlement something that happens to
+ * the player rather than something they operate.
+ */
 export function SettlementPanel({
   data,
   steps,
   index,
   onIndex,
-  onDone,
   reduced,
-  speed,
-  onSpeed,
   width,
   height,
 }: PanelProps) {
-  const ms = reduced ? 0 : SPEEDS[speed].ms
+  // Reduced motion still lands on the finished state in one hop — that preference
+  // is about movement, and the suit-by-suit reveal is the explanation rather than
+  // decoration on top of it. The hold in `Game.tsx` is what paces it either way.
+  const ms = reduced ? 0 : SUIT_STEP_MS
   const { suits, current, running } = revealedOf(steps, index)
   const active = data !== null && running
 
@@ -209,35 +247,13 @@ export function SettlementPanel({
           융합(融合)
         </h2>
 
-        <div className="flex items-center gap-1">
-          {SPEEDS.map((option, i) => (
-            <button
-              key={option.label}
-              type="button"
-              onClick={() => onSpeed(i)}
-              className="rounded px-1.5 py-0.5 text-[11px]"
-              style={{
-                background: i === speed ? PALETTE.panelEdge : 'transparent',
-                color: i === speed ? PALETTE.starWhite : PALETTE.starGlow,
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={active ? () => onIndex(steps.length) : onDone}
-            disabled={data === null}
-            className="ml-1 rounded px-2 py-0.5 text-[11px] font-bold"
-            style={{
-              background: data === null ? PALETTE.panelEdge : PALETTE.nebulaTeal,
-              color: data === null ? PALETTE.starLink : PALETTE.void,
-              cursor: data === null ? 'default' : 'pointer',
-            }}
-          >
-            {active ? '건너뛰기' : '다음 턴'}
-          </button>
-        </div>
+        {/* Where the controls were. It says what the screen is doing instead, because
+            a panel that used to hold a button and now holds nothing reads as broken —
+            and a player who is no longer pressing anything still has to know that
+            something is coming rather than that something is stuck. */}
+        <span className="text-[9px] tabular-nums" style={{ color: PALETTE.starLink }}>
+          {data === null ? '' : active ? '융합 중' : '곧 다음 턴'}
+        </span>
       </header>
 
       <div className="flex flex-1 items-center">

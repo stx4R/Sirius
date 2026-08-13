@@ -41,7 +41,7 @@ export function useOrion(seed: number): Orion {
   // reproducible stream of dialogue rather than two that start on the same value.
   //
   // The line and the face are one piece of state, set together: two pieces would
-  // let a dropped update leave a pleased face over '성도가 닫혔다'.
+  // let a dropped update leave a pleased face over '성단이 닫혔다'.
   const [said, setSaid] = useState(() => ({
     line: lineFor('turnStart', rng),
     mood: MOOD_OF.turnStart,
@@ -85,7 +85,7 @@ export function OrionBubble({
         }}
       >
         {/* ORION names иєвυℓα in one of his round-clear lines, and BOOTH-9a's
-            terminology puts γένεσις and 성도 in the rest — the bubble is `text-sm`,
+            terminology puts γένεσις and 성단 in the rest — the bubble is `text-sm`,
             so Galmuri14 is the face, and it has no glyph for the Greek or the
             Cyrillic. Both are swapped for their sprites here (GDD 11-9). */}
         {withPixelWords(line, PALETTE.starGlow)}

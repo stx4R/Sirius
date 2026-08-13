@@ -36,7 +36,7 @@ export function conditionOf(id: ConstellationId): string {
     case 'shape_T':
       return 'ㅗ자 패턴'
     case 'global':
-      return '성도 최다 문양'
+      return '성단 최다 문양'
     default:
       return `${AXIS_LABELS[rule.axis]} ${rule.length}연속${rule.exact ? '' : ' 이상'}`
   }

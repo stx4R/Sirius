@@ -16,7 +16,7 @@
 
 import { motion } from 'framer-motion'
 import { PALETTE } from '../assets/palette'
-import { At, CANVAS_HEIGHT, CANVAS_WIDTH, LAYOUT } from './Canvas'
+import { At, CANVAS_HEIGHT, CANVAS_WIDTH, LAYOUT, SHOP_LAYOUT } from './Canvas'
 
 /**
  * What the reset says, in one place.
@@ -37,7 +37,14 @@ export const RESET_CONFIRM = {
   confirm: '처음으로',
 } as const
 
-/** The corner button, beside the ? (GDD 12-2 ④). */
+/**
+ * The corner button (GDD 12-2 ④).
+ *
+ * ★ Only the shop has one now. BOOTH-9b took the play screen's copy away to make
+ * room for STAR-CHART, and BOOTH-9c will give that screen an ESC pause window
+ * instead — so the size is read off `SHOP_LAYOUT.reset`, which is the one placement
+ * still standing, rather than off the play-screen entry that no longer exists.
+ */
 export function ResetButton({ onOpen }: { readonly onOpen: () => void }) {
   return (
     <button
@@ -46,8 +53,8 @@ export function ResetButton({ onOpen }: { readonly onOpen: () => void }) {
       onClick={onOpen}
       className="rounded text-[11px] font-bold"
       style={{
-        width: LAYOUT.reset.w,
-        height: LAYOUT.reset.h,
+        width: SHOP_LAYOUT.reset.w,
+        height: SHOP_LAYOUT.reset.h,
         background: PALETTE.panel,
         color: PALETTE.starGlow,
         outline: `1px solid ${PALETTE.panelEdge}`,

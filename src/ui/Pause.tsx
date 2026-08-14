@@ -24,15 +24,14 @@
 // destructive items call the store actions the end-of-run banner already calls.
 
 import { motion } from 'framer-motion'
-import { useMemo } from 'react'
-import { mulberry32 } from '../core/rng'
 import type { ConstellationId } from '../core/types'
 import { PALETTE } from '../assets/palette'
 import { At, CANVAS_HEIGHT, CANVAS_WIDTH, LAYOUT } from './Canvas'
 import { HelpCard } from './Coach'
+import { MenuRow, StarField } from './Menu'
 import { RESTART_CONFIRM, ResetConfirm, TITLE_CONFIRM } from './Reset'
+import { SETTINGS_TEXT, SettingsPage } from './Settings'
 import { SiriusSymbol } from './Sirius'
-import { setAnimations, useAnimations } from './motion'
 
 /**
  * Which page of the window is up. `menu` is the window itself; the other four are
@@ -70,176 +69,7 @@ export const PAUSE_MENU = [
 export const PAUSE_TEXT = {
   heading: '일시 정지',
   hint: 'ESC 키로 이 창을 열고 닫습니다',
-  settings: '설정',
-  settingsHint: 'ESC 키로 메뉴로 돌아갑니다',
-  animations: '애니메이션',
-  on: '켜기',
-  off: '끄기',
-  animationsNote:
-    '끄면 융합 걷기와 카드 발동 연출을 건너뜁니다. 점수는 그대로이고 턴이 더 빨리 넘어갑니다.',
-  back: '돌아가기',
 } as const
-
-/**
- * The star field behind the column.
- *
- * ★ Seeded, not `Math.random()` (CLAUDE.md §8). The rule is there so the simulator
- * and the tests reproduce, and it applies to decoration for a third reason: every
- * `npm run shot` has to photograph the same sky, or the duplicate check at the end
- * of the screenshot tool is comparing two pictures that were never the same.
- *
- * The tones come off the palette and land where GDD 11-7 already puts them —
- * `panelEdge` is named "the faint specks behind a star chart", so most of the sky
- * is that, and the handful of `starWhite` ones are the only 2px dots.
- */
-const FIELD_SEED = 9031
-const FIELD_STARS = 120
-
-interface Star {
-  readonly x: number
-  readonly y: number
-  readonly size: number
-  readonly ink: string
-}
-
-function starField(): readonly Star[] {
-  const rng = mulberry32(FIELD_SEED)
-  const stars: Star[] = []
-
-  for (let i = 0; i < FIELD_STARS; i++) {
-    // Whole pixels, so a 1px dot is a dot rather than two grey ones (CLAUDE.md §7).
-    const x = Math.floor(rng() * CANVAS_WIDTH)
-    const y = Math.floor(rng() * CANVAS_HEIGHT)
-    const tone = rng()
-    const ink =
-      tone < 0.08
-        ? PALETTE.starWhite
-        : tone < 0.3
-          ? PALETTE.starGlow
-          : tone < 0.65
-            ? PALETTE.starLink
-            : PALETTE.panelEdge
-
-    stars.push({ x, y, size: tone < 0.08 ? 2 : 1, ink })
-  }
-
-  return stars
-}
-
-/**
- * One row of the menu.
- *
- * Plain text on the sky rather than a filled button, which is the mock's list and
- * also the honest shape: five equally weighted choices, none of them the one the
- * window is pushing. The lit state is on hover and on focus, so a keyboard tab
- * shows the same thing a mouse does.
- */
-function MenuRow({
-  label,
-  reduced,
-  onPick,
-}: {
-  readonly label: string
-  readonly reduced: boolean
-  readonly onPick: () => void
-}) {
-  const row = LAYOUT.pause.menu
-
-  return (
-    <motion.button
-      type="button"
-      data-pause={label}
-      onClick={onPick}
-      className="rounded text-sm"
-      style={{ width: row.w, height: row.h, cursor: 'pointer' }}
-      initial={false}
-      animate={{ backgroundColor: 'rgba(0,0,0,0)', color: PALETTE.starGlow }}
-      whileHover={{ backgroundColor: PALETTE.panel, color: PALETTE.starWhite }}
-      whileFocus={{ backgroundColor: PALETTE.panel, color: PALETTE.starWhite }}
-      transition={{ duration: reduced ? 0 : 0.12 }}
-    >
-      {label}
-    </motion.button>
-  )
-}
-
-/** The lit / plain pair the setting is chosen with. */
-function Choice({
-  label,
-  chosen,
-  onPick,
-}: {
-  readonly label: string
-  readonly chosen: boolean
-  readonly onPick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={chosen}
-      onClick={onPick}
-      className="rounded text-[11px] font-bold"
-      style={{
-        width: LAYOUT.pause.settings.control,
-        height: 32,
-        background: chosen ? PALETTE.nebulaTeal : PALETTE.panel,
-        color: chosen ? PALETTE.void : PALETTE.starGlow,
-        outline: `1px solid ${chosen ? PALETTE.nebulaTeal : PALETTE.panelEdge}`,
-        cursor: 'pointer',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
-
-/**
- * The settings page (BOOTH-9c).
- *
- * ★ One row, because one row is all the game can honestly offer. Volume is not here
- * — Howler is installed and imported nowhere in `src/`, so there is no sound to turn
- * down and a slider would be a control over nothing. Resolution is not here either:
- * GDD 11-10 makes the 1120×630 canvas an absolute rule and the window already picks
- * the integer scale that fits, so there is nothing left to choose. Both are recorded
- * in GDD 12-2-d rather than left as an unexplained absence.
- */
-function Settings({ reduced, onBack }: { readonly reduced: boolean; readonly onBack: () => void }) {
-  const box = LAYOUT.pause.settings
-  const on = useAnimations()
-
-  return (
-    <At x={box.x} y={box.y} w={box.w} h={box.h}>
-      <div className="flex h-full w-full flex-col gap-3">
-        <div
-          className="flex items-center justify-between rounded px-3"
-          style={{
-            height: box.row,
-            background: PALETTE.panel,
-            outline: `1px solid ${PALETTE.panelEdge}`,
-          }}
-        >
-          <span className="text-[11px]" style={{ color: PALETTE.starWhite }}>
-            {PAUSE_TEXT.animations}
-          </span>
-          <div className="flex gap-2" data-setting="animations">
-            <Choice label={PAUSE_TEXT.on} chosen={on} onPick={() => setAnimations(true)} />
-            <Choice label={PAUSE_TEXT.off} chosen={!on} onPick={() => setAnimations(false)} />
-          </div>
-        </div>
-
-        <p className="text-[11px] leading-relaxed" style={{ color: PALETTE.starGlow }}>
-          {PAUSE_TEXT.animationsNote}
-        </p>
-
-        <div className="flex-1" />
-
-        <div className="flex justify-center">
-          <MenuRow label={PAUSE_TEXT.back} reduced={reduced} onPick={onBack} />
-        </div>
-      </div>
-    </At>
-  )
-}
 
 export function PauseWindow({
   page,
@@ -262,9 +92,6 @@ export function PauseWindow({
   readonly onTitle: () => void
 }) {
   const spot = LAYOUT.pause
-  // Built once for the life of the page: nothing varies the sky, and rebuilding
-  // 120 stars every time the window opens would be 120 new dots each time.
-  const stars = useMemo(starField, [])
   const settings = page === 'settings'
 
   return (
@@ -281,19 +108,7 @@ export function PauseWindow({
           // settlement the player is trying to watch while the window holds it.
           style={{ position: 'relative', background: PALETTE.void }}
         >
-          {stars.map((star, i) => (
-            <span
-              key={i}
-              style={{
-                position: 'absolute',
-                left: star.x,
-                top: star.y,
-                width: star.size,
-                height: star.size,
-                background: star.ink,
-              }}
-            />
-          ))}
+          <StarField />
 
           <At x={CANVAS_WIDTH / 2} y={spot.symbol.y} centre>
             <SiriusSymbol />
@@ -304,12 +119,17 @@ export function PauseWindow({
               className="whitespace-nowrap text-[22px] font-bold leading-none"
               style={{ color: PALETTE.starWhite }}
             >
-              {settings ? PAUSE_TEXT.settings : PAUSE_TEXT.heading}
+              {settings ? SETTINGS_TEXT.heading : PAUSE_TEXT.heading}
             </span>
           </At>
 
           {settings ? (
-            <Settings reduced={reduced} onBack={() => onPage('menu')} />
+            <SettingsPage
+              box={spot.settings}
+              rowWidth={spot.menu.w}
+              reduced={reduced}
+              onBack={() => onPage('menu')}
+            />
           ) : (
             <At x={spot.menu.x} y={spot.menu.y} w={spot.menu.w}>
               <div className="flex flex-col" style={{ gap: spot.menu.gap }}>
@@ -318,6 +138,8 @@ export function PauseWindow({
                     key={item.id}
                     label={item.label}
                     reduced={reduced}
+                    width={spot.menu.w}
+                    height={spot.menu.h}
                     onPick={item.id === 'resume' ? onResume : () => onPage(item.id)}
                   />
                 ))}
@@ -331,7 +153,7 @@ export function PauseWindow({
                 void `starLink` measures about 2.5:1 — the same colour the title
                 screen's hint uses reads at nearly 8:1. */}
             <span className="whitespace-nowrap text-[11px]" style={{ color: PALETTE.starGlow }}>
-              {settings ? PAUSE_TEXT.settingsHint : PAUSE_TEXT.hint}
+              {settings ? SETTINGS_TEXT.hint : PAUSE_TEXT.hint}
             </span>
           </At>
         </motion.div>

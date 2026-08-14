@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  CODEX_LAYOUT,
   LAYOUT,
   NEBULA_SCALE,
   ORACLE_MAX_ROWS,
@@ -9,9 +10,19 @@ import {
   TITLE_LAYOUT,
   canvasScale,
 } from '../src/ui/Canvas'
+
+/**
+ * The face a menu row is set in (`MenuRow`), and the one figure the two menu
+ * screens' width checks are made against. 22px is Galmuri11 at 2× — measured off
+ * the mock, whose menu ink is 20px tall and 93px wide for `게임 시작` (BOOTH-9d).
+ */
+const MENU_ROW_PX = 22
 import { COACH_ORDER } from '../src/ui/Coach'
-import { PAUSE_MENU, PAUSE_TEXT } from '../src/ui/Pause'
+import { CODEX_TABS, CODEX_TEXT } from '../src/ui/Codex'
+import { PAUSE_MENU } from '../src/ui/Pause'
 import { RESET_CONFIRM } from '../src/ui/Reset'
+import { SETTINGS_TEXT } from '../src/ui/Settings'
+import { LOCKED_NOTE, TITLE_MENU } from '../src/ui/Title'
 import { DECK_NAME_COLUMN } from '../src/ui/Shop'
 import { CARD_WIDTH, NEBULA_HEIGHT, NEBULA_WIDTH, SIRIUS_SIZE } from '../src/assets/pixels'
 import {
@@ -618,20 +629,21 @@ describe('canvas layout (GDD 11-10)', () => {
     expect(spot.menu.y + menu).toBeLessThanOrEqual(spot.hint.y)
   })
 
-  // Every label has to fit its row at the face it is set in — 14px for the menu,
-  // 11px for the two settings choices.
+  // Every label has to fit its row at the face it is set in — 22px for a menu row
+  // (`MenuRow`, shared with the main page since BOOTH-9d), 11px for the two settings
+  // choices.
   it('fits every label in the row it is drawn in', () => {
     const spot = LAYOUT.pause
 
     for (const item of PAUSE_MENU) {
-      expect(item.label.length * 14, item.label).toBeLessThanOrEqual(spot.menu.w)
+      expect(item.label.length * MENU_ROW_PX, item.label).toBeLessThanOrEqual(spot.menu.w)
     }
-    for (const label of [PAUSE_TEXT.on, PAUSE_TEXT.off, PAUSE_TEXT.back]) {
+    for (const label of [SETTINGS_TEXT.on, SETTINGS_TEXT.off, SETTINGS_TEXT.back]) {
       expect(label.length * 11, label).toBeLessThanOrEqual(spot.settings.control)
     }
     // The animation row is a label on the left and the two choices on the right.
     const CHOICES = spot.settings.control * 2 + 8
-    expect(PAUSE_TEXT.animations.length * 11 + CHOICES + 12 * 3).toBeLessThanOrEqual(
+    expect(SETTINGS_TEXT.animations.length * 11 + CHOICES + 12 * 3).toBeLessThanOrEqual(
       spot.settings.w,
     )
   })
@@ -818,20 +830,28 @@ describe('shop layout (GDD 9-3, 11-10)', () => {
   })
 })
 
-// BOOTH-1: the title is a third screen on the same plane, so it answers to the
-// same rules (GDD 11-10). Nothing here is a modal, so every box is in the
-// pairwise check — unlike the shop, which exempts `replace`.
-describe('title layout (GDD 11-10, 12-2)', () => {
-  // BOOTH-9a split the one `title` box into the logo sheet's vertical lockup — the
-  // symbol sprite, the wordmark and the tagline under it (GDD 11-10). The symbol is
-  // centred on the plane rather than placed from its left edge, so its box is
-  // derived the way the component derives it.
+// BOOTH-9d: the main page and its three sub-pages, on the same plane and by the
+// same rules (GDD 11-10).
+//
+// ★ The figures it is checked against are the mock's, read off
+// `docs/brand/title-screen-mock-1120x630.png` — it is 1120×630, the canvas exactly,
+// so its ink boxes are coordinates rather than a reference. The whole point of this
+// screen is that it *is* the mock, and a layout that drifted off it by 20px would
+// look fine and still be wrong.
+describe('main page layout (GDD 11-10, 12-2)', () => {
+  /** Ink bounding boxes measured off the mock (BOOTH-9d). */
+  const MOCK = {
+    symbol: { x0: 503, y0: 97, x1: 622, y1: 210 },
+    wordmark: { x0: 335, y0: 262, x1: 784, y1: 378 },
+    rows: [432, 472, 512, 552],
+  } as const
+
   const boxes = {
     symbol: {
-      x: (CANVAS_WIDTH - TITLE_LAYOUT.symbol.size) / 2,
+      x: (CANVAS_WIDTH - TITLE_LAYOUT.symbol.size * TITLE_LAYOUT.symbol.scale) / 2,
       y: TITLE_LAYOUT.symbol.y,
-      w: TITLE_LAYOUT.symbol.size,
-      h: TITLE_LAYOUT.symbol.size,
+      w: TITLE_LAYOUT.symbol.size * TITLE_LAYOUT.symbol.scale,
+      h: TITLE_LAYOUT.symbol.size * TITLE_LAYOUT.symbol.scale,
     },
     wordmark: {
       x: TITLE_LAYOUT.wordmark.x,
@@ -839,18 +859,11 @@ describe('title layout (GDD 11-10, 12-2)', () => {
       w: TITLE_LAYOUT.wordmark.w,
       h: TITLE_LAYOUT.wordmark.h,
     },
-    mode: { x: TITLE_LAYOUT.mode.x, y: TITLE_LAYOUT.mode.y, w: TITLE_LAYOUT.mode.w, h: TITLE_LAYOUT.mode.h },
-    starting: {
-      x: TITLE_LAYOUT.starting.x,
-      y: TITLE_LAYOUT.starting.y,
-      w: TITLE_LAYOUT.starting.w,
-      h: TITLE_LAYOUT.starting.h,
-    },
-    start: {
-      x: TITLE_LAYOUT.start.x,
-      y: TITLE_LAYOUT.start.y,
-      w: TITLE_LAYOUT.start.w,
-      h: TITLE_LAYOUT.start.h,
+    menu: {
+      x: TITLE_LAYOUT.menu.x,
+      y: TITLE_LAYOUT.menu.y,
+      w: TITLE_LAYOUT.menu.w,
+      h: TITLE_LAYOUT.menu.h * TITLE_MENU.length + TITLE_LAYOUT.menu.gap * (TITLE_MENU.length - 1),
     },
   }
 
@@ -877,94 +890,145 @@ describe('title layout (GDD 11-10, 12-2)', () => {
     }
   })
 
-  // GDD 12-2: a booth participant reads this unaided, so the order is the order
-  // the decisions are made in — name, then mode, then constellation, then start.
-  it('stacks the screen in the order the choices are made', () => {
+  // ★ The mock, held down. Each figure is allowed to sit within a few pixels of the
+  // ink it was measured from — the type is set rather than drawn and the mark is on
+  // a whole-multiple scale, so neither can land on the mock's pixel exactly. Neither
+  // may wander, though, which is what these slacks are for.
+  //
+  // ★ THE SYMBOL IS CHECKED ON ITS INK, NOT ITS BOX. The mark fills 38×35 of its
+  // 56×56 map, so the box is much bigger than what shows — comparing boxes to the
+  // mock's ink is what put it at 2× and 44px too small on the first pass.
+  it('lands the symbol and the wordmark where the mock puts them', () => {
+    const mark = TITLE_LAYOUT.symbol
+    const near = (got: number, want: number, slack: number, what: string) =>
+      expect(Math.abs(got - want), `${what}: ${got} vs mock ${want}`).toBeLessThanOrEqual(slack)
+
+    const inkTop = mark.y + mark.inkInset * mark.scale
+
+    near(inkTop, MOCK.symbol.y0, 2, 'symbol ink top')
+    near(mark.inkHeight * mark.scale, MOCK.symbol.y1 - MOCK.symbol.y0 + 1, 2, 'symbol ink height')
+    // 18px wider than the mock, because this mark's companion star reaches further
+    // out than the one in the picture. The height is what the scale was set on.
+    near(mark.inkWidth * mark.scale, MOCK.symbol.x1 - MOCK.symbol.x0 + 1, 20, 'symbol ink width')
+    // The ink is smaller than the map it is drawn on, and the box has to hold it.
+    expect(mark.inkWidth * mark.scale).toBeLessThan(boxes.symbol.w)
+    near(boxes.wordmark.y, MOCK.wordmark.y0, 6, 'wordmark top')
+  })
+
+  it('puts the four menu rows on the mock 40px pitch', () => {
+    expect(TITLE_MENU).toHaveLength(MOCK.rows.length)
+    for (let i = 1; i < MOCK.rows.length; i++) {
+      expect(MOCK.rows[i] - MOCK.rows[i - 1]).toBe(TITLE_LAYOUT.menu.h + TITLE_LAYOUT.menu.gap)
+    }
+    // The 22px ink of a row is centred in its 40px box, so the first row's text
+    // lands within a pixel or two of where the mock drew it.
+    const inkTop = TITLE_LAYOUT.menu.y + (TITLE_LAYOUT.menu.h - MENU_ROW_PX) / 2
+    expect(Math.abs(inkTop - MOCK.rows[0])).toBeLessThanOrEqual(3)
+  })
+
+  it('stacks the main page in the mock order', () => {
     const tops = [
       TITLE_LAYOUT.symbol.y,
       TITLE_LAYOUT.wordmark.y,
+      TITLE_LAYOUT.menu.y,
       TITLE_LAYOUT.tagline.y,
-      TITLE_LAYOUT.mode.y,
-      TITLE_LAYOUT.starting.y,
-      TITLE_LAYOUT.start.y,
     ]
 
     for (let i = 1; i < tops.length; i++) expect(tops[i]).toBeGreaterThan(tops[i - 1])
   })
 
-  // GDD 11-10: the lockup is symbol over wordmark over tagline, and the whole of it
-  // has to clear the mode label — which is what the 36px shift down the rest of the
-  // screen took bought. A tagline running into that label is the failure this holds.
-  it('keeps the logo lockup clear of the first choice row', () => {
-    expect(TITLE_LAYOUT.symbol.y + TITLE_LAYOUT.symbol.size).toBeLessThanOrEqual(
-      TITLE_LAYOUT.wordmark.y,
-    )
-    expect(TITLE_LAYOUT.wordmark.y + TITLE_LAYOUT.wordmark.h).toBeLessThanOrEqual(
-      TITLE_LAYOUT.tagline.y,
-    )
-    // The tagline is one 11px line, the size class the component sets it in.
-    expect(TITLE_LAYOUT.tagline.y + 11).toBeLessThanOrEqual(TITLE_LAYOUT.mode.label.y)
+  // 126px = Galmuri14 × 9 (index.css maps size → face), which is the multiple the
+  // mock's 450×117 of ink was drawn at. The box has to hold that line.
+  it('gives the wordmark room for its 126px line', () => {
+    expect(TITLE_LAYOUT.wordmark.h).toBeGreaterThanOrEqual(126)
+    expect(126 % 14).toBe(0)
   })
 
-  // The wordmark is type, not a sprite, and 42px is Galmuri14 at 3× — the face the
-  // logo sheet builds the wordmark on. 44px would land on Galmuri11 (index.css maps
-  // size to face), which is a different wordmark, so the box has to hold 42 and the
-  // line height it needs.
-  it('gives the wordmark room for a 42px line', () => {
-    expect(TITLE_LAYOUT.wordmark.h).toBeGreaterThanOrEqual(42)
-  })
-
-  // CLAUDE.md §7: the sprite is shown at a whole multiple of its own map, and the
-  // map is square, so the box it is given has to be the map's size exactly.
-  it('shows the symbol at its own size', () => {
+  // CLAUDE.md §7: the sprite is shown at a whole multiple of its own map.
+  it('shows the symbol at a whole multiple of its own size', () => {
     expect(TITLE_LAYOUT.symbol.size).toBe(SIRIUS_SIZE)
+    expect(Number.isInteger(TITLE_LAYOUT.symbol.scale)).toBe(true)
   })
 
-  it('fits both options of each choice row inside it', () => {
-    const rows = [
-      { row: TITLE_LAYOUT.mode, count: Object.keys(MODE_PRESETS).length },
-      { row: TITLE_LAYOUT.starting, count: STARTING_CONSTELLATION_CHOICES.length },
-    ]
-
-    for (const { row, count } of rows) {
-      expect(count).toBe(2)
-      expect(row.entry * count + row.gap * (count - 1)).toBeLessThanOrEqual(row.w)
-    }
-  })
-
-  it('keeps each choice label clear of the row under it', () => {
-    for (const row of [TITLE_LAYOUT.mode, TITLE_LAYOUT.starting]) {
-      expect(row.label.y).toBeLessThan(row.y)
-      expect(row.label.x).toBe(row.x)
-    }
-  })
-
-  // Both choice rows are the same width at the same x, so the second question
-  // reads as a continuation of the first rather than as a new screen.
-  it('lines the two choice rows up with each other', () => {
-    expect(TITLE_LAYOUT.mode.x).toBe(TITLE_LAYOUT.starting.x)
-    expect(TITLE_LAYOUT.mode.w).toBe(TITLE_LAYOUT.starting.w)
-  })
-
-  it('centres the logo, the choice rows and the start button on the plane', () => {
+  it('centres the logo, the menu and the sub-pages on the plane', () => {
     for (const box of [
       boxes.symbol,
       TITLE_LAYOUT.wordmark,
-      TITLE_LAYOUT.mode,
+      TITLE_LAYOUT.menu,
       TITLE_LAYOUT.starting,
       TITLE_LAYOUT.start,
+      TITLE_LAYOUT.settings,
     ]) {
       expect(box.x + box.w / 2).toBe(CANVAS_WIDTH / 2)
     }
   })
 
-  // The hint says why the button will not press yet, so it has to be under it
-  // and still on the plane.
-  it('puts the hint below the start button and inside the plane', () => {
-    expect(TITLE_LAYOUT.hint.y).toBeGreaterThanOrEqual(
-      TITLE_LAYOUT.start.y + TITLE_LAYOUT.start.h,
-    )
-    expect(TITLE_LAYOUT.hint.y).toBeLessThan(CANVAS_HEIGHT)
+  // The tagline is at the foot of the page rather than inside the lockup (GDD 11-10,
+  // BOOTH-9d), so what has to hold is that it clears the last menu row and the plane.
+  it('seats the tagline below the menu and inside the plane', () => {
+    expect(TITLE_LAYOUT.tagline.y).toBeGreaterThanOrEqual(boxes.menu.y + boxes.menu.h)
+    expect(TITLE_LAYOUT.tagline.y + 11).toBeLessThanOrEqual(CANVAS_HEIGHT)
+  })
+
+  // Every row is one word at 22px, except the locked one, which carries its reason
+  // as a 9px second line (GDD 12-2-b).
+  it('fits every menu label and the locked note in a row', () => {
+    for (const item of TITLE_MENU) {
+      expect(item.label.length * MENU_ROW_PX, item.label).toBeLessThanOrEqual(TITLE_LAYOUT.menu.w)
+    }
+    expect(LOCKED_NOTE.length * 9).toBeLessThanOrEqual(TITLE_LAYOUT.menu.w)
+    // 22px of label, 4px of gap and a 9px note inside a 40px row.
+    expect(MENU_ROW_PX + 4 + 9).toBeLessThanOrEqual(TITLE_LAYOUT.menu.h)
+  })
+
+  // ---------------------------------------------------- the starting page (13-5)
+
+  it('fits both starting choices in their row', () => {
+    const row = TITLE_LAYOUT.starting
+
+    expect(STARTING_CONSTELLATION_CHOICES).toHaveLength(2)
+    expect(row.entry * 2 + row.gap).toBeLessThanOrEqual(row.w)
+    // GDD 13-5 is the reason this page exists at all: two presets, two choices.
+    expect(Object.keys(MODE_PRESETS)).toHaveLength(2)
+  })
+
+  it('stacks the starting page and keeps it on the plane', () => {
+    const row = TITLE_LAYOUT.starting
+    const tops = [row.heading.y, row.note.y, row.y, TITLE_LAYOUT.start.y, TITLE_LAYOUT.hint.y]
+
+    for (let i = 1; i < tops.length; i++) expect(tops[i]).toBeGreaterThan(tops[i - 1])
+    expect(row.heading.y).toBeGreaterThanOrEqual(TITLE_LAYOUT.back.y + TITLE_LAYOUT.back.h)
+    expect(row.y + row.h).toBeLessThanOrEqual(TITLE_LAYOUT.start.y)
+    expect(TITLE_LAYOUT.hint.y + 11).toBeLessThanOrEqual(CANVAS_HEIGHT)
+  })
+
+  // ---------------------------------------------------- the settings page (12-2-d)
+
+  // The one page, two hosts (`Settings.tsx`). Same box either way, so it is the same
+  // page rather than a second one that happens to look similar.
+  it('gives the settings page the same box the pause window gives it', () => {
+    for (const key of ['w', 'h', 'row', 'control'] as const) {
+      expect(TITLE_LAYOUT.settings[key], key).toBe(LAYOUT.pause.settings[key])
+    }
+  })
+
+  it('stacks the settings page and keeps it on the plane', () => {
+    const box = TITLE_LAYOUT.settings
+
+    expect(box.heading.y).toBeGreaterThanOrEqual(TITLE_LAYOUT.back.y + TITLE_LAYOUT.back.h)
+    expect(box.heading.y + 22).toBeLessThanOrEqual(box.y)
+    expect(box.y + box.h).toBeLessThanOrEqual(TITLE_LAYOUT.settingsHint.y)
+    expect(TITLE_LAYOUT.settingsHint.y + 11).toBeLessThanOrEqual(CANVAS_HEIGHT)
+  })
+
+  it('keeps the back button in one corner on every sub-page', () => {
+    const back = TITLE_LAYOUT.back
+
+    expect(back.x).toBeGreaterThanOrEqual(0)
+    expect(back.y).toBeGreaterThanOrEqual(0)
+    expect(back.x + back.w).toBeLessThanOrEqual(CANVAS_WIDTH)
+    // It must not reach into the column any page centres on the plane.
+    expect(back.x + back.w).toBeLessThanOrEqual(TITLE_LAYOUT.settings.x)
   })
 
   // CLAUDE.md §7 and GDD 11-10: the plane is drawn in whole pixels, so a
@@ -977,6 +1041,115 @@ describe('title layout (GDD 11-10, 12-2)', () => {
     )
 
     expect(numbers.length).toBeGreaterThan(0)
+    for (const value of numbers) expect(Number.isInteger(value)).toBe(true)
+  })
+})
+
+// BOOTH-9d: 도감, the fifth screen. Not a modal — it replaces the main page's body —
+// so it gets the same on-the-plane checks the other screens get.
+describe('codex layout (GDD 11-10, 12-2-e)', () => {
+  const boxes = {
+    tabs: {
+      x: CODEX_LAYOUT.tabs.x,
+      y: CODEX_LAYOUT.tabs.y,
+      w: CODEX_LAYOUT.tabs.w,
+      h: CODEX_LAYOUT.tabs.h,
+    },
+    body: {
+      x: CODEX_LAYOUT.body.x,
+      y: CODEX_LAYOUT.body.y,
+      w: CODEX_LAYOUT.body.w,
+      h: CODEX_LAYOUT.body.h,
+    },
+  }
+
+  it('keeps every placed box on the plane and clear of the others', () => {
+    for (const [name, box] of Object.entries(boxes)) {
+      expect(box.x, `${name} left`).toBeGreaterThanOrEqual(0)
+      expect(box.y, `${name} top`).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.w, `${name} right`).toBeLessThanOrEqual(CANVAS_WIDTH)
+      expect(box.y + box.h, `${name} bottom`).toBeLessThanOrEqual(CANVAS_HEIGHT)
+    }
+    expect(boxes.tabs.y + boxes.tabs.h).toBeLessThanOrEqual(boxes.body.y)
+    expect(CODEX_LAYOUT.heading.y + 22).toBeLessThanOrEqual(boxes.tabs.y)
+    // The header row shares its band with the shared back button.
+    expect(TITLE_LAYOUT.back.y + TITLE_LAYOUT.back.h).toBeLessThanOrEqual(boxes.tabs.y)
+  })
+
+  it('fits its tabs across the strip, centred', () => {
+    const tabs = CODEX_LAYOUT.tabs
+    const count = CODEX_TABS.length
+
+    expect(count).toBe(3)
+    expect(tabs.entry * count + tabs.gap * (count - 1)).toBe(tabs.w)
+    expect(tabs.x + tabs.w / 2).toBe(CANVAS_WIDTH / 2)
+    for (const tab of CODEX_TABS) {
+      expect(tab.label.length * 11, tab.label).toBeLessThanOrEqual(tabs.entry)
+    }
+  })
+
+  // ★ Why there are three tabs rather than one page: the bodies do not fit together.
+  // Twelve cards at their measured 142px entry are two rows; adding the chip rows
+  // and the companion table runs past a body that cannot scroll (GDD 11-10).
+  it('holds the tallest tab, and could not hold all three at once', () => {
+    const body = CODEX_LAYOUT.body
+    const inner = body.h - body.pad * 2
+    const CARD_ENTRY = 142
+    const SECTION_LABEL = 14
+
+    const zodiac = SECTION_LABEL + 12 + CARD_ENTRY * 2 + 8
+    // Three chip sections: label, a 64px sprite row and its 9px caption each.
+    const chips = (SECTION_LABEL + 4 + 64 + 4 + 11) * 3 + 16 * 2
+    // Header row plus five tier rows, then the locked line.
+    const companions = SECTION_LABEL + 12 + 12 + 18 * 5 + 12 + 11
+
+    for (const [name, height] of [
+      ['zodiac', zodiac],
+      ['chips', chips],
+      ['companions', companions],
+    ] as const) {
+      expect(height, name).toBeLessThanOrEqual(inner)
+    }
+    expect(zodiac + chips + companions).toBeGreaterThan(inner)
+  })
+
+  // Six cards a row, which is what decides the entry width the zodiac tab passes
+  // to `ConstellationCard`.
+  it('fits six constellation cards across the body', () => {
+    const inner = CODEX_LAYOUT.body.w - CODEX_LAYOUT.body.pad * 2
+    const ENTRY = 160
+
+    expect(ENTRY * 6 + 8 * 5).toBeLessThanOrEqual(inner)
+    expect(ENTRY * 7 + 8 * 6).toBeGreaterThan(inner)
+  })
+
+  // The chip rows: five basics at 190 and ten specials at 92, each with its gap.
+  it('fits both chip rows across the body', () => {
+    const inner = CODEX_LAYOUT.body.w - CODEX_LAYOUT.body.pad * 2
+
+    expect(190 * 5 + 10 * 4).toBeLessThanOrEqual(inner)
+    expect(92 * 10 + 6 * 9).toBeLessThanOrEqual(inner)
+    // A 64px sprite (the 32px map at 2×) has to fit the narrower of the two.
+    expect(64).toBeLessThanOrEqual(92)
+  })
+
+  it('keeps its captions short enough to sit beside their section label', () => {
+    const inner = CODEX_LAYOUT.body.w - CODEX_LAYOUT.body.pad * 2
+
+    for (const note of [
+      CODEX_TEXT.basicsNote,
+      CODEX_TEXT.specialsNote,
+      CODEX_TEXT.drifterNote,
+      CODEX_TEXT.zodiacNote,
+      CODEX_TEXT.companionsNote,
+    ]) {
+      expect(note.length * 9, note).toBeLessThanOrEqual(inner)
+    }
+  })
+
+  it('places everything on whole pixels', () => {
+    const numbers = Object.values(CODEX_LAYOUT).flatMap((entry) => Object.values(entry))
+
     for (const value of numbers) expect(Number.isInteger(value)).toBe(true)
   })
 })

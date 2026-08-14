@@ -49,22 +49,23 @@ import {
 const SHUFFLE_MS = 550
 
 /**
- * The vote line on the end screen (GDD 12-4).
+ * The vote line on the end screen (GDD 12-4). **Final wording (BOOTH-9d).**
  *
  * GDD 12-1 makes throughput the score — GBL is ranked by the participants' vote,
  * so a run that ends without ever mentioning the vote spends twenty-eight minutes
  * of somebody's attention and then asks for nothing. This is the one place the
  * game asks.
  *
- * ⚠️ **PLACEHOLDER — the wording is not final.** The vote mechanism itself is not
- * decided yet, so what is here holds the slot and the layout; the real copy is the
- * author's to write. No QR code, deliberately: there is nothing to point one at.
- *
  * The two outcomes read differently on purpose, and only in the half before the
  * ask. GDD 12-4 says a participant who fails and leaves costs a vote, so on a loss
  * the line has work to do that it does not have on a clear — it has to close the
  * run without the ask reading as "you lost, now vote for us". The ask itself is
  * the same sentence in both.
+ *
+ * ★ NO QR CODE AND NO ADDRESS, and that is not a gap left for later. The booth's
+ * vote is cast at the booth (GDD 12-1), so there is nothing for a link to point at
+ * — and a dead link on the last screen of a run is worse than no link. It is held
+ * by `tests/booth.test.ts` rather than by this comment.
  */
 export const VOTE_NOTE: Readonly<Record<'cleared' | 'gameOver', string>> = {
   cleared: '재미있었다면 부스에서 투표해 주세요.',

@@ -299,79 +299,131 @@ export const SHOP_LAYOUT = {
 export const NEBULA_SCALE = 3
 
 /**
- * The title screen, on the same plane and by the same rules. A third table for
- * the same reason the shop has a second: it shares no element with either of the
- * other two screens, so mixing them would mean reading past two layouts to find
- * this one.
+ * The main page and its three sub-pages, on the same plane and by the same rules.
+ * A third table for the same reason the shop has a second: it shares no element
+ * with either of the other two screens, so mixing them would mean reading past two
+ * layouts to find this one.
  *
- * One column down the middle, in the order the player has to decide things:
- * the game's name, then the mode, then the starting constellation, then the
- * button that commits both. Nothing is offered to the side of anything else —
- * a booth participant reads this unaided (GDD 12-2), and a single column has
- * only one place the eye can go next.
+ * ★ BOOTH-9d replaced the screen. It used to ask both of a run's questions at once
+ * — mode and starting constellation, in one column — and it is now
+ * `docs/brand/title-screen-mock-1120x630.png`: symbol, wordmark, four menu rows.
+ * The starting constellation moved to a second page (`starting` below), because the
+ * mock's menu has no room for it and GDD 13-5 will not let the choice be dropped.
  *
- * The two choice rows are the same width and sit at the same x, so the second
- * question looks like a continuation of the first rather than a new screen.
- * `entry` is one option's footprint and `w` holds two of them plus the gap.
+ * ★ EVERY FIGURE IN `symbol`, `wordmark` AND `menu` IS MEASURED OFF THE MOCK, not
+ * chosen. The mock is 1120×630 — the canvas exactly — so its pixels are these
+ * pixels. Ink bounding boxes, read off the PNG:
+ *
+ *     symbol      y  97…210   x 503…622   (120×114)
+ *     wordmark    y 262…378   x 335…784   (450×117)
+ *     게임 시작    y 432…451   x 511…603   ( 93× 20)
+ *     부스 모드    y 472…489   x 513…604   ( 92× 18)
+ *     도감        y 512…531   x 540…577   ( 38× 20)
+ *     설정        y 552…571   x 540…578   ( 39× 20)
+ *
+ * The four rows are on a 40px pitch and every one of them is centred on x≈559.
  */
-/**
- * ★ The lower block sits 36px further down than it did before BOOTH-9a, and the
- * title block above it is 126px tall rather than 78.
- *
- * The text `Sirius` became the logo sheet's vertical lockup (GDD 11-10) — the symbol
- * over the wordmark, with the tagline under it — and three stacked elements do not
- * fit in the space one line of type occupied. The 36px came out of the bottom
- * margin, which was 68px of nothing below the hint; it is now 32px, and every box
- * below the title moved by the same amount so the column's own spacing is untouched.
- */
-const TITLE_SHIFT = 36
-
 export const TITLE_LAYOUT = {
   /**
-   * The vertical lockup (GDD 11-10, sheet ①). Three boxes rather than one, because
-   * the symbol is a sprite, the wordmark is type and the tagline is a third size —
-   * and a sprite cannot be centred on a text baseline by guessing.
+   * The 56×56 mark at **3×** (CLAUDE.md §7 allows nothing but whole multiples).
    *
-   * `symbol` is the 56×56 map at 1×: a whole multiple (CLAUDE.md §7), and the
-   * largest one that leaves the wordmark room above the mode row.
+   * ★ The scale is set from the *ink*, not from the box, and that is the whole
+   * reason it is 3 rather than 2. The mark does not fill its own map: measured in
+   * the browser, its ink is 46×38 of the 56×56 grid, starting 9 rows down. So 2×
+   * draws a 112×112 box with only 76×70 showing — against the mock's 120×114 that
+   * reads as a different, smaller logo. 3× puts 138×114 on screen, whose height is
+   * the mock's exactly and whose width overshoots by 18 because this mark's
+   * companion star reaches further out than the one in the picture.
    *
-   * `wordmark` is 42px — Galmuri14 at 3×, which is what the sheet says the wordmark
-   * *is* ("워드마크: Galmuri14"). It is not drawn: Sirius is six Latin letters and
-   * Galmuri has all of them, so type at a whole multiple of the face's own grid
-   * reproduces the sheet exactly, and drawing it would be a second copy to keep in
-   * step. 44px would land on Galmuri11 instead (index.css maps size → face).
+   * `y` is therefore the mock's ink top (97) minus the inset at this scale
+   * (9 × 3 = 27). `tests/canvas.test.ts` derives it the same way rather than
+   * hardcoding 70, so a change of scale cannot leave the mark hanging.
    */
-  symbol: { y: 34, size: 56 },
-  wordmark: { x: 260, y: 94, w: 600, h: 44 },
-  tagline: { y: 146 },
+  symbol: { y: 70, size: 56, scale: 3, inkInset: 9, inkWidth: 46, inkHeight: 38 },
 
-  mode: {
-    x: 228,
-    y: 148 + TITLE_SHIFT,
-    w: 664,
-    h: 76,
-    entry: 320,
-    gap: 24,
-    label: { x: 228, y: 126 + TITLE_SHIFT },
-  },
   /**
-   * Taller than the mode row because GDD 11-5 will not let a constellation card
-   * appear without its name, condition and multiplier — and this screen adds a
-   * plain-language line on top of those, since it is where a player who has
-   * never seen the game decides between an axis they have no way to judge yet.
+   * 126px = Galmuri14 × 9, with 16px of letter-spacing — measured, not chosen.
+   * The mock's wordmark is 450×117 of ink and this draws 451×118; ×8 gives 430×105
+   * and ×10 gives 538×131. `index.css` maps the size to the face, and the sheet
+   * says the wordmark *is* Galmuri14, so any other face would be a different
+   * wordmark (GDD 11-10).
+   *
+   * It is still not drawn as a sprite: `Sirius` is six Latin letters and Galmuri
+   * has all of them, so type at a whole multiple of the face's own grid reproduces
+   * the sheet — and a drawn copy would be a second thing to keep in step.
+   */
+  wordmark: { x: 260, y: 258, w: 600, h: 126, tracking: 16 },
+
+  /**
+   * Four rows on the mock's 40px pitch, so the ink of each label lands on the row
+   * the mock put it on. `gap` is 0 because the pitch *is* the row height: the rows
+   * are flush, and only the hover fill shows where one ends.
+   */
+  menu: { x: 420, y: 422, w: 280, h: 40, gap: 0 },
+
+  /**
+   * The tagline (GDD 2, 11-10 sheet ①), at the foot of the page rather than under
+   * the wordmark. The mock leaves 54px between the wordmark and the first menu row
+   * and an 11px line there would sit 22px above `게임 시작` — close enough to read as
+   * that row's caption. Down here it reads as the strapline it is, and the mock's
+   * composition is untouched. See GDD 11-10.
+   */
+  tagline: { y: 600 },
+
+  /** Top-left on every sub-page, so the way back is in one place. ESC does it too. */
+  back: { x: 24, y: 24, w: 96, h: 32 },
+
+  /**
+   * The starting constellation (GDD 13-5), its own page since BOOTH-9d.
+   *
+   * The row is unchanged from the screen this came off — taller than a plain choice
+   * row because GDD 11-5 will not let a constellation card appear without its name,
+   * condition and multiplier, and this page adds a plain-language line on top of
+   * those, since it is where a player who has never seen the game decides between
+   * an axis they have no way to judge yet.
    */
   starting: {
+    heading: { y: 118 },
+    /** 주기(週期)'s one 병기 (GDD 2-3) travelled with the label it is on. */
+    note: { y: 154 },
     x: 228,
-    y: 268 + TITLE_SHIFT,
+    y: 194,
     w: 664,
     h: 184,
     entry: 320,
     gap: 24,
-    label: { x: 228, y: 246 + TITLE_SHIFT },
   },
-  start: { x: 440, y: 476 + TITLE_SHIFT, w: 240, h: 56 },
+  start: { x: 440, y: 418, w: 240, h: 56 },
   /** The line under the button saying why it will not press yet. */
-  hint: { y: 548 + TITLE_SHIFT },
+  hint: { y: 496 },
+
+  /**
+   * The settings page (GDD 12-2-d), which is the pause window's page rendered on
+   * this screen — same component, same session state (`Settings.tsx`).
+   *
+   * Its box is the same 440×240 the pause window gives it, so the one page is the
+   * one size wherever it is opened.
+   */
+  settings: { heading: { y: 130 }, x: 340, y: 206, w: 440, h: 240, row: 40, control: 88 },
+  settingsHint: { y: 480 },
+} as const
+
+/**
+ * 도감 (BOOTH-9d) — the fourth thing on the main page's menu, and the only screen in
+ * the game that is neither a run nor a menu.
+ *
+ * A header row, three tabs, and one body panel. Three tabs rather than one long
+ * page because the alternative is scrolling: the twelve constellation cards alone
+ * are two rows of 142px, and putting the chips and the companion table under them
+ * would run past 630. Nothing here scrolls (GDD 11-10 — the plane does not reflow),
+ * so what does not fit has to become a tab.
+ */
+export const CODEX_LAYOUT = {
+  heading: { y: 28 },
+  /** Three tabs, centred: 3 × 160 + 2 × 8 = 496, so x = (1120 − 496) / 2. */
+  tabs: { x: 312, y: 76, w: 496, h: 36, entry: 160, gap: 8 },
+  /** 40px margins left, right and bottom; the panel holds every tab's body. */
+  body: { x: 40, y: 128, w: 1040, h: 462, pad: 16 },
 } as const
 
 /**

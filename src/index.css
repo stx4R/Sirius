@@ -114,11 +114,18 @@ body {
   font-family: 'Galmuri9', monospace;
 }
 
-/* 14 / 42 — Galmuri14 at 1× and 3×. 42 is the Sirius wordmark (GDD 11-10): the logo
-   sheet builds it on Galmuri14, so the title has to land on that face and not on the
-   Galmuri11 that 44px would pick. */
+/* 14 / 42 / 126 — Galmuri14 at 1×, 3× and 9×. The logo sheet builds the wordmark on
+   Galmuri14, so it has to land on that face and not on the Galmuri11 that 44px would
+   pick.
+
+   126 is the main page's wordmark (BOOTH-9d). It is measured, not chosen: the mock's
+   `Sirius` is 450×117 of ink, and Galmuri14 at 126px with 16px of letter-spacing
+   draws 451×118. 112px (×8) comes out at 430×105 and 140px (×10) at 538×131, so ×9
+   is the multiple the mock was drawn at. 42px stays for anywhere else the wordmark
+   is set small. */
 .text-sm,
-.text-\[42px\] {
+.text-\[42px\],
+.text-\[126px\] {
   font-family: 'Galmuri14', monospace;
 }
 

@@ -20,6 +20,7 @@ import { LAYOUT } from '../src/ui/Canvas'
 import { PAUSE_MENU, PAUSE_TEXT } from '../src/ui/Pause'
 import type { PausePage } from '../src/ui/Pause'
 import { RESET_CONFIRM, RESTART_CONFIRM, TITLE_CONFIRM } from '../src/ui/Reset'
+import { SETTINGS_TEXT } from '../src/ui/Settings'
 import { autoAdvances } from '../src/ui/Settlement'
 import type { AdvanceView } from '../src/ui/Settlement'
 import { animationsOn, setAnimations } from '../src/ui/motion'
@@ -209,8 +210,8 @@ describe('the settings page (GDD 12-2-d)', () => {
   })
 
   it('says what turning them off costs and what it does not', () => {
-    expect(PAUSE_TEXT.animationsNote).toContain('융합')
-    expect(PAUSE_TEXT.animationsNote).toContain('점수')
+    expect(SETTINGS_TEXT.animationsNote).toContain('융합')
+    expect(SETTINGS_TEXT.animationsNote).toContain('점수')
   })
 
   // Both hints name the key, because the window has no visible control that opens
@@ -218,6 +219,6 @@ describe('the settings page (GDD 12-2-d)', () => {
   // get back out of it.
   it('tells the player how to leave every page it has', () => {
     expect(PAUSE_TEXT.hint).toContain('ESC')
-    expect(PAUSE_TEXT.settingsHint).toContain('ESC')
+    expect(SETTINGS_TEXT.hint).toContain('ESC')
   })
 })
